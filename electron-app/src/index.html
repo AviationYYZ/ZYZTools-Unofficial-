@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ZYZTools</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      --bg: #111417;
+      --header: #191d21;
+      --nav: #15191d;
+      --panel: #191e23;
+      --panel-alt: #20262b;
+      --line: #2b343b;
+      --text: #eceff1;
+      --muted: #8d969d;
+      --accent: #40566d;
+      --accent-2: #57738e;
+      --button: #303842;
+      --button-hover: #3b4650;
+      --good: #31543a;
+      --good-line: #4e8059;
+      --warn: #58482c;
+      --warn-line: #80693e;
+      --input: #252b31;
+      --input-line: #323c44;
+      --focus: #5a7b9b;
+      --font: "Segoe UI", Arial, sans-serif;
+      --font-size: 13px;
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: var(--font-size);
+      user-select: none;
+    }
+    body[data-theme="current"] {
+      --bg: #071014;
+      --header: #0b1c23;
+      --nav: #09161c;
+      --panel: #0d1b22;
+      --panel-alt: #102832;
+      --line: #164653;
+      --text: #e8fbff;
+      --muted: #85afba;
+      --accent: #00a7c6;
+      --accent-2: #18d2ef;
+      --button: #123846;
+      --button-hover: #174b5d;
+      --good: #174a36;
+      --good-line: #32c47a;
+      --warn: #4a3d15;
+      --warn-line: #caa33a;
+      --input: #0a222b;
+      --input-line: #1b5968;
+      --focus: #21d4ef;
+      --font: Consolas, "Cascadia Mono", monospace;
+      --font-size: 12px;
+    }
+    body[data-theme="vatcan"] {
+      --bg: #242728;
+      --header: #d5d8d9;
+      --nav: #b9bec1;
+      --panel: #303435;
+      --panel-alt: #3b4042;
+      --line: #6f777b;
+      --text: #f4f5f3;
+      --muted: #c5cacd;
+      --accent: #2e6f45;
+      --accent-2: #48a65e;
+      --button: #5b6265;
+      --button-hover: #697174;
+      --good: #2e6f45;
+      --good-line: #5bb36d;
+      --warn: #a36f22;
+      --warn-line: #d0912c;
+      --input: #202425;
+      --input-line: #777f83;
+      --focus: #58a86a;
+      --font: "Segoe UI", Tahoma, Arial, sans-serif;
+      --font-size: 12px;
+    }
+    body[data-theme="plugincore"] {
+      --bg: #1f2328;
+      --header: #262c33;
+      --nav: #242a31;
+      --panel: #2a3037;
+      --panel-alt: #303842;
+      --line: #414b56;
+      --text: #eef1f4;
+      --muted: #a8b0b8;
+      --accent: #536b87;
+      --accent-2: #6f8cad;
+      --button: #374250;
+      --button-hover: #435061;
+      --good: #3e5d48;
+      --good-line: #6ba578;
+      --warn: #65512d;
+      --warn-line: #957940;
+      --input: #20262d;
+      --input-line: #4b5663;
+      --focus: #6f8cad;
+      --font: "Segoe UI", Arial, sans-serif;
+      --font-size: 12px;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      background: var(--header);
+      border-bottom: 1px solid var(--line);
+    }
+    body[data-theme="vatcan"] header { color: #1b1f20; padding: 10px 14px; }
+    body[data-theme="plugincore"] header { max-width: 560px; margin: 0 auto; padding: 12px 14px; }
+    h1 { margin: 0; font-size: 18px; font-weight: 650; }
+    body[data-theme="current"] h1 { color: #20d8ef; letter-spacing: .4px; }
+    body[data-theme="vatcan"] h1 { font-size: 16px; color: #1c2424; }
+    body[data-theme="plugincore"] h1 { font-size: 17px; }
+    .subtle { color: var(--muted); }
+    body[data-theme="vatcan"] header .subtle { color: #4d565a; }
+    .pill {
+      padding: 5px 9px;
+      color: #9eb5c8;
+      border: 1px solid var(--accent);
+      background: var(--panel-alt);
+      font-size: 12px;
+    }
+    main {
+      display: grid;
+      grid-template-columns: 190px 1fr;
+      min-height: calc(100vh - 65px);
+    }
+    body[data-theme="current"] main {
+      grid-template-columns: 1fr;
+    }
+    body[data-theme="plugincore"] main {
+      grid-template-columns: 1fr;
+      max-width: 560px;
+      min-height: auto;
+      margin: 0 auto;
+      border-left: 1px solid var(--line);
+      border-right: 1px solid var(--line);
+    }
+    nav {
+      padding: 14px;
+      background: var(--nav);
+      border-right: 1px solid var(--line);
+    }
+    body[data-theme="current"] nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      border-right: 0;
+      border-bottom: 1px solid var(--line);
+    }
+    body[data-theme="plugincore"] nav {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin: 10px;
+      padding: 10px;
+      border: 1px solid var(--line);
+    }
+    nav button {
+      width: 100%;
+      margin-bottom: 7px;
+      text-align: left;
+    }
+    body[data-theme="current"] nav button,
+    body[data-theme="plugincore"] nav button {
+      width: auto;
+      margin-bottom: 0;
+      text-align: center;
+    }
+    section {
+      display: none;
+      padding: 18px 20px 22px;
+      overflow: auto;
+    }
+    body[data-theme="vatcan"] section { padding: 12px 14px 16px; }
+    body[data-theme="plugincore"] section { padding: 10px 12px 16px; }
+    section.active { display: block; }
+    .status {
+      min-height: 36px;
+      margin-bottom: 14px;
+      padding: 9px 11px;
+      color: var(--text);
+      background: var(--panel-alt);
+      border-left: 3px solid var(--accent);
+    }
+    .status.success { color: #bde5c2; background: #1d2b21; border-left-color: #5eb86a; }
+    .status.error { color: #efb8b8; background: #332020; border-left-color: #e06464; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .card {
+      margin-bottom: 14px;
+      padding: 14px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+    }
+    body[data-theme="current"] .card { box-shadow: inset 0 0 0 1px rgba(0, 188, 212, .12); }
+    body[data-theme="vatcan"] .card { border-top-color: #8a9296; border-left-color: #8a9296; border-right-color: #16191a; border-bottom-color: #16191a; }
+    body[data-theme="plugincore"] .card { padding: 12px; margin-bottom: 10px; }
+    .caption {
+      margin-bottom: 10px;
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: .6px;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    label {
+      display: block;
+      margin: 9px 0 5px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    input, select, textarea {
+      width: 100%;
+      color: var(--text);
+      background: var(--input);
+      border: 1px solid var(--input-line);
+      padding: 8px;
+      font: inherit;
+      outline: none;
+    }
+    textarea { min-height: 96px; resize: vertical; user-select: text; }
+    input:focus, select:focus, textarea:focus { border-color: var(--focus); background: var(--panel-alt); }
+    input[type="checkbox"] { width: auto; margin-right: 8px; }
+    .check {
+      display: flex;
+      align-items: center;
+      margin: 10px 0;
+      color: var(--text);
+    }
+    button {
+      min-height: 32px;
+      color: var(--text);
+      background: var(--button);
+      border: 1px solid var(--line);
+      padding: 0 11px;
+      font: inherit;
+      cursor: pointer;
+    }
+    body[data-theme="vatcan"] button { border-top-color: #8b9498; border-left-color: #8b9498; border-right-color: #15191a; border-bottom-color: #15191a; }
+    body[data-theme="plugincore"] button { min-height: 29px; }
+    button:hover { background: var(--button-hover); }
+    button.primary { background: var(--accent); border-color: var(--accent-2); }
+    button.good { background: var(--good); border-color: var(--good-line); }
+    button.warn { background: var(--warn); border-color: var(--warn-line); }
+    .buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .path {
+      padding: 8px;
+      background: var(--bg);
+      border: 1px solid var(--line);
+      color: var(--muted);
+      user-select: text;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .path.wrap {
+      overflow: auto;
+      text-overflow: clip;
+      white-space: pre-wrap;
+    }
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .metric-card {
+      padding: 10px;
+      background: var(--panel-alt);
+      border: 1px solid var(--line);
+    }
+    .metric-label {
+      color: var(--muted);
+      font-size: 10px;
+      letter-spacing: .5px;
+      text-transform: uppercase;
+    }
+    .metric-value {
+      margin-top: 4px;
+      color: var(--text);
+      font-size: 21px;
+      font-weight: 700;
+    }
+    .chart {
+      display: grid;
+      gap: 7px;
+    }
+    .bar-row {
+      display: grid;
+      grid-template-columns: 132px 1fr 42px;
+      gap: 8px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .bar-track {
+      height: 14px;
+      background: var(--bg);
+      border: 1px solid var(--line);
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      min-width: 2px;
+      background: var(--accent-2);
+    }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    th, td { padding: 7px 8px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    th { color: var(--muted); font-size: 11px; text-transform: uppercase; }
+    .fixed-dot {
+      display: grid;
+      grid-template-columns: 28px 1fr;
+      gap: 6px;
+      align-items: center;
+    }
+    .dot {
+      height: 35px;
+      display: grid;
+      place-items: center;
+      color: var(--accent-2);
+      background: var(--input);
+      border: 1px solid var(--input-line);
+      font-weight: 700;
+    }
+    @media (max-width: 820px) {
+      main { grid-template-columns: 1fr; }
+      nav { display: flex; gap: 8px; overflow-x: auto; border-right: 0; border-bottom: 1px solid #2b343b; }
+      nav button { min-width: 135px; }
+      .grid2, .grid3 { grid-template-columns: 1fr; }
+      .metric-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body data-theme="current">
+  <header>
+    <div>
+      <h1 id="appTitle">ZYZTools</h1>
+      <div class="subtle">Electron control center // EuroScope plugin payload installer</div>
+    </div>
+    <div id="installedPill" class="pill">NOT INSTALLED</div>
+  </header>
+
+  <main>
+    <nav>
+      <button data-tab="install" class="primary" aria-current="page">Install / Link</button>
+      <button data-tab="operations">Operations</button>
+      <button data-tab="hoppie">Hoppie</button>
+      <button data-tab="sids">SID Matrix</button>
+      <button data-tab="replay">Replay & Recordings</button>
+      <button data-tab="statistics">Statistics</button>
+      <button data-tab="appearance">Appearance</button>
+      <button data-tab="advanced">Advanced</button>
+    </nav>
+
+    <div>
+      <div id="status" class="status">Loading...</div>
+      <section id="install" class="active">
+        <div class="card">
+          <div class="caption">EuroScope plugin destination</div>
+          <label>Parent folder</label>
+          <input id="parentFolder" type="text" />
+          <div class="buttons">
+            <button id="browseBtn">Browse</button>
+            <button id="installPluginBtn" class="primary">Install / Update EuroScope Plugin</button>
+            <button id="openInstallBtn">Open installed folder</button>
+          </div>
+          <label>Resolved plugin folder</label>
+          <div id="installFolder" class="path"></div>
+          <p class="subtle">The button copies the DLL, bridge, replay helper, sounds, docs, default config, and TrackAudio tap payload. It also writes this Electron app path into the plugin JSON so `.UI` can open the Electron settings app.</p>
+        </div>
+      </section>
+
+      <section id="operations">
+        <div class="card">
+          <div class="caption">Airport operation</div>
+          <label for="runwayAssignmentConfig">Departure configuration</label>
+          <select id="runwayAssignmentConfig">
+            <option value="off">Off (default — assign runways manually)</option>
+            <option value="east">Duals East (05 / 06L)</option>
+            <option value="west">Duals West (23 / 24R)</option>
+          </select>
+          <p>Assigns departures using the SID matrix. Changes apply to EuroScope within two seconds after saving. Aircraft with incomplete data are retried automatically.</p>
+          <label class="check"><input id="confirmEveryPdc" type="checkbox" />Confirm every PDC before sending</label>
+          <div class="buttons"><button id="saveOperationsBtn" class="good">Save settings</button><button data-plugin-action="apply">Apply assignments now</button></div>
+        </div>
+      </section>
+
+      <section id="hoppie">
+        <div class="card">
+          <div class="caption">Hoppie actions</div>
+          <label for="actionCallsign">Aircraft callsign</label><input id="actionCallsign" maxlength="12" placeholder="ACA123" />
+          <div class="buttons">
+            <button data-plugin-action="reject">Reject clearance request</button>
+            <button data-plugin-action="reject-fp">Reject invalid flight plan</button>
+            <button data-plugin-action="link-test">Test Hoppie connection</button>
+            <button data-plugin-action="test-pdc">Test incoming PDC sound</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="caption">Hoppie and sounds</div>
+          <label class="check"><input id="hoppieEnabled" type="checkbox" />Enable Hoppie polling inside the plugin</label>
+          <div class="grid3">
+            <div><label>Station</label><input id="stationCode" type="text" /></div>
+            <div><label>Poll seconds</label><input id="pollSeconds" type="number" min="45" max="75" /></div>
+            <div><label>Logon code</label><input id="logonCode" type="password" /></div>
+          </div>
+          <div class="grid3">
+            <label class="check"><input id="pdcSoundEnabled" type="checkbox" />PDC request sound</label>
+            <label class="check"><input id="ifrSoundEnabled" type="checkbox" />IFR release sound</label>
+            <label class="check"><input id="sendSoundEnabled" type="checkbox" />PDC sent sound</label>
+          </div>
+          <div class="grid3">
+            <div><label>PDC sound file</label><input id="pdcSound" type="text" /></div>
+            <div><label>IFR sound file</label><input id="ifrSound" type="text" /></div>
+            <div><label>Send sound file</label><input id="sendSound" type="text" /></div>
+          </div>
+          <div class="buttons"><button id="saveHoppieBtn" class="good">Save settings</button></div>
+        </div>
+      </section>
+
+      <section id="sids">
+        <div class="card">
+          <div class="caption">SID / runway matrix</div>
+          <div class="grid2">
+            <div><label>WEST runway 23</label><textarea id="west23"></textarea></div>
+            <div><label>WEST runway 24R</label><textarea id="west24r"></textarea></div>
+            <div><label>EAST runway 05</label><textarea id="east05"></textarea></div>
+            <div><label>EAST runway 06L</label><textarea id="east06l"></textarea></div>
+          </div>
+          <div class="buttons"><button id="saveSidsBtn" class="good">Save settings</button></div>
+        </div>
+      </section>
+
+      <section id="replay">
+        <div class="card">
+          <div class="caption">Audio replay</div>
+          <label class="check"><input id="audioReplayEnabled" type="checkbox" />Enable rolling TrackAudio replay helper</label>
+          <div class="grid3">
+            <div><label>Replay minutes</label><input id="replayMinutes" type="number" min="1" max="10" /></div>
+            <div><label>Recordings folder</label><input id="recordingsFolder" type="text" /></div>
+            <div><label>Save command</label><div class="fixed-dot"><div class="dot">.</div><input id="saveCommand" type="text" /></div></div>
+            <div>
+              <label>Replay filter intensity (controller transmission only): <span id="txRadioIntensityValue">70%</span></label>
+              <input id="txRadioIntensity" type="range" min="0" max="100" step="5" />
+              <div class="subtle">0 adds no filter; 100 adds the full radio effect. TrackAudio hardware remains active. Applies when you release the slider, to newly captured audio only.</div>
+            </div>
+            <div>
+              <label>TrackAudio version</label>
+              <select id="trackAudioVersion">
+                <option value="auto">Auto-detect installed version</option>
+                <option value="stable">Stable 1.4.0</option>
+                <option value="legacy133">Legacy stable 1.3.3</option>
+                <option value="beta">Beta 1.4.0-beta.6</option>
+              </select>
+            </div>
+          </div>
+          <div class="buttons">
+            <button id="saveReplaySettingsBtn" class="good">Save settings</button>
+            <button id="audioStatusBtn">Replay status</button>
+            <button id="trackAudioStatusBtn">TrackAudio tap status</button>
+            <button id="applyTrackAudioTapBtn" class="good">Apply / repair TrackAudio tap</button>
+            <button id="saveReplayBtn" class="primary">Save replay now</button>
+            <button id="refreshRecordingsBtn">Refresh recordings</button>
+          </div>
+          <div id="trackAudioTapStatus" class="path wrap"></div>
+        </div>
+        <div class="card">
+          <div class="caption">Saved recordings</div>
+          <div id="recordingsPath" class="path"></div>
+          <table>
+            <thead><tr><th>Name</th><th style="width:90px">Size</th><th style="width:95px">Action</th></tr></thead>
+            <tbody id="recordingsTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="statistics">
+        <div class="buttons"><button data-plugin-action="export">Export current session</button></div>
+        <div class="card">
+          <div class="caption">Network statistics</div>
+          <p class="subtle">EuroScope starts a statistics session when it connects to the network and finishes it when the network connection ends. This page reads the Excel-compatible spreadsheets saved by the plugin.</p>
+          <div class="buttons">
+            <button id="refreshStatisticsBtn">Refresh statistics</button>
+            <button id="openStatisticsFolderBtn">Open Statistics folder</button>
+            <button id="openLatestStatisticsBtn" class="primary">Open latest spreadsheet</button>
+            <button id="downloadLatestStatisticsBtn" class="good">Download latest spreadsheet</button>
+          </div>
+          <label>Statistics folder</label>
+          <div id="statisticsPath" class="path"></div>
+          <label>Latest session</label>
+          <div id="statisticsLatest" class="path wrap"></div>
+          <div class="metric-grid">
+            <div class="metric-card"><div class="metric-label">Aircraft cleared</div><div id="statsCleared" class="metric-value">0</div></div>
+            <div class="metric-card"><div class="metric-label">Takeoffs</div><div id="statsDeparted" class="metric-value">0</div></div>
+            <div class="metric-card"><div class="metric-label">Landings</div><div id="statsLanded" class="metric-value">0</div></div>
+            <div class="metric-card"><div class="metric-label">Movements / hr</div><div id="statsMovementsHour" class="metric-value">0.0</div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="caption">Traffic volume</div>
+          <div id="statisticsChart" class="chart"></div>
+        </div>
+        <div class="card">
+          <div class="caption">Recent movement events</div>
+          <table>
+            <thead><tr><th>Time</th><th>Event</th><th>Callsign</th><th>Runway</th><th>Source</th></tr></thead>
+            <tbody id="statisticsEventsTable"></tbody>
+          </table>
+        </div>
+        <div class="card">
+          <div class="caption">Saved statistics spreadsheets</div>
+          <table>
+            <thead><tr><th>Name</th><th style="width:90px">Size</th><th style="width:95px">Action</th></tr></thead>
+            <tbody id="statisticsFilesTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="appearance">
+        <div class="card">
+          <div class="caption">Theme</div>
+          <p>Preview a theme immediately, then save it. Themes change the colors, fonts, layout and controls for this app only.</p>
+          <label for="uiTheme">Choose theme</label>
+          <select id="uiTheme">
+            <option value="current">ZYZTools dark</option>
+            <option value="vatcan">VATCAN</option>
+            <option value="plugincore">Classic</option>
+          </select>
+          <div class="buttons">
+            <button data-theme-choice="current">ZYZTools dark</button>
+            <button data-theme-choice="vatcan">VATCAN</button>
+            <button data-theme-choice="plugincore">Classic</button>
+          </div>
+          <p class="subtle">Production and test apps store their themes separately.</p>
+          <button id="saveAppearanceBtn" class="good">Save appearance</button>
+        </div>
+      </section>
+
+      <section id="advanced">
+        <div class="card">
+          <div class="caption">App updates</div>
+          <div id="updateStatus" class="subtle">Checks for approved releases.</div>
+          <div class="buttons"><button id="checkUpdatesBtn">Check for updates</button><button id="installUpdateBtn" hidden>Update to latest release</button></div>
+        </div>
+        <div id="testPublishPanel" class="card" hidden>
+          <div class="caption">Publish beta</div>
+          <p>Share this beta with testers on GitHub. This publishes one beta installer as a prerelease and puts its source on the beta branch. Production stays separate.</p>
+          <button id="publishTestBtn">Publish beta</button>
+          <div id="publishAuth" hidden>
+            <p>First-time setup: create a fine-grained token for AviationYYZ/ZYZTools-Unofficial- with Contents: Read and write. Paste it below. Optionally remember access securely for future one-click beta publications.</p>
+            <button id="openGitHubTokenBtn">Open GitHub token settings</button>
+            <label for="publishToken">GitHub token</label><input id="publishToken" type="password" autocomplete="off" />
+            <label class="check"><input id="rememberPublishing" type="checkbox" />Remember GitHub access securely on this computer</label>
+            <button id="publishConfirmBtn">Connect and publish beta</button>
+          </div>
+          <div id="publishStatus" class="subtle"></div>
+        </div>
+        <div class="card">
+          <div class="caption">Advanced flags</div>
+          <label class="check"><input id="testMode" type="checkbox" />Test mode</label>
+          <label class="check"><input id="debugMode" type="checkbox" />Debug mode</label>
+          <div class="buttons">
+            <button id="saveAdvancedBtn" class="good">Save settings</button>
+            <button id="openLocalSettingsBtn">Open local settings folder</button>
+          </div>
+          <p class="subtle">If the plugin is installed, saves write to the plugin folder. Before install, saves are kept in `%APPDATA%\PreferredCYYZPdcPlugin` and then applied when you install/update the EuroScope plugin.</p>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
