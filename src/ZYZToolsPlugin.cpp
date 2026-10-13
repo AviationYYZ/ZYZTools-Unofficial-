@@ -87,6 +87,7 @@ namespace
     {
         Current,
         Vatcan,
+        Navcan,
         PluginCore
     };
 
@@ -122,6 +123,8 @@ namespace
         const std::string normalized = Upper(Trim(value));
         if (normalized == "VATCAN" || normalized == "VATCANSITU")
             return UiTheme::Vatcan;
+        if (normalized == "NAVCAN" || normalized == "NAVCANADA")
+            return UiTheme::Navcan;
         if (normalized == "CPP" || normalized == "PLUGINCORE" || normalized == "PLUGIN_CORE" || normalized == "CORE")
             return UiTheme::PluginCore;
         return UiTheme::Current;
@@ -133,6 +136,8 @@ namespace
         {
         case UiTheme::Vatcan:
             return "vatcan";
+        case UiTheme::Navcan:
+            return "navcan";
         case UiTheme::PluginCore:
             return "plugincore";
         default:
@@ -146,6 +151,8 @@ namespace
         {
         case UiTheme::Vatcan:
             return "VATCAN";
+        case UiTheme::Navcan:
+            return "NAV CANADA";
         case UiTheme::PluginCore:
             return "CPP";
         default:

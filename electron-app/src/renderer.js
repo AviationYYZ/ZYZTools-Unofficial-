@@ -37,6 +37,7 @@ function setInstalled(value) {
 function normalizeTheme(value) {
   const theme = String(value || "current").trim().toLowerCase();
   if (theme === "vatcan" || theme === "vatcansitu") return "vatcan";
+  if (theme === "navcan" || theme === "navcanada") return "navcan";
   if (theme === "cpp" || theme === "plugincore" || theme === "plugin_core" || theme === "core") return "plugincore";
   return "current";
 }
