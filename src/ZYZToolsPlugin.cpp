@@ -9,6 +9,7 @@
 
 #include "../SDK/EuroScopePlugIn.h"
 #include "DepartureAssignment.h"
+#include "ArrivalAssignment.h"
 
 #include <algorithm>
 #include <atomic>
@@ -88,6 +89,7 @@ namespace
         Current,
         Vatcan,
         Navcan,
+        Custom,
         PluginCore
     };
 
@@ -125,6 +127,8 @@ namespace
             return UiTheme::Vatcan;
         if (normalized == "NAVCAN" || normalized == "NAVCANADA")
             return UiTheme::Navcan;
+        if (normalized == "CUSTOM")
+            return UiTheme::Custom;
         if (normalized == "CPP" || normalized == "PLUGINCORE" || normalized == "PLUGIN_CORE" || normalized == "CORE")
             return UiTheme::PluginCore;
         return UiTheme::Current;
@@ -138,6 +142,8 @@ namespace
             return "vatcan";
         case UiTheme::Navcan:
             return "navcan";
+        case UiTheme::Custom:
+            return "custom";
         case UiTheme::PluginCore:
             return "plugincore";
         default:
@@ -153,6 +159,8 @@ namespace
             return "VATCAN";
         case UiTheme::Navcan:
             return "NAV CANADA";
+        case UiTheme::Custom:
+            return "CUSTOM";
         case UiTheme::PluginCore:
             return "CPP";
         default:
@@ -2131,6 +2139,7 @@ public:
 
     void OnFlightPlanFlightPlanDataUpdate(CFlightPlan FlightPlan) override
     {
+        TryAssignArrivalRunway(FlightPlan);
         TryAssignSpawnRunway(FlightPlan);
         CacheFp(FlightPlan);
         ObserveStatisticsFlightPlan(FlightPlan, false);
@@ -2138,6 +2147,7 @@ public:
 
     void OnFlightPlanControllerAssignedDataUpdate(CFlightPlan FlightPlan, int DataType) override
     {
+        if (DataType == CTR_DATA_TYPE_SCRATCH_PAD_STRING) TryAssignArrivalRunway(FlightPlan);
         CacheFp(FlightPlan);
 
         std::string cs = Upper(Trim(FlightPlan.GetCallsign()));
@@ -2210,9 +2220,12 @@ public:
         if (Counter % 2 == 0)
             RefreshDepartureAssignmentConfig();
         PollSettingsActions();
-        if (Counter % 2 == 0 && m_cfg.runwayAssignmentConfig != "off")
+        if (Counter % 2 == 0 && (m_cfg.runwayAssignmentConfig != "off" || m_cfg.arrivalAssignmentEnabled))
             for (CFlightPlan fp = FlightPlanSelectFirst(); fp.IsValid(); fp = FlightPlanSelectNext(fp))
+            {
                 TryAssignSpawnRunway(fp);
+                TryAssignArrivalRunway(fp);
+            }
         if ((Counter % DEPARTURE_SNAPSHOT_INTERVAL_SECONDS) == 0)
         {
             SnapshotDepartureListAircraft();
@@ -2391,6 +2404,8 @@ private:
         std::string airportDirection = "WEST";
         std::string operation = "DUALS";
         std::string runwayAssignmentConfig = "off";
+        bool arrivalAssignmentEnabled = false;
+        std::string arrivalAssignmentFlow = "west";
         UiTheme uiTheme = UiTheme::Current;
         std::string audioReplayCaptureMode = "process";
         std::string audioReplayProcesses = "trackaudio.exe";
@@ -4739,6 +4754,23 @@ private:
         MoveFileExA((responsePath + ".tmp").c_str(), responsePath.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
     }
 
+    bool m_arrivalAssignmentInProgress = false;
+    void TryAssignArrivalRunway(CFlightPlan fp)
+    {
+        if (!fp.IsValid() || !m_cfg.arrivalAssignmentEnabled || m_arrivalAssignmentInProgress) return;
+        auto fpd = fp.GetFlightPlanData();
+        if (Upper(Trim(fpd.GetDestination() ? fpd.GetDestination() : "")) != "CYYZ") return;
+        const std::string sp = fp.GetControllerAssignedData().GetScratchPadString() ? fp.GetControllerAssignedData().GetScratchPadString() : "";
+        const auto runway = ArrivalAssignment::Runway(true, m_cfg.arrivalAssignmentFlow, sp);
+        if (runway.empty() || runway == Upper(Trim(fpd.GetArrivalRwy() ? fpd.GetArrivalRwy() : ""))) return;
+        const std::string route = fpd.GetRoute() ? fpd.GetRoute() : "";
+        const auto newRoute = ArrivalAssignment::WithRunway(route, runway, fpd.GetStarName() ? fpd.GetStarName() : "");
+        if (newRoute.empty()) return;
+        struct Guard { bool& flag; Guard(bool& f) : flag(f) { flag = true; } ~Guard() { flag = false; } } guard(m_arrivalAssignmentInProgress);
+        if (fpd.SetRoute(newRoute.c_str()) && fpd.AmendFlightPlan())
+            WriteAuditLog("arrival_runway_assigned", std::string("callsign=") + fp.GetCallsign() + " flow=" + m_cfg.arrivalAssignmentFlow + " runway=" + runway);
+    }
+
     void TryAssignSpawnRunway(CFlightPlan fp)
     {
         if (!fp.IsValid() || m_cfg.runwayAssignmentConfig == "off")
@@ -5235,6 +5267,8 @@ private:
             << "  \"airport_direction\": \"" << JsonEscape(m_cfg.airportDirection) << "\",\n"
             << "  \"operation\": \"" << JsonEscape(m_cfg.operation) << "\",\n"
             << "  \"runway_assignment_config\": \"" << JsonEscape(m_cfg.runwayAssignmentConfig) << "\",\n"
+            << "  \"arrival_assignment_enabled\": " << (m_cfg.arrivalAssignmentEnabled ? 1 : 0) << ",\n"
+            << "  \"arrival_assignment_flow\": \"" << JsonEscape(m_cfg.arrivalAssignmentFlow) << "\",\n"
             << "  \"ui_theme\": \"" << UiThemeConfigName(m_cfg.uiTheme) << "\",\n"
             << "  \"duals_mode\": \"" << dualsMode << "\",\n"
             << "  \"confirm_every_pdc\": " << (m_cfg.confirmEveryPdc ? 1 : 0) << ",\n"
@@ -5361,6 +5395,12 @@ private:
         JsonStringValue(json, "operation", m_cfg.operation);
         m_cfg.runwayAssignmentConfig = "off";
         JsonStringValue(json, "runway_assignment_config", m_cfg.runwayAssignmentConfig);
+        int arrivalEnabled = 0;
+        JsonIntValue(json, "arrival_assignment_enabled", arrivalEnabled);
+        m_cfg.arrivalAssignmentEnabled = arrivalEnabled == 1;
+        m_cfg.arrivalAssignmentFlow = "west";
+        JsonStringValue(json, "arrival_assignment_flow", m_cfg.arrivalAssignmentFlow);
+        if (m_cfg.arrivalAssignmentFlow != "east" && m_cfg.arrivalAssignmentFlow != "north" && m_cfg.arrivalAssignmentFlow != "south") m_cfg.arrivalAssignmentFlow = "west";
         if (m_cfg.runwayAssignmentConfig != "east" && m_cfg.runwayAssignmentConfig != "west")
             m_cfg.runwayAssignmentConfig = "off";
         else

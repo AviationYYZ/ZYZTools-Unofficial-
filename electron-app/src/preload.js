@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("preferredCyyzPdc", {
   initialState: () => ipcRenderer.invoke("app:initialState"),
+  saveCustomTheme: (theme) => ipcRenderer.invoke('theme:saveCustom', theme),
   checkUpdates: (stream) => ipcRenderer.invoke("updates:check", stream),
   installUpdate: () => ipcRenderer.invoke("updates:install"),
   publishTest: (options = {}) => ipcRenderer.invoke("test:publish", options),

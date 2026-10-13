@@ -1,0 +1,30 @@
+/* Wordmark changes follow the selected theme without changing application identity. */
+#appTitle { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.brand-name { display: inline-flex; gap: 0; }
+.brand-test { font: 600 11px "Segoe UI", sans-serif; letter-spacing: .6px; padding: 3px 7px; border: 1px solid currentColor; border-radius: 3px; }
+body[data-theme="navcan"] .brand-name { display: inline-flex; flex-direction: column; line-height: .95; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
+body[data-theme="navcan"] .brand-name span:last-child { font-size: .58em; font-weight: 400; letter-spacing: 3px; margin-top: 4px; }
+body[data-theme="vatcan"] .brand-name { text-transform: uppercase; letter-spacing: 2px; border-left: 4px solid #e32736; padding-left: 12px; }
+body[data-theme="plugincore"] .brand-name { font-weight: 500; letter-spacing: 0; }
+body[data-theme="current"] .brand-name { letter-spacing: 1px; }
+body[data-theme="custom"] header { padding: 24px; }
+body[data-theme="custom"] #appTitle { color: var(--custom-title-color); font-size: var(--custom-title-size); font-family: var(--font); }
+body[data-theme="custom"] .brand-name { text-transform: var(--custom-title-case); }
+body[data-theme="custom"] main { grid-template-columns: 1fr; }
+body[data-theme="custom"][data-custom-layout="sidebar"] main { grid-template-columns: 210px minmax(0, 1fr); }
+body[data-theme="custom"] nav { display: flex; flex-wrap: wrap; gap: 8px; border-right: 0; border-bottom: 1px solid var(--line); }
+body[data-theme="custom"] nav button { width: auto; margin: 0; }
+body[data-theme="custom"][data-custom-layout="sidebar"] nav { display: block; border-right: 1px solid var(--line); }
+body[data-theme="custom"][data-custom-layout="sidebar"] nav button { width: 100%; margin-bottom: 8px; }
+body[data-theme="custom"] .card, body[data-theme="custom"] button, body[data-theme="custom"] input, body[data-theme="custom"] select, body[data-theme="custom"] textarea { border-radius: var(--custom-radius); }
+body[data-theme="custom"] button.primary { background: var(--accent); color: var(--text); }
+.custom-theme-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.custom-theme-grid label { margin: 0; }
+.custom-theme-grid input[type="color"] { display: block; height: 40px; padding: 3px; cursor: pointer; }
+#customThemeEditor[hidden] { display: none; }
+@media (max-width: 820px) {
+  .custom-theme-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  body[data-theme="custom"][data-custom-layout="sidebar"] main { grid-template-columns: 1fr; }
+  body[data-theme="custom"][data-custom-layout="sidebar"] nav { display: flex; border-right: 0; }
+  body[data-theme="custom"][data-custom-layout="sidebar"] nav button { width: auto; margin: 0; }
+}
