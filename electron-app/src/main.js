@@ -9,7 +9,6 @@ const { sendAudioReplayCommand } = require("./audio-replay-ipc");
 const updates = require("./github-updates");
 const { publish: publishTest } = require("./test-publisher");
 const publishingAuth = require('./publishing-auth');
-const installerLocator = require('./installer-locator');
 const buildInfo = require("../package.json");
 const { channel, destination, assertDestination } = require('./channel');
 let publicationInProgress = false;
@@ -768,7 +767,26 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(() => { if (ownsInstance) createWindow(); });
+const updatePreferencesPath = () => path.join(app.getPath('userData'), 'update-stream.json');
+function selectedUpdateStream() {
+  try { return JSON.parse(fs.readFileSync(updatePreferencesPath(), 'utf8')).stream === 'beta' ? 'beta' : 'stable'; }
+  catch { return 'stable'; }
+}
+app.whenReady().then(async () => {
+  if (!ownsInstance) return;
+  createWindow();
+  // The development app must never replace itself with the consumer installer.
+  if (channel.test) return;
+  try {
+    const release = await updates.check(updates.DEFAULT_REPOSITORY, app.getVersion(), undefined, selectedUpdateStream());
+    if (release.available && release.essential) {
+      const installer = await updates.download(release, path.join(app.getPath('temp'), channel.userDataName + '-Updates'));
+      const child = childProcess.spawn(installer, ['/S'], { detached: true, stdio: 'ignore', windowsHide: true });
+      child.on('error', error => { if (mainWindow) dialog.showErrorBox('Essential update could not start', error.message); });
+      child.once('spawn', () => { child.unref(); app.quit(); });
+    }
+  } catch (error) { console.warn('Startup update check:', error.message); }
+});
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
@@ -784,22 +802,11 @@ ipcMain.handle("test:publish", async (_event, options = {}) => {
   if (options.remember && !safeStorage?.isEncryptionAvailable()) throw new Error("Secure storage is unavailable. Leave Remember access unchecked.");
   publicationInProgress = true;
   try {
-    const installer = await installerLocator.find({
-      version: app.getVersion(),
-      directories: [app.getPath("downloads"), app.getPath("desktop"), path.dirname(process.execPath), path.resolve(path.dirname(process.execPath), ".."), path.resolve(__dirname, "../../installer/dist/test")],
-      inspect: file => {
-        const literal = file.replaceAll("'", "''");
-        return JSON.parse(childProcess.execFileSync("powershell.exe", ["-NoProfile", "-Command", "(Get-Item -LiteralPath '" + literal + "').VersionInfo | Select-Object ProductName,ProductVersion | ConvertTo-Json -Compress"], { encoding: "utf8", windowsHide: true }));
-      },
-      choose: async () => {
-        const result = await dialog.showOpenDialog(mainWindow, { title: "Choose the beta installer", properties: ["openFile"], filters: [{ name: "ZYZTools test installer", extensions: ["exe"] }] });
-        return result.canceled ? null : result.filePaths[0];
-      }
-    });
-    if (!installer) return { canceled: true };
+    const installer = app.isPackaged ? path.join(process.resourcesPath, 'Publishing/ZYZTools-Setup.exe') : path.join(__dirname, '../../installer/dist/production/ZYZTools-Setup.exe');
+    if (!fs.existsSync(installer)) throw new Error('Bundled publishing installer is missing. Reinstall the current test build.');
     const sourcePath = app.isPackaged ? path.join(process.resourcesPath, "TestSourceSnapshot.json") : path.join(__dirname, "../../build/TestSourceSnapshot.json");
     const snapshot = JSON.parse(fs.readFileSync(sourcePath, "utf8"));
-    const result = await publishTest({ token, version: app.getVersion(), installer, snapshot });
+    const result = await publishTest({ token, version: app.getVersion(), installer, snapshot, stream: options.stream, essential: options.essential === true });
     if (options.remember) {
       try { publishingAuth.save(app.getPath("userData"), token, safeStorage); }
       catch { result.authWarning = "Beta published, but GitHub access could not be remembered."; }
@@ -807,9 +814,13 @@ ipcMain.handle("test:publish", async (_event, options = {}) => {
     return result;
   } finally { token = null; publicationInProgress = false; }
 });
-ipcMain.handle("updates:check", async () => {
+ipcMain.handle("updates:check", async (_event, stream) => {
+  stream = stream === 'beta' ? 'beta' : stream === 'stable' ? 'stable' : selectedUpdateStream();
+  fs.mkdirSync(app.getPath('userData'), { recursive: true });
+  fs.writeFileSync(updatePreferencesPath(), JSON.stringify({ stream }));
   checkedRelease = null;
-  checkedRelease = await updates.check(updates.DEFAULT_REPOSITORY, app.getVersion(), undefined, channel.test ? 'test' : 'production');
+  checkedRelease = await updates.check(updates.DEFAULT_REPOSITORY, app.getVersion(), undefined, stream);
+  if (channel.test) return { available: false, message: checkedRelease.message + ' Developer app stays separate; publishing includes the consumer installer.' };
   return { tag: checkedRelease.tag, available: checkedRelease.available, message: checkedRelease.message, currentVersionPublished: checkedRelease.currentVersionPublished };
 });
 ipcMain.handle("updates:install", async () => {

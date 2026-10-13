@@ -9,4 +9,5 @@ base.directories.output = `../installer/dist/${kind}`;
 base.nsis.shortcutName = name;
 base.extraMetadata = { name: test ? 'zyztools-test' : 'zyztools', zyzBuildChannel: kind, displayName: name };
 base.extraResources.find(resource => resource.to === 'plugin').from = `../build/channels/${kind}/plugin`;
+if (test) base.extraResources.push({ from: '../installer/dist/production/ZYZTools-Setup.exe', to: 'Publishing/ZYZTools-Setup.exe' });
 module.exports = base;

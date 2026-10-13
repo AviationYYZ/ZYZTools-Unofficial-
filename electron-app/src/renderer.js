@@ -511,7 +511,7 @@ async function checkUpdates() {
   $("installUpdateBtn").hidden = true;
   $("updateStatus").textContent = 'Checking GitHub releases…';
   try {
-    const result = await api.checkUpdates();
+    const result = await api.checkUpdates($("updateStream").value);
     $("updateStatus").textContent = result.message;
     $("installUpdateBtn").hidden = !result.available;
     if (result.currentVersionPublished) {
@@ -533,19 +533,19 @@ $("installUpdateBtn").addEventListener('click', async () => {
 async function publishBeta(options = {}) {
   $("publishTestBtn").disabled = true;
   $("publishConfirmBtn").disabled = true;
-  $("publishStatus").textContent = "Preparing beta publication…";
+  $("publishStatus").textContent = "Preparing " + $("publishStream").value + " publication…";
   try {
-    const result = await api.publishTest(options);
+    const result = await api.publishTest({ ...options, stream: $("publishStream").value, essential: $("publishPriority").value === 'essential' });
     if (result.needsAuth) {
       $("publishAuth").hidden = false;
       $("publishToken").focus();
-      $("publishStatus").textContent = "Connect GitHub once to publish this beta.";
+      $("publishStatus").textContent = "Connect GitHub to publish the selected stream.";
       return;
     }
     if (result.canceled) { $("publishStatus").textContent = "Canceled. Nothing published."; return; }
-    betaPublished = true;
+    betaPublished = false;
     $("publishAuth").hidden = true;
-    $("publishStatus").textContent = result.authWarning || ("Beta " + result.version + " published: " + result.url);
+    $("publishStatus").textContent = result.authWarning || ($("publishStream").value + " " + result.version + " published: " + result.url);
     setStatus($("publishStatus").textContent, "success");
     await checkUpdates();
   } catch (error) {
@@ -557,6 +557,9 @@ async function publishBeta(options = {}) {
   }
 }
 $("publishTestBtn").addEventListener("click", () => publishBeta());
+$("publishStream").addEventListener('change', () => { betaPublished = false; $("publishTestBtn").disabled = false; $("publishConfirmBtn").disabled = false; });
+$("updateStream").value = localStorage.getItem('updateStream') || 'stable';
+$("updateStream").addEventListener('change', () => { localStorage.setItem('updateStream', $("updateStream").value); checkUpdates(); });
 $("openGitHubTokenBtn").addEventListener("click", () => api.openTokenSettings());
 $("publishConfirmBtn").addEventListener("click", () => {
   const token = $("publishToken").value.trim();

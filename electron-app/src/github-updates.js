@@ -19,15 +19,14 @@ function newer(tag, installed) {
 }
 async function check(repo, installed, request = fetch, kind = 'production') {
   repo = repository(repo);
-  const beta = kind === 'test';
-  const result = await request(`https://api.github.com/repos/${repo}/releases${beta ? '?per_page=100' : '/latest'}`, {
+  const beta = kind === 'test' || kind === 'beta';
+  const result = await request(`https://api.github.com/repos/${repo}/releases?per_page=100`, {
     headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'ZYZTools' }, signal: AbortSignal.timeout(10000)
   });
   if (!result.ok) throw new Error(result.status === 404 ? 'No published release found for this repository.' : `GitHub release check failed (${result.status}).`);
   const data = await result.json();
-  const releases = beta ? data.filter(release => !release.draft && release.prerelease && /^v?\d+\.\d+\.\d+-beta(?:\.\d+)?$/.test(release.tag_name)
-    && (release.assets || []).some(asset => /^ZYZTools-Test-Setup.*\.exe$/i.test(asset.name))) : [data];
-  if (!releases.length) return { repo, available: false, currentVersionPublished: false, message: 'No beta releases have been published yet.' };
+  const releases = (Array.isArray(data) ? data : [data]).filter(release => !release.draft && !!release.prerelease === beta && /^v?\d+\.\d+\.\d+(?:-beta(?:\.\d+)?)?$/.test(release.tag_name));
+  if (!releases.length) return { repo, available: false, currentVersionPublished: false, message: `No ${beta ? 'beta' : 'stable'} releases have been published yet.` };
   releases.sort((a, b) => newer(a.tag_name, b.tag_name) ? -1 : newer(b.tag_name, a.tag_name) ? 1 : 0);
   const release = releases[0];
   const available = !release.draft && (beta || !release.prerelease) && newer(release.tag_name, installed);
@@ -35,7 +34,7 @@ async function check(repo, installed, request = fetch, kind = 'production') {
     ? (release.assets || []).find(a => /^ZYZTools-Test-Setup(?:[-.][\w.-]+)?\.exe$/i.test(a.name))
     : (release.assets || []).find(a => /^ZYZTools-Setup(?:[-.][\w.-]+)?\.exe$/i.test(a.name))
       || (release.assets || []).find(a => /^PreferredCYYZPdcPlugin-Setup(?:[-.][\w.-]+)?\.exe$/i.test(a.name));
-  return { repo, tag: release.tag_name, available: available && !!asset, asset,
+  return { repo, tag: release.tag_name, available: available && !!asset, asset, essential: String(release.body || '').includes('<!-- zyztools-update:essential -->'),
     currentVersionPublished: beta && releases.some(r => r.tag_name.replace(/^v/, '').replace(/-beta(?:\.\d+)?$/, '') === installed),
     message: available ? (asset ? `Version ${release.tag_name} is available.` : 'A newer release has no compatible setup EXE attached.') : `You are up to date (${installed}).` };
 }

@@ -548,18 +548,22 @@
         <div class="card">
           <div class="caption">App updates</div>
           <div id="updateStatus" class="subtle">Checks for approved releases.</div>
-          <div class="buttons"><button id="checkUpdatesBtn">Check for updates</button><button id="installUpdateBtn" hidden>Update to latest release</button></div>
+          <label>Update stream <select id="updateStream"><option value="stable">Stable</option><option value="beta">Beta</option></select></label>
+          <p>Essential fixes install automatically on startup in your selected stream. Optional updates are downloaded here.</p>
+          <div class="buttons"><button id="checkUpdatesBtn">Check for updates</button><button id="installUpdateBtn" hidden>Download update</button></div>
         </div>
         <div id="testPublishPanel" class="card" hidden>
           <div class="caption">Publish beta</div>
-          <p>Share this beta with testers on GitHub. This publishes one beta installer as a prerelease and puts its source on the beta branch. Production stays separate.</p>
-          <button id="publishTestBtn">Publish beta</button>
+          <p>Publish the bundled ZYZTools installer. No file selection needed. Stable updates the main branch; beta updates the beta branch.</p>
+          <label>Release stream <select id="publishStream"><option value="beta">Beta</option><option value="stable">Stable</option></select></label>
+          <label>Fix priority <select id="publishPriority"><option value="optional">Non-essential (manual download)</option><option value="essential">Essential (automatic update)</option></select></label>
+          <button id="publishTestBtn">Publish to GitHub</button>
           <div id="publishAuth" hidden>
             <p>First-time setup: create a fine-grained token for AviationYYZ/ZYZTools-Unofficial- with Contents: Read and write. Paste it below. Optionally remember access securely for future one-click beta publications.</p>
             <button id="openGitHubTokenBtn">Open GitHub token settings</button>
             <label for="publishToken">GitHub token</label><input id="publishToken" type="password" autocomplete="off" />
             <label class="check"><input id="rememberPublishing" type="checkbox" />Remember GitHub access securely on this computer</label>
-            <button id="publishConfirmBtn">Connect and publish beta</button>
+            <button id="publishConfirmBtn">Connect and publish</button>
           </div>
           <div id="publishStatus" class="subtle"></div>
         </div>
