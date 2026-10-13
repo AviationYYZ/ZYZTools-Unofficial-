@@ -1,0 +1,50 @@
+/* Inspired by vatcan.ca; no third-party logos, photos or remote dependencies. */
+body[data-theme="vatcan"] {
+  --bg: #efeff5; --header: #191b2a; --nav: #ffffff;
+  --panel: #ffffff; --panel-alt: #f4f4fa; --line: #e8e8f0;
+  --text: #434454; --muted: #747587; --accent: #5866d9; --accent-2: #6573e8;
+  --button: #eef0ff; --button-hover: #e2e6ff;
+  --good: #e8f6ef; --good-line: #25835c; --warn: #fff4dc; --warn-line: #996818;
+  --input: #ffffff; --input-line: #d0d2e0; --focus: #5866d9;
+  --font: "Poppins", "Century Gothic", "Segoe UI", sans-serif; --font-size: 13px;
+  line-height: 1.5;
+}
+body[data-theme="vatcan"] header { padding: 30px max(28px, calc((100vw - 1160px) / 2)); min-height: 132px; color: #ffffff; border: 0; }
+body[data-theme="vatcan"] h1 { color: #ffffff; font-size: 29px; letter-spacing: 1px; font-weight: 700; }
+body[data-theme="vatcan"] header .subtle { color: #c2c3d2; margin-top: 5px; }
+body[data-theme="vatcan"] .pill { border-radius: 5px; background: #5866d9; border-color: #5866d9; color: #ffffff; padding: 9px 16px; }
+body[data-theme="vatcan"] main { display: block; max-width: 1200px; min-height: calc(100vh - 132px); margin: -12px auto 0; padding: 0 20px 32px; position: relative; }
+body[data-theme="vatcan"] nav { display: flex; flex-wrap: wrap; gap: 4px; padding: 12px 20px; border: 0; border-radius: 5px 5px 0 0; box-shadow: 0 2px 10px rgba(25,27,42,.025); }
+body[data-theme="vatcan"] nav button { width: auto; margin: 0; background: transparent; border: 0; border-radius: 4px; padding: 11px 14px; min-height: 42px; font-weight: 500; text-align: center; }
+body[data-theme="vatcan"] nav button.primary { background: #eef0ff; color: #4654bf; }
+body[data-theme="vatcan"] nav button:hover { background: #f0f1fa; color: #4654bf; }
+body[data-theme="vatcan"] main > div { background: #f7f7fb; padding: 24px; border-radius: 0 0 5px 5px; }
+body[data-theme="vatcan"] section { padding: 22px 0 0; }
+body[data-theme="vatcan"] .card { padding: 24px; border: 0; border-radius: 5px; box-shadow: 0 2px 16px rgba(25,27,42,.04); margin-bottom: 22px; }
+body[data-theme="vatcan"] .caption { font-size: 17px; color: #434454; text-transform: none; letter-spacing: 0; font-weight: 600; margin-bottom: 18px; }
+body[data-theme="vatcan"] label { font-size: 12px; color: #636478; font-weight: 500; }
+body[data-theme="vatcan"] input, body[data-theme="vatcan"] select, body[data-theme="vatcan"] textarea { min-height: 40px; padding: 10px 12px; border-radius: 4px; }
+body[data-theme="vatcan"] input[type="checkbox"] { min-height: auto; accent-color: #5866d9; }
+body[data-theme="vatcan"] input[type="range"] { padding: 0; accent-color: #5866d9; }
+body[data-theme="vatcan"] button { min-height: 38px; padding: 9px 15px; border-radius: 4px; border: 1px solid transparent; font-weight: 500; }
+body[data-theme="vatcan"] button.primary { color: #ffffff; }
+body[data-theme="vatcan"] button.primary:hover { background: #4654bf; }
+body[data-theme="vatcan"] button.good { color: #1b6746; }
+body[data-theme="vatcan"] button.warn { color: #795014; }
+body[data-theme="vatcan"] button:disabled { opacity: .5; cursor: default; }
+body[data-theme="vatcan"] button:focus-visible { outline: 3px solid #5866d9; outline-offset: 2px; }
+body[data-theme="vatcan"] .status { border-radius: 4px; padding: 12px 16px; margin: 0; }
+body[data-theme="vatcan"] .status.success { color: #1b6746; background: #e8f6ef; border-left-color: #25835c; }
+body[data-theme="vatcan"] .status.error { color: #9f303c; background: #fff0f2; border-left-color: #c83d50; }
+body[data-theme="vatcan"] .metric-card { background: #ffffff; border: 0; border-radius: 5px; padding: 20px; box-shadow: 0 2px 12px rgba(25,27,42,.04); }
+body[data-theme="vatcan"] .metric-value { color: #5866d9; font-size: 27px; }
+body[data-theme="vatcan"] .path { background: #f7f7fb; color: #636478; border-radius: 4px; }
+body[data-theme="vatcan"] th { background: #f7f7fb; color: #636478; }
+body[data-theme="vatcan"] th, body[data-theme="vatcan"] td { padding: 11px; }
+@media (max-width: 820px) {
+  body[data-theme="vatcan"] header { padding: 22px 18px; gap: 12px; flex-wrap: wrap; }
+  body[data-theme="vatcan"] main { padding: 0 10px 20px; }
+  body[data-theme="vatcan"] nav { padding: 10px; overflow-x: visible; }
+  body[data-theme="vatcan"] nav button { min-width: 0; padding: 10px; }
+  body[data-theme="vatcan"] main > div, body[data-theme="vatcan"] .card { padding: 18px; }
+}

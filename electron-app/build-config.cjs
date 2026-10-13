@@ -1,0 +1,13 @@
+const base = structuredClone(require('./package.json').build);
+const test = process.env.ZYZTOOLS_BUILD_CHANNEL !== 'production';
+const kind = test ? 'test' : 'production';
+const name = test ? 'ZYZTools test' : 'ZYZTools';
+base.appId = test ? 'com.zyztools.test' : 'com.preferredcyyz.pdcsettings';
+base.productName = name;
+base.artifactName = test ? 'ZYZTools-Test-Setup-${version}.exe' : 'ZYZTools-Setup.exe';
+base.directories.output = `../installer/dist/${kind}`;
+base.nsis.shortcutName = name;
+base.extraMetadata = { name: test ? 'zyztools-test' : 'zyztools', zyzBuildChannel: kind, displayName: name };
+base.extraResources.find(resource => resource.to === 'plugin').from = `../build/channels/${kind}/plugin`;
+if (test) base.extraResources.push({ from: '../installer/dist/production/ZYZTools-Setup.exe', to: 'Publishing/ZYZTools-Setup.exe' });
+module.exports = base;

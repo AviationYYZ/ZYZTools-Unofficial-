@@ -1,0 +1,132 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index c9f8170..b144a92 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -44,5 +44,6 @@ target_sources(afv_native PRIVATE
+ 			${CMAKE_CURRENT_SOURCE_DIR}/src/afv/RadioSimulation.cpp
+ 			${CMAKE_CURRENT_SOURCE_DIR}/src/afv/ATCRadioSimulation.cpp
++			${CMAKE_CURRENT_SOURCE_DIR}/src/TrackAudioTxTap.cpp
+ 			${CMAKE_CURRENT_SOURCE_DIR}/src/afv/RemoteVoiceSource.cpp
+ 			${CMAKE_CURRENT_SOURCE_DIR}/src/afv/VoiceCompressionSink.cpp
+ 			${CMAKE_CURRENT_SOURCE_DIR}/src/afv/VoiceSession.cpp
+diff --git a/src/afv/ATCRadioSimulation.cpp b/src/afv/ATCRadioSimulation.cpp
+index 5df3dd3..da8cb5e 100644
+--- a/src/afv/ATCRadioSimulation.cpp
++++ b/src/afv/ATCRadioSimulation.cpp
+@@ -39,6 +39,7 @@
+ #include "afv-native/audio/WavFile.h"
+ #include "afv-native/audio/WavSampleStorage.h"
+ #include "afv-native/event.h"
++#include "TrackAudioTxTap.h"
+ #include "afv-native/event/EventBus.h"
+ #include "afv-native/util/other.h"
+ #include <cstddef>
+@@ -141,6 +142,21 @@ void ATCRadioSimulation::putAudioFrame(const audio::SampleType *bufferIn) {
+-    // Copy processed mic audio to loopback buffer if enabled and PTT is active
++    // Copy processed mic audio to the private replay tap while PTT is active.
++    // The loopback flag is kept internally enabled by setLoopback(), but the
++    // playback mix has been removed below, so this never creates sidetone.
+     if (mLoopbackEnabled.load() && mPtt.load()) {
++        HardwareType tapHardware = mLoopbackHardware;
++        {
++            std::lock_guard<std::mutex> radioStateGuard(mRadioStateLock);
++            for (const auto &[_, radio]: mRadioState) {
++                if (radio.tx) {
++                    tapHardware = radio.simulatedHardware;
++                    break;
++                }
++            }
++        }
++
+         std::lock_guard<std::mutex> loopbackGuard(mLoopbackLock);
++        TrackAudioTxTapInitialize();
+         ::memcpy(mLoopbackBuffer, samples, sizeof(audio::SampleType) * audio::frameSizeSamples);
+         // Apply radio effects (VHF filter + compressor) to make it sound like radio
++        if (!mLoopbackVhfFilter || mLoopbackHardware != tapHardware) {
++            mLoopbackHardware  = tapHardware;
++            mLoopbackVhfFilter = std::make_shared<audio::VHFFilterSource>(tapHardware);
++        }
+         if (mLoopbackVhfFilter) {
+@@ -148,9 +164,11 @@ void ATCRadioSimulation::putAudioFrame(const audio::SampleType *bufferIn) {
+         }
+         mLoopbackCompressor.transformFrame(mLoopbackBuffer, mLoopbackBuffer);
++        TrackAudioTxTapPublish(mLoopbackBuffer, audio::frameSizeSamples, true);
+     } else if (mLoopbackEnabled.load()) {
+         // PTT released — zero the buffer so stale audio doesn't leak
+         std::lock_guard<std::mutex> loopbackGuard(mLoopbackLock);
+         ::memset(mLoopbackBuffer, 0, sizeof(audio::SampleType) * audio::frameSizeSamples);
++        TrackAudioTxTapPublish(mLoopbackBuffer, audio::frameSizeSamples, false);
+     }
+ 
+     if (!mPtt.load() && !mLastFramePtt) {
+@@ -474,33 +478,8 @@ audio::SourceStatus ATCRadioSimulation::getAudioFrame(audio::SampleType *bufferOu
+         }
+     } // mStreamMapLock released — loopback and output don't need it
+ 
+-    // Mix in loopback (sidetone) if enabled and target matches this output
+-    if (mLoopbackEnabled.load()) {
+-        auto loopbackTarget = mLoopbackTarget.load();
+-        auto loopbackGain   = mLoopbackGain.load();
+-        bool shouldMix      = false;
+-        if (loopbackTarget == AdHocOutputTarget::Both) {
+-            shouldMix = true;
+-        } else if (loopbackTarget == AdHocOutputTarget::Headset && onHeadset) {
+-            shouldMix = true;
+-        } else if (loopbackTarget == AdHocOutputTarget::Speaker && !onHeadset) {
+-            shouldMix = true;
+-        }
+-
+-        if (shouldMix) {
+-            audio::SampleType loopbackCopy[audio::frameSizeSamples];
+-            {
+-                std::lock_guard<std::mutex> loopbackGuard(mLoopbackLock);
+-                ::memcpy(loopbackCopy, mLoopbackBuffer, sizeof(audio::SampleType) * audio::frameSizeSamples);
+-            }
+-            if (onHeadset) {
+-                mix_buffers(state->mLeftMixingBuffer.data(), loopbackCopy, loopbackGain);
+-                mix_buffers(state->mRightMixingBuffer.data(), loopbackCopy, loopbackGain);
+-            } else {
+-                mix_buffers(state->mMixingBuffer.data(), loopbackCopy, loopbackGain);
+-            }
+-        }
+-    }
++    // Processed TX audio is published to the replay helper through shared
++    // memory. It is deliberately not mixed into either playback device.
+ 
+     if (onHeadset) {
+         audio::SampleType interleavedSamples[audio::frameSizeSamples * 2];
+@@ -1203,14 +1194,12 @@ void ATCRadioSimulation::setLoopback(bool enabled, AdHocOutputTarget target, float gain, HardwareType hardware) {
+     mLoopbackGain.store(gain);
+     {
+         std::lock_guard<std::mutex> loopbackGuard(mLoopbackLock);
+-        if (enabled) {
+-            // Always recreate the filter to pick up hardware type changes
+-            mLoopbackVhfFilter = std::make_shared<audio::VHFFilterSource>(hardware);
+-        } else {
+-            mLoopbackVhfFilter.reset();
+-            ::memset(mLoopbackBuffer, 0, sizeof(audio::SampleType) * audio::frameSizeSamples);
+-        }
++        // Always keep the processed buffer available for the private replay
++        // tap. It is never rendered to a headset or speaker by this build.
++        mLoopbackHardware  = hardware;
++        mLoopbackVhfFilter = std::make_shared<audio::VHFFilterSource>(hardware);
++        ::memset(mLoopbackBuffer, 0, sizeof(audio::SampleType) * audio::frameSizeSamples);
+     }
+-    mLoopbackEnabled.store(enabled);
+-    LOG("ATCRadioSimulation", "setLoopback: enabled=%i, target=%i, gain=%f, hardware=%i", enabled, static_cast<int>(target), gain, static_cast<int>(hardware));
++    mLoopbackEnabled.store(true);
++    LOG("ATCRadioSimulation", "setLoopback: private tap enabled, requested=%i, target=%i, gain=%f, hardware=%i", enabled, static_cast<int>(target), gain, static_cast<int>(hardware));
+ }
+diff --git a/include/afv-native/afv/ATCRadioSimulation.h b/include/afv-native/afv/ATCRadioSimulation.h
+index 58ac906..eb8b436 100644
+--- a/include/afv-native/afv/ATCRadioSimulation.h
++++ b/include/afv-native/afv/ATCRadioSimulation.h
+@@ -311,6 +311,7 @@ namespace afv_native::afv {
+ 
+         std::mutex        mLoopbackLock;
+-        std::atomic<bool> mLoopbackEnabled {false};
++        std::atomic<bool> mLoopbackEnabled {true};
+         std::atomic<AdHocOutputTarget> mLoopbackTarget {AdHocOutputTarget::Headset};
+         std::atomic<float> mLoopbackGain {1.0f};
++        HardwareType       mLoopbackHardware {HardwareType::Schmid_ED_137B};
+         audio::SampleType  mLoopbackBuffer[audio::frameSizeSamples] = {};

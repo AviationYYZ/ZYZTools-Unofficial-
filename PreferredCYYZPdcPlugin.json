@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "hoppie_enabled": 0,
+  "hoppie_logon_code": "REPLACE_WITH_YOUR_HOPPIE_LOGON_CODE",
+  "station_code": "CYYZ",
+  "poll_seconds": 60,
+  "airport_direction": "EAST",
+  "operation": "DUALS",
+  "runway_assignment_config": "off",
+  "ui_theme": "current",
+  "duals_mode": "off",
+  "confirm_every_pdc": 0,
+  "pdc_sound_enabled": 1,
+  "ifr_sound_enabled": 1,
+  "send_sound_enabled": 1,
+  "audio_replay_enabled": 1,
+  "audio_replay_seconds": 180,
+  "audio_replay_tx_radio_intensity": 70,
+  "audio_replay_capture_mode": "process",
+  "audio_replay_processes": "trackaudio.exe",
+  "audio_replay_folder": "Recordings",
+  "audio_replay_save_command": "replay save",
+  "trackaudio_version": "auto",
+  "settings_app_path": "",
+  "test_mode": 0,
+  "debug_mode": 0,
+  "pdc_request_sound": "pdc_request.wav",
+  "ifr_release_sound": "IFR_release.wav",
+  "send_sound": "pdc_send.wav",
+  "runway_assignments": {
+    "west": {
+      "23": ["ANCOL", "ARROW", "AVSEP", "EBKIN", "PERLO", "GOPUP", "IKLEN", "KISEP", "LAKES", "MATES", "MIXUT", "NOSIK", "NUGOP", "PEMBA", "SEDOG", "TRNTO", "TULEK", "URSAL"],
+      "24R": ["BETES", "BOMET", "DEDKI", "DUSOM", "KEPTA", "MAVAN", "OAKVL", "RIGUS", "TEVAD", "VERDO"]
+    },
+    "east": {
+      "05": ["ANCOL", "ARROW", "AVSEP", "EBKIN", "GOPUP", "IKLEN", "KISEP", "LAKES", "MATES", "NOSIK", "NUGOP", "PERLO", "SEDOG", "TRNTO", "TULEK", "URSAL"],
+      "06L": ["BETES", "BOMET", "DEDKI", "DUSOM", "KEPTA", "MAVAN", "MIXUT", "OAKVL", "PEMBA", "RIGUS", "TEVAD", "VERDO"]
+    }
+  }
+}
