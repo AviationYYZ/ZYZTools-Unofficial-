@@ -36,7 +36,10 @@ const FILES_TO_INSTALL = [
   { name: "README.md", preserve: false }
 ];
 
+const pdcTemplates = require('./pdc-templates');
 const DEFAULT_CONFIG = {
+  pdc_template_bridge: pdcTemplates.defaults.bridge,
+  pdc_template_hoppie: pdcTemplates.defaults.hoppie,
   schema_version: 1,
   hoppie_enabled: 0,
   hoppie_logon_code: "REPLACE_WITH_YOUR_HOPPIE_LOGON_CODE",
@@ -251,6 +254,10 @@ function normalizeConfig(raw) {
     }
   };
 
+  for (const kind of ['bridge','hoppie']) {
+    const key = 'pdc_template_'+kind;
+    merged[key] = pdcTemplates.validate(merged[key] || pdcTemplates.defaults[kind]);
+  }
   merged.station_code = String(merged.station_code || "CYYZ").trim().toUpperCase();
   merged.poll_seconds = clampInteger(merged.poll_seconds, 45, 75, 60);
   merged.audio_replay_seconds = clampInteger(merged.audio_replay_seconds, 60, 600, 180);
@@ -787,10 +794,17 @@ app.whenReady().then(async () => {
   try {
     const release = await updates.check(updates.DEFAULT_REPOSITORY, app.getVersion(), undefined, selectedUpdateStream());
     if (release.available && release.essential) {
+      const notice = await require('./essential-update-notice').showEssentialUpdateNotice(BrowserWindow, mainWindow, channel.name);
+      try {
       const installer = await updates.download(release, path.join(app.getPath('temp'), channel.userDataName + '-Updates'));
+      await notice.beforeInstall();
       const child = childProcess.spawn(installer, ['/S'], { detached: true, stdio: 'ignore', windowsHide: true });
-      child.on('error', error => { if (mainWindow) dialog.showErrorBox('Essential update could not start', error.message); });
+      child.on('error', error => { notice.close(); dialog.showErrorBox('Essential update could not start', error.message); });
       child.once('spawn', () => { child.unref(); app.quit(); });
+      } catch (error) {
+        notice.close();
+        dialog.showErrorBox('Essential update could not be downloaded', error.message);
+      }
     }
   } catch (error) { console.warn('Startup update check:', error.message); }
 });

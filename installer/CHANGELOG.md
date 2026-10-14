@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.2.20 — Local test, awaiting user approval
+
+- Added {controller_callsign} to both PDC template editors, using the current EuroScope controller identity at send time. Existing default messages are unchanged.
+
+## 1.2.19 — Local test, awaiting user approval
+
+- Essential startup updates now display a visible automatic update notice before downloading and closing the app, with a minimum display time and clear failure messages.
+
+## 1.2.18 — Local test, awaiting user approval
+
+- Added Operations-page PDC template editing for EuroScope/bridge and Hoppie TELEX, with insertable aircraft variables and original-format defaults.
+- Added restore-defaults and template validation; invalid externally edited native templates fall back to the original message.
+
 ## 1.2.17 — Local test, awaiting user approval
 
 - Removed the flight narrative and pilot feedback pages, local AI integration, log importing, and background aircraft-history recording.

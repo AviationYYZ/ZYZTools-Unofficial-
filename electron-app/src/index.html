@@ -415,6 +415,15 @@
 
       <section id="operations">
         <div class="card">
+          <div class="caption">PDC message templates</div>
+          <p>Click a template, then a variable to insert it at the cursor. Values come from the aircraft's current clearance. Messages are sent in uppercase. Altitude is the filed altitude; timestamp is UTC. Hoppie remains TELEX, with its route wrapped as before.</p>
+          <div id="pdcTemplateVariables" class="buttons"></div>
+          <label for="pdcTemplateBridge">EuroScope / bridge message</label><textarea id="pdcTemplateBridge" rows="7" maxlength="2000"></textarea>
+          <label for="pdcTemplateHoppie">Hoppie TELEX message</label><textarea id="pdcTemplateHoppie" rows="14" maxlength="2000"></textarea>
+          <p>{controller_callsign} uses your connected EuroScope controller callsign (blank if unavailable). Keep {identifier} for clearance acknowledgement. Restore defaults recovers the original message formats; save to apply.</p>
+          <div class="buttons"><button id="savePdcTemplatesBtn" class="good">Save templates</button><button id="resetPdcTemplatesBtn">Restore defaults</button></div>
+        </div>
+        <div class="card">
           <div class="caption">Arrival runway assignment</div>
           <label class="check"><input id="arrivalAssignmentEnabled" type="checkbox" />Assign CYYZ arrival runways from VATCANSitu SFI</label>
           <label for="arrivalAssignmentFlow">Arrival flow</label>
@@ -652,6 +661,7 @@
   </main>
 
   <script src="custom-theme.js"></script>
+  <script src="pdc-templates.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>

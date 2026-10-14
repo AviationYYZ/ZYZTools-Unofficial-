@@ -10,6 +10,7 @@
 #include "../SDK/EuroScopePlugIn.h"
 #include "DepartureAssignment.h"
 #include "ArrivalAssignment.h"
+#include "PdcTemplate.h"
 
 #include <algorithm>
 #include <atomic>
@@ -2393,6 +2394,7 @@ private:
         bool testMode = false;
         bool debugMode = false;
         bool confirmEveryPdc = false;
+        std::string pdcTemplateBridge, pdcTemplateHoppie;
         bool pdcSoundEnabled = true;
         bool ifrSoundEnabled = true;
         bool sendSoundEnabled = true;
@@ -2530,8 +2532,24 @@ private:
     {
         std::string callsign, dep, dest, sid, rwy, squawk, actype, alt, route;
 
-        std::string BuildPDCText_Bridge(const std::string &pdcId) const
+        std::string CustomPdc(const std::string &text, const std::string &pdcId, bool telex, const std::string &controller) const
         {
+            if (text.empty() || text.size() > 2000 || text.find("{identifier}") == std::string::npos) return {};
+            for (unsigned char c : text) if (c != '\n' && (c < 32 || c > 126)) return {};
+            auto rendered = RenderPdcTemplate(text, {
+                {"timestamp", TimestampDDMonYY_HHMM()}, {"callsign", callsign}, {"controller_callsign", controller}, {"departure", dep},
+                {"destination", dest}, {"aircraft_type", actype}, {"altitude", alt}, {"squawk", squawk},
+                {"sid", sid}, {"runway", rwy}, {"identifier", pdcId},
+                {"route", telex ? JoinWrapped(RouteTokens_NoStepClimbs(route), 26) : route}
+            });
+            if (!telex) std::replace(rendered.begin(), rendered.end(), '\n', ' ');
+            return Upper(rendered);
+        }
+
+        std::string BuildPDCText_Bridge(const std::string &pdcId, const std::string &text = "", const std::string &controller = "") const
+        {
+            const auto custom = CustomPdc(text, pdcId, false, controller);
+            if (!custom.empty()) return custom;
             std::ostringstream out;
             out
                 << "TIMESTAMP " << TimestampDDMonYY_HHMM() << " "
@@ -2549,8 +2567,10 @@ private:
             return Upper(out.str());
         }
 
-        std::string BuildPDCText_HoppieTelex(const std::string &pdcId) const
+        std::string BuildPDCText_HoppieTelex(const std::string &pdcId, const std::string &text = "", const std::string &controller = "") const
         {
+            const auto custom = CustomPdc(text, pdcId, true, controller);
+            if (!custom.empty()) return custom;
             std::vector<std::string> toks = RouteTokens_NoStepClimbs(route);
             std::string routeWrapped = JoinWrapped(toks, 26);
 
@@ -4370,7 +4390,9 @@ private:
         }
 
         const std::string pdcId = GeneratePdcIdentifier(cs);
-        const std::string pdc = it->second.BuildPDCText_Bridge(pdcId);
+        const CController controller = ControllerMyself();
+        const std::string controllerCallsign = controller.IsValid() && controller.GetCallsign() ? controller.GetCallsign() : "";
+        const std::string pdc = it->second.BuildPDCText_Bridge(pdcId, m_cfg.pdcTemplateBridge, controllerCallsign);
 
         std::string err;
         if (!SendToBridge(cs, pdc, err))
@@ -5151,7 +5173,9 @@ private:
 
         const CachedFp &cfp = it->second;
         const std::string pdcId = GeneratePdcIdentifier(cs);
-        const std::string pdcBody = cfp.BuildPDCText_HoppieTelex(pdcId);
+        const CController controller = ControllerMyself();
+        const std::string controllerCallsign = controller.IsValid() && controller.GetCallsign() ? controller.GetCallsign() : "";
+        const std::string pdcBody = cfp.BuildPDCText_HoppieTelex(pdcId, m_cfg.pdcTemplateHoppie, controllerCallsign);
         const std::string scratchpad = pdcId;
 
         if (m_cfg.testMode)
@@ -5273,6 +5297,8 @@ private:
             << "  \"arrival_assignment_flow\": \"" << JsonEscape(m_cfg.arrivalAssignmentFlow) << "\",\n"
             << "  \"ui_theme\": \"" << UiThemeConfigName(m_cfg.uiTheme) << "\",\n"
             << "  \"duals_mode\": \"" << dualsMode << "\",\n"
+            << "  \"pdc_template_bridge\": \"" << JsonEscape(m_cfg.pdcTemplateBridge) << "\",\n"
+            << "  \"pdc_template_hoppie\": \"" << JsonEscape(m_cfg.pdcTemplateHoppie) << "\",\n"
             << "  \"confirm_every_pdc\": " << (m_cfg.confirmEveryPdc ? 1 : 0) << ",\n"
             << "  \"pdc_sound_enabled\": " << (m_cfg.pdcSoundEnabled ? 1 : 0) << ",\n"
             << "  \"ifr_sound_enabled\": " << (m_cfg.ifrSoundEnabled ? 1 : 0) << ",\n"
@@ -5392,6 +5418,10 @@ private:
 
         JsonStringValue(json, "hoppie_logon_code", m_cfg.logonCode);
         JsonStringValue(json, "station_code", m_cfg.stationCode);
+        m_cfg.pdcTemplateBridge.clear(); m_cfg.pdcTemplateHoppie.clear();
+        size_t templatePos = 0;
+        if (FindJsonValueStart(json, "pdc_template_bridge", templatePos)) ParseJsonStringAt(json, templatePos, m_cfg.pdcTemplateBridge);
+        if (FindJsonValueStart(json, "pdc_template_hoppie", templatePos)) ParseJsonStringAt(json, templatePos, m_cfg.pdcTemplateHoppie);
         JsonIntValue(json, "poll_seconds", m_cfg.pollSeconds);
         JsonStringValue(json, "airport_direction", m_cfg.airportDirection);
         JsonStringValue(json, "operation", m_cfg.operation);

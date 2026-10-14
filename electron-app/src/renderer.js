@@ -139,6 +139,8 @@ function formToConfig() {
   next.arrival_assignment_flow = $('arrivalAssignmentFlow').value;
   next.duals_mode = next.runway_assignment_config === "east" ? "05"
     : next.runway_assignment_config === "west" ? "23" : "off";
+  next.pdc_template_bridge = window.pdcTemplates.validate($('pdcTemplateBridge').value);
+  next.pdc_template_hoppie = window.pdcTemplates.validate($('pdcTemplateHoppie').value);
   next.confirm_every_pdc = boolInt("confirmEveryPdc");
   next.pdc_sound_enabled = boolInt("pdcSoundEnabled");
   next.ifr_sound_enabled = boolInt("ifrSoundEnabled");
@@ -177,6 +179,8 @@ function configToForm(next) {
   $('arrivalAssignmentFlow').value = config.arrival_assignment_flow || 'west';
   $('arrivalAssignmentFlow').disabled = !Number(config.arrival_assignment_enabled);
   applyTheme(config.ui_theme || "current");
+  $('pdcTemplateBridge').value = config.pdc_template_bridge || window.pdcTemplates.defaults.bridge;
+  $('pdcTemplateHoppie').value = config.pdc_template_hoppie || window.pdcTemplates.defaults.hoppie;
   setBool("confirmEveryPdc", config.confirm_every_pdc);
   setBool("pdcSoundEnabled", config.pdc_sound_enabled);
   setBool("ifrSoundEnabled", config.ifr_sound_enabled);
@@ -460,7 +464,7 @@ $("installPluginBtn").addEventListener("click", async () => {
 $("openInstallBtn").addEventListener("click", () => api.openFolder(installFolder));
 $("openLocalSettingsBtn").addEventListener("click", () => api.openFolder(localSettingsFolder));
 
-['saveArrivalSettingsBtn', "saveOperationsBtn", "saveHoppieBtn", "saveSidsBtn", "saveReplaySettingsBtn", "saveAdvancedBtn", "saveAppearanceBtn"].forEach((id) => {
+['savePdcTemplatesBtn', 'saveArrivalSettingsBtn', "saveOperationsBtn", "saveHoppieBtn", "saveSidsBtn", "saveReplaySettingsBtn", "saveAdvancedBtn", "saveAppearanceBtn"].forEach((id) => {
   $(id).addEventListener("click", () => saveConfig().catch(error => setStatus(error.message, 'error')));
 });
 
@@ -627,3 +631,12 @@ document.querySelectorAll('[data-plugin-action]').forEach(button => {
     finally { button.disabled = false; }
   });
 });
+
+let activePdcTemplate = $('pdcTemplateBridge');
+for (const id of ['pdcTemplateBridge','pdcTemplateHoppie']) $(id).addEventListener('focus',()=>{activePdcTemplate=$(id);});
+for (const variable of window.pdcTemplates.variables) {
+  const button=document.createElement('button'); button.type='button'; button.textContent='{'+variable+'}';
+  button.addEventListener('click',()=>{activePdcTemplate.setRangeText(button.textContent,activePdcTemplate.selectionStart,activePdcTemplate.selectionEnd,'end');activePdcTemplate.focus();});
+  $('pdcTemplateVariables').appendChild(button);
+}
+$('resetPdcTemplatesBtn').addEventListener('click',()=>{ $('pdcTemplateBridge').value=window.pdcTemplates.defaults.bridge;$('pdcTemplateHoppie').value=window.pdcTemplates.defaults.hoppie; });
