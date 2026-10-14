@@ -985,7 +985,6 @@ ipcMain.handle("recordings:play", async (_event, filePath) => {
 });
 
 ipcMain.handle("statistics:list", async (_event, installFolder) => listStatistics(installFolder));
-
 ipcMain.handle("statistics:open", async (_event, filePath) => {
   if (!filePath || !fs.existsSync(filePath)) throw new Error("Statistics spreadsheet is missing.");
   await shell.openPath(filePath);

@@ -400,6 +400,7 @@ document.querySelectorAll("nav button[data-tab]").forEach((button) => {
     $(button.dataset.tab).classList.add("active");
     if (button.dataset.tab === "statistics") {
       await refreshStatistics(false);
+
     } else if (button.dataset.tab === "replay") {
       await refreshRecordings(false);
       await refreshTrackAudioTapStatus(false);

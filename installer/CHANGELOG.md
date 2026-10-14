@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.17 — Local test, awaiting user approval
+
+- Removed the flight narrative and pilot feedback pages, local AI integration, log importing, and background aircraft-history recording.
+- Existing saved logs, imports, reports, and installed local AI software are left untouched. Statistics and audio replay remain available.
+
 ## 1.2.8 — Local beta, awaiting user testing
 
 - Simplified Advanced to Publish beta. Only one matching beta installer is needed, and the app finds it automatically in Downloads or beside the app when possible.

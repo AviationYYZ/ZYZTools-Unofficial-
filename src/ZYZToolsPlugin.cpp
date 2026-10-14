@@ -3339,7 +3339,9 @@ private:
         m_statisticsAircraft.clear();
 
         for (CFlightPlan fp = FlightPlanSelectFirst(); fp.IsValid(); fp = FlightPlanSelectNext(fp))
+        {
             SeedStatisticsAircraft(fp);
+        }
 
         WriteAuditLog(
             "statistics_session_started",
