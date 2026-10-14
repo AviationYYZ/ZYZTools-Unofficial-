@@ -14,6 +14,12 @@ const { channel, destination, assertDestination } = require('./channel');
 let publicationInProgress = false;
 let checkedRelease = null;
 const { app, BrowserWindow, dialog, ipcMain, shell, safeStorage } = require("electron");
+const { Worker } = require('node:worker_threads');
+const feedback = require('./pilot-feedback');
+const localAI = require('./local-feedback-ai');
+let feedbackAbort = null;
+let feedbackReport = null;
+let feedbackBusy = false;
 app.setName(channel.name);
 app.setPath('userData', path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), channel.userDataName));
 
@@ -985,6 +991,75 @@ ipcMain.handle("recordings:play", async (_event, filePath) => {
 });
 
 ipcMain.handle("statistics:list", async (_event, installFolder) => listStatistics(installFolder));
+ipcMain.handle('feedback:list', async (_event, installFolder) => {
+  assertDestination(installFolder);
+  const native=await feedback.list(path.join(installFolder, 'FeedbackTelemetry'));
+  const imported=await feedback.list(path.join(app.getPath('userData'),'FeedbackImports'));
+  return [...native,...imported.map(f=>({...f,id:'import:'+f.id,imported:true}))].sort((a,b)=>b.updated-a.updated);
+});
+ipcMain.handle('feedback:import', async (_event, date) => {
+  if(feedbackBusy)throw new Error('Wait for the current report or import to finish.');
+  const selected=await dialog.showOpenDialog(mainWindow,{title:'Import EuroScope movement log',defaultPath:app.getPath('documents'),properties:['openFile'],filters:[{name:'EuroScope text log',extensions:['txt']}]});
+  if(selected.canceled)return {canceled:true};
+  feedbackBusy=true;
+  try {return await runFeedbackWorker({action:'import',file:selected.filePaths[0],folder:path.join(app.getPath('userData'),'FeedbackImports'),date});}
+  finally{feedbackBusy=false;}
+});
+ipcMain.handle('feedback:aiStatus',async()=>{
+  try{return {...await localAI.status(),ready:true};}catch{return {ready:false,models:[],message:'Install/start Ollama, then check again. The factual report works without AI.'};}
+});
+ipcMain.handle('feedback:range',async(_event,installFolder,id)=>{
+  assertDestination(installFolder);const imported=String(id).startsWith('import:');
+  const data=await feedback.read(imported?path.join(app.getPath('userData'),'FeedbackImports'):path.join(installFolder,'FeedbackTelemetry'),imported?id.slice(7):id);
+  if(!data.samples.length)throw new Error('No usable history.');
+  const first=data.samples[0].ts,last=data.samples.at(-1).ts;
+  const format=t=>new Date(t*1000).toISOString().replace('T',' ').replace('.000Z','Z');
+  return {start:format(first),end:format(last),suggestedStart:format(Math.max(first,last-600))};
+});
+ipcMain.handle('feedback:aiInstall',async()=>shell.openExternal('https://ollama.com/download/windows'));
+ipcMain.handle('feedback:aiDownload',async()=>{
+  if(feedbackBusy)throw new Error('Wait for the current task to finish.');
+  feedbackBusy=true;try{await localAI.downloadModel();return await localAI.status();}finally{feedbackBusy=false;}
+});
+ipcMain.handle('feedback:cancel',()=>{feedbackAbort?.abort();return true;});
+function runFeedbackWorker(data) {
+  return new Promise((resolve,reject) => {
+    const worker = new Worker(path.join(__dirname, 'feedback-worker.js'), { workerData:data });
+    let received=false;
+    const timer=setTimeout(()=>{worker.terminate();reject(new Error('The feedback task timed out.'));},120000);
+    worker.once('message',m=>{received=true;clearTimeout(timer);m.error?reject(new Error(m.error)):resolve(m.result);});
+    worker.once('error',e=>{clearTimeout(timer);reject(e);});
+    worker.once('exit',code=>{clearTimeout(timer);if(!received||code!==0)reject(new Error('The feedback worker stopped unexpectedly.'));});
+  });
+}
+ipcMain.handle('feedback:generate', async (_event, installFolder, id, input) => {
+  assertDestination(installFolder);
+  if (feedbackBusy) throw new Error('A feedback report is already being generated.');
+  feedbackBusy = true; feedbackReport = null;
+  if(input.useLocalAI)feedbackAbort=new AbortController();
+  try {
+    const imported=String(id).startsWith('import:');
+    feedbackReport=await runFeedbackWorker({folder:imported?path.join(app.getPath('userData'),'FeedbackImports'):path.join(installFolder,'FeedbackTelemetry'),id:imported?id.slice(7):id,input});
+    let aiError='';
+    if(input.useLocalAI){
+      try{const ai=await localAI.analyze(feedbackReport,input.model,undefined,feedbackAbort.signal);feedbackReport.ai=ai;feedbackReport.report=feedbackReport.narrative?feedbackReport.header+ai.text+'\n\n'+feedbackReport.locationText+(feedbackReport.input.question?'\n\n## Your question\n'+feedbackReport.input.question+'\n\n'+(ai.answer||feedbackReport.questionAnswer):'')+'\n\n'+feedbackReport.limitations+'\n\nLocal AI wording; verify factual accuracy against the exported evidence.':ai.text+'\n\n---\n\n'+feedbackReport.report;}
+      catch(error){aiError=error.name==='AbortError'?'AI analysis canceled. Factual report retained.':'Local AI unavailable: '+error.message;}
+    }
+    return { report:feedbackReport.report, samples:feedbackReport.samples.length,aiError };
+  } finally { feedbackAbort=null;feedbackBusy=false; }
+});
+ipcMain.handle('feedback:export', async (_event, kind) => {
+  if (!feedbackReport || feedbackBusy) throw new Error('Generate a report first.');
+  const report = feedbackReport;
+  const json=kind==='json';
+  const callsign=report.samples[0].callsign;
+  const result=await dialog.showSaveDialog(mainWindow,{title:json?'Export complete feedback evidence':'Save feedback report',
+    defaultPath:path.join(app.getPath('documents'),`ZYZTools_Feedback_${callsign}_${Date.now()}.${json?'json':'md'}`),
+    filters:[{name:json?'Evidence JSON':'Markdown report',extensions:[json?'json':'md']}]});
+  if(result.canceled||!result.filePath) return {canceled:true};
+  await fs.promises.writeFile(result.filePath,json?JSON.stringify(report,null,2):report.report,'utf8');
+  return {path:result.filePath};
+});
 
 ipcMain.handle("statistics:open", async (_event, filePath) => {
   if (!filePath || !fs.existsSync(filePath)) throw new Error("Statistics spreadsheet is missing.");

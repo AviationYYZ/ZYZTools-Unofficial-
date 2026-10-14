@@ -400,6 +400,9 @@ document.querySelectorAll("nav button[data-tab]").forEach((button) => {
     $(button.dataset.tab).classList.add("active");
     if (button.dataset.tab === "statistics") {
       await refreshStatistics(false);
+    } else if (button.dataset.tab === 'feedback') {
+      await refreshFeedback();
+      await refreshFeedbackAI();
     } else if (button.dataset.tab === "replay") {
       await refreshRecordings(false);
       await refreshTrackAudioTapStatus(false);
@@ -472,6 +475,73 @@ $("audioStatusBtn").addEventListener("click", async () => {
 });
 
 $("trackAudioVersion").addEventListener("change", () => refreshTrackAudioTapStatus(true));
+async function refreshFeedback() {
+  try {
+    const previous=$('feedbackAircraft').value;
+    const files=await api.listFeedback(installFolder);
+    $('feedbackAircraft').replaceChildren();
+    if(!files.length) $('feedbackAircraft').add(new Option('No recorded aircraft yet',''));
+    for(const file of files) $('feedbackAircraft').add(new Option(`${file.callsign} — ${file.imported?'imported log':'session'} ${file.started}`,file.id));
+    if(files.some(file=>file.id===previous)) $('feedbackAircraft').value=previous;
+    if($('feedbackAircraft').value!==previous){invalidateFeedback();await refreshNarrativeRange();}
+    $('feedbackStatus').textContent=files.length?`${files.length} recorded aircraft/session histories available.`:'No history yet. Update the EuroScope plugin and connect to the network to begin recording.';
+  } catch(error) { $('feedbackStatus').textContent=error.message; }
+}
+function invalidateFeedback() {
+  $('saveFeedbackBtn').hidden=true; $('exportFeedbackEvidenceBtn').hidden=true;
+  $('feedbackReport').textContent='Selection changed. Generate a narrative for this aircraft and time range.';
+}
+$('refreshFeedbackBtn').addEventListener('click',refreshFeedback);
+async function refreshFeedbackAI(){
+  try{const status=await api.feedbackAIStatus();const prior=$('feedbackAIModel').value||localStorage.getItem('feedbackAIModel');$('feedbackAIModel').replaceChildren();for(const model of status.models)$('feedbackAIModel').add(new Option(model,model));if(!status.models.length)$('feedbackAIModel').add(new Option('No installed local model',''));if(status.models.includes(prior))$('feedbackAIModel').value=prior;else if(status.models.includes(status.recommended))$('feedbackAIModel').value=status.recommended;
+    $('feedbackAIStatus').textContent=status.ready?(status.models.length?'Local AI is ready. AI generation is optional and can use substantial GPU/CPU while running.':'Ollama is running. Download Qwen3 4B to enable analysis.'):status.message;
+    $('feedbackUseAI').disabled=!status.models.length;if(!status.models.length)$('feedbackUseAI').checked=false;
+  }catch(error){$('feedbackAIStatus').textContent=error.message;}
+}
+$('installFeedbackAIBtn').addEventListener('click',()=>api.installFeedbackAI());
+$('checkFeedbackAIBtn').addEventListener('click',refreshFeedbackAI);
+$('downloadFeedbackModelBtn').addEventListener('click',async()=>{
+  $('downloadFeedbackModelBtn').disabled=true;$('feedbackAIStatus').textContent='Downloading the local model. This may take several minutes and uses about 2.5 GB of disk space…';
+  try{await api.downloadFeedbackModel();await refreshFeedbackAI();}catch(error){$('feedbackAIStatus').textContent=error.message;}finally{$('downloadFeedbackModelBtn').disabled=false;}
+});
+$('importFeedbackLogBtn').addEventListener('click',async()=>{
+  $('importFeedbackLogBtn').disabled=true;
+  try{const result=await api.importFeedbackLog($('feedbackLogDate').value.trim());if(!result.canceled){await refreshFeedback();$('feedbackStatus').textContent=result.message;invalidateFeedback();}}
+  catch(error){$('feedbackStatus').textContent=error.message;}finally{$('importFeedbackLogBtn').disabled=false;}
+});
+$('cancelFeedbackAIBtn').addEventListener('click',()=>{api.cancelFeedbackAI();$('feedbackStatus').textContent='Canceling local AI; factual evidence will be retained.';});
+$('feedbackAIModel').addEventListener('change',()=>{localStorage.setItem('feedbackAIModel',$('feedbackAIModel').value);invalidateFeedback();});
+$('feedbackUseAI').addEventListener('change',invalidateFeedback);
+async function refreshNarrativeRange(){
+  const id=$('feedbackAircraft').value;if(!id)return;
+  try{const data=await api.feedbackRange(installFolder,id);if($('feedbackAircraft').value!==id)return;
+    $('feedbackStart').value=data.suggestedStart.replace(' ','T').replace(/Z$/,'');$('feedbackEnd').value=data.end.replace(' ','T').replace(/Z$/,'');
+    $('feedbackAvailableRange').textContent='Available history: '+data.start+' to '+data.end;
+  }catch(error){$('feedbackAvailableRange').textContent=error.message;}
+}
+$('feedbackAircraft').addEventListener('change',()=>{invalidateFeedback();refreshNarrativeRange();});
+for(const id of ['feedbackStart','feedbackEnd','feedbackPhase','feedbackQuestion'])$(id).addEventListener('input',invalidateFeedback);
+$('generateFeedbackBtn').addEventListener('click',async()=>{
+  const aiWasDisabled=$('feedbackUseAI').disabled;
+  const ids=['generateFeedbackBtn','refreshFeedbackBtn','importFeedbackLogBtn','downloadFeedbackModelBtn','checkFeedbackAIBtn','feedbackAircraft','feedbackStart','feedbackEnd','feedbackPhase','feedbackQuestion','feedbackAIModel','feedbackUseAI'];
+  try {
+    invalidateFeedback();
+    if(!$('feedbackAircraft').value) throw new Error('Select a recorded aircraft first.');
+    ids.forEach(id=>$(id).disabled=true);
+    $('cancelFeedbackAIBtn').hidden=!$('feedbackUseAI').checked;
+    $('feedbackStatus').textContent=$('feedbackUseAI').checked?'Turning recorded movements into prose with the local model…':'Building a readable movement narrative…';
+    const time=id=>{let value=$(id).value;if(value.length===16)value+=':00';return value?value+'Z':'';};
+    const result=await api.generateFeedback(installFolder,$('feedbackAircraft').value,{narrative:true,startTime:time('feedbackStart'),endTime:time('feedbackEnd'),phase:$('feedbackPhase').value,question:$('feedbackQuestion').value,useLocalAI:$('feedbackUseAI').checked,model:$('feedbackAIModel').value});
+    $('feedbackReport').textContent=result.report;
+    $('feedbackStatus').textContent=result.aiError||`Narrative generated from ${result.samples} snapshots within your selected range.`;
+    $('saveFeedbackBtn').hidden=false; $('exportFeedbackEvidenceBtn').hidden=false;
+  } catch(error) { $('feedbackStatus').textContent=error.message; }
+  finally { ids.forEach(id=>$(id).disabled=false);$('feedbackUseAI').disabled=aiWasDisabled;$('cancelFeedbackAIBtn').hidden=true; }
+});
+for(const [id,kind] of [['saveFeedbackBtn','markdown'],['exportFeedbackEvidenceBtn','json']]) $(id).addEventListener('click',async()=>{
+  try { const result=await api.exportFeedback(kind); if(!result.canceled) $('feedbackStatus').textContent='Saved: '+result.path; }
+  catch(error) { $('feedbackStatus').textContent=error.message; }
+});
 $('arrivalAssignmentEnabled').addEventListener('change', () => { $('arrivalAssignmentFlow').disabled = !$('arrivalAssignmentEnabled').checked; });
 $("trackAudioStatusBtn").addEventListener("click", () => refreshTrackAudioTapStatus(true));
 $("txRadioIntensity").addEventListener("input", updateTxRadioIntensityLabel);
