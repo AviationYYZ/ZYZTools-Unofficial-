@@ -10,6 +10,7 @@
 #include "../SDK/EuroScopePlugIn.h"
 #include "DepartureAssignment.h"
 #include "ArrivalAssignment.h"
+#include "PdcTemplate.h"
 
 #include <algorithm>
 #include <atomic>
@@ -2119,7 +2120,6 @@ public:
 
     void OnFlightPlanDisconnect(CFlightPlan FlightPlan) override
     {
-        CaptureFeedback(FlightPlan, "aircraft_disconnected", true);
         std::string cs = Upper(Trim(FlightPlan.GetCallsign()));
         if (!cs.empty())
         {
@@ -2140,7 +2140,6 @@ public:
 
     void OnFlightPlanFlightPlanDataUpdate(CFlightPlan FlightPlan) override
     {
-        CaptureFeedback(FlightPlan, "flight_plan_update", true);
         TryAssignArrivalRunway(FlightPlan);
         TryAssignSpawnRunway(FlightPlan);
         CacheFp(FlightPlan);
@@ -2149,7 +2148,6 @@ public:
 
     void OnFlightPlanControllerAssignedDataUpdate(CFlightPlan FlightPlan, int DataType) override
     {
-        CaptureFeedback(FlightPlan, "assigned_data_update", true);
         if (DataType == CTR_DATA_TYPE_SCRATCH_PAD_STRING) TryAssignArrivalRunway(FlightPlan);
         CacheFp(FlightPlan);
 
@@ -2213,7 +2211,6 @@ public:
 
     void OnRadarTargetPositionUpdate(CRadarTarget RadarTarget) override
     {
-        CaptureFeedback(RadarTarget.GetCorrelatedFlightPlan(), "radar", false);
         TryAssignSpawnRunway(RadarTarget.GetCorrelatedFlightPlan());
         ObserveStatisticsRadarTarget(RadarTarget);
     }
@@ -2397,6 +2394,7 @@ private:
         bool testMode = false;
         bool debugMode = false;
         bool confirmEveryPdc = false;
+        std::string pdcTemplateBridge, pdcTemplateHoppie;
         bool pdcSoundEnabled = true;
         bool ifrSoundEnabled = true;
         bool sendSoundEnabled = true;
@@ -2534,8 +2532,24 @@ private:
     {
         std::string callsign, dep, dest, sid, rwy, squawk, actype, alt, route;
 
-        std::string BuildPDCText_Bridge(const std::string &pdcId) const
+        std::string CustomPdc(const std::string &text, const std::string &pdcId, bool telex) const
         {
+            if (text.empty() || text.size() > 2000 || text.find("{identifier}") == std::string::npos) return {};
+            for (unsigned char c : text) if (c != '\n' && (c < 32 || c > 126)) return {};
+            auto rendered = RenderPdcTemplate(text, {
+                {"timestamp", TimestampDDMonYY_HHMM()}, {"callsign", callsign}, {"departure", dep},
+                {"destination", dest}, {"aircraft_type", actype}, {"altitude", alt}, {"squawk", squawk},
+                {"sid", sid}, {"runway", rwy}, {"identifier", pdcId},
+                {"route", telex ? JoinWrapped(RouteTokens_NoStepClimbs(route), 26) : route}
+            });
+            if (!telex) std::replace(rendered.begin(), rendered.end(), '\n', ' ');
+            return Upper(rendered);
+        }
+
+        std::string BuildPDCText_Bridge(const std::string &pdcId, const std::string &text = "") const
+        {
+            const auto custom = CustomPdc(text, pdcId, false);
+            if (!custom.empty()) return custom;
             std::ostringstream out;
             out
                 << "TIMESTAMP " << TimestampDDMonYY_HHMM() << " "
@@ -2553,8 +2567,10 @@ private:
             return Upper(out.str());
         }
 
-        std::string BuildPDCText_HoppieTelex(const std::string &pdcId) const
+        std::string BuildPDCText_HoppieTelex(const std::string &pdcId, const std::string &text = "") const
         {
+            const auto custom = CustomPdc(text, pdcId, true);
+            if (!custom.empty()) return custom;
             std::vector<std::string> toks = RouteTokens_NoStepClimbs(route);
             std::string routeWrapped = JoinWrapped(toks, 26);
 
@@ -3283,76 +3299,6 @@ private:
         ExportStatisticsSpreadsheet(m_statisticsSession, false, false);
     }
 
-    std::string m_feedbackSession;
-    std::unordered_map<std::string, std::time_t> m_feedbackLastSample;
-    bool m_feedbackWriteErrorReported = false;
-    void CaptureFeedback(CFlightPlan fp, const char* event, bool force)
-    {
-        if (!m_statisticsSession.active || m_feedbackSession.empty() || !fp.IsValid()) return;
-        const auto fpd = fp.GetFlightPlanData();
-        const std::string origin = Upper(Trim(fpd.GetOrigin() ? fpd.GetOrigin() : ""));
-        const std::string destination = Upper(Trim(fpd.GetDestination() ? fpd.GetDestination() : ""));
-        if (origin != "CYYZ" && destination != "CYYZ") return;
-        const std::string cs = Upper(Trim(fp.GetCallsign() ? fp.GetCallsign() : ""));
-        if (cs.empty() || cs.size() > 12 || !std::all_of(cs.begin(), cs.end(), [](unsigned char c) { return std::isalnum(c); })) return;
-        const auto now = std::time(nullptr);
-        if (!force && m_feedbackLastSample.count(cs) && now - m_feedbackLastSample[cs] < 5) return;
-        const auto target = fp.GetCorrelatedRadarTarget();
-        const bool positionValid = target.IsValid() && target.GetPosition().IsValid();
-        if (!positionValid && !force) return;
-        const auto cad = fp.GetControllerAssignedData();
-        const auto safe = [](const char* s) { return std::string(s ? s : ""); };
-        const std::string folder = GetThisDllDir() + "FeedbackTelemetry";
-        CreateDirectoryA(folder.c_str(), nullptr);
-        std::ofstream out(folder + "\\" + m_feedbackSession + "_" + cs + ".jsonl", std::ios::app | std::ios::binary);
-        if (!out) {
-            if (!m_feedbackWriteErrorReported) { WriteAuditLog("feedback_recording_error", "Cannot write local movement history."); m_feedbackWriteErrorReported = true; }
-            return;
-        }
-        out << std::setprecision(10) << "{\"ts\":" << now << ",\"session\":\"" << m_feedbackSession << "\",\"callsign\":\"" << cs
-            << "\",\"event\":\"" << event << "\",\"origin\":\"" << JsonEscape(origin) << "\",\"destination\":\"" << JsonEscape(destination)
-            << "\",\"controller\":\"" << JsonEscape(m_statisticsSession.controller) << "\",\"trackingController\":\"" << JsonEscape(safe(fp.GetTrackingControllerCallsign()))
-            << "\",\"route\":\"" << JsonEscape(safe(fpd.GetRoute())) << "\",\"departureRunway\":\"" << JsonEscape(safe(fpd.GetDepartureRwy()))
-            << "\",\"arrivalRunway\":\"" << JsonEscape(safe(fpd.GetArrivalRwy())) << "\",\"scratchpad\":\"" << JsonEscape(safe(cad.GetScratchPadString()))
-            << "\",\"groundState\":\"" << JsonEscape(safe(fp.GetGroundState())) << "\",\"clearanceFlag\":" << (fp.GetClearenceFlag() ? "true" : "false")
-            << ",\"clearedAltitude\":" << cad.GetClearedAltitude() << ",\"assignedHeading\":" << cad.GetAssignedHeading() << ",\"assignedSpeed\":" << cad.GetAssignedSpeed()
-            << ",\"assignedMach\":" << cad.GetAssignedMach() << ",\"filedAltitude\":" << fpd.GetFinalAltitude()
-            << ",\"aircraftInfo\":\"" << JsonEscape(safe(fpd.GetAircraftInfo())) << "\",\"assignedSquawk\":\"" << JsonEscape(safe(cad.GetSquawk())) << "\"";
-        if (positionValid) {
-            const auto p = target.GetPosition(); const auto location = p.GetPosition();
-            out << ",\"lat\":" << location.m_Latitude << ",\"lon\":" << location.m_Longitude << ",\"altitude\":" << p.GetPressureAltitude()
-                << ",\"groundSpeed\":" << target.GetGS() << ",\"track\":" << target.GetTrackHeading()
-                << ",\"positionAgeSeconds\":" << p.GetReceivedTime() << ",\"verticalSpeed\":" << target.GetVerticalSpeed()
-                << ",\"reportedHeading\":" << p.GetReportedHeading() << ",\"reportedTrueHeading\":" << p.GetReportedHeadingTrueNorth();
-        }
-        const auto extracted = fp.GetExtractedRoute();
-        const int count = extracted.GetPointsNumber();
-        std::string direct = safe(cad.GetDirectToPointName());
-        const int assignedIndex = extracted.GetPointsAssignedIndex();
-        if (direct.empty() && assignedIndex >= 0 && assignedIndex < count) direct = safe(extracted.GetPointName(assignedIndex));
-        out << ",\"directToWaypoint\":\"" << JsonEscape(direct) << "\"";
-        const int next = extracted.GetPointsCalculatedIndex() + 1;
-        if (next > 0 && next < count) out << ",\"routeNextWaypoint\":\"" << JsonEscape(safe(extracted.GetPointName(next))) << "\"";
-        if (positionValid) {
-            const auto location = target.GetPosition().GetPosition();
-            double nearestDistance = 1000000.0, directDistance = 1000000.0; std::string nearestName;
-            for (int i = 0; i < count && i < 512; ++i) {
-                const auto point = extracted.GetPointPosition(i);
-                const auto name = safe(extracted.GetPointName(i));
-                if (name.empty() || (point.m_Latitude == 0 && point.m_Longitude == 0)) continue;
-                const double distance = location.DistanceTo(point);
-                if (distance < nearestDistance) { nearestDistance = distance; nearestName = name; }
-                if (!direct.empty() && Upper(name) == Upper(direct)) directDistance = std::min(directDistance, distance);
-            }
-            if (!nearestName.empty()) out << ",\"nearestWaypoint\":\"" << JsonEscape(nearestName) << "\",\"nearestWaypointDistanceNm\":" << nearestDistance;
-            if (directDistance < 1000000.0) out << ",\"directToDistanceNm\":" << directDistance;
-        }
-        out << "}\n";
-        out.flush();
-        if (out && !force) m_feedbackLastSample[cs] = now;
-        if (!out && !m_feedbackWriteErrorReported) { WriteAuditLog("feedback_recording_error", "Movement history write failed."); m_feedbackWriteErrorReported = true; }
-    }
-
     void SeedStatisticsAircraft(CFlightPlan fp)
     {
         if (!fp.IsValid())
@@ -3411,14 +3357,10 @@ private:
             m_statisticsSession.controller = Upper(Trim(myself.GetCallsign()));
         m_statisticsSession.buckets.resize(1);
         m_statisticsAircraft.clear();
-        m_feedbackSession = std::to_string(m_statisticsSession.startedAt) + "_" + std::to_string(GetTickCount64());
-        m_feedbackLastSample.clear();
-        m_feedbackWriteErrorReported = false;
 
         for (CFlightPlan fp = FlightPlanSelectFirst(); fp.IsValid(); fp = FlightPlanSelectNext(fp))
         {
             SeedStatisticsAircraft(fp);
-            CaptureFeedback(fp, "first_observed", true);
         }
 
         WriteAuditLog(
@@ -3436,8 +3378,6 @@ private:
         if (!m_statisticsSession.active)
             return;
 
-        for (CFlightPlan fp = FlightPlanSelectFirst(); fp.IsValid(); fp = FlightPlanSelectNext(fp))
-            CaptureFeedback(fp, "session_end", true);
         m_statisticsSession.active = false;
         m_statisticsSession.endedAt = std::time(nullptr);
         ExportStatisticsSpreadsheet(m_statisticsSession, false);
@@ -4450,7 +4390,7 @@ private:
         }
 
         const std::string pdcId = GeneratePdcIdentifier(cs);
-        const std::string pdc = it->second.BuildPDCText_Bridge(pdcId);
+        const std::string pdc = it->second.BuildPDCText_Bridge(pdcId, m_cfg.pdcTemplateBridge);
 
         std::string err;
         if (!SendToBridge(cs, pdc, err))
@@ -5231,7 +5171,7 @@ private:
 
         const CachedFp &cfp = it->second;
         const std::string pdcId = GeneratePdcIdentifier(cs);
-        const std::string pdcBody = cfp.BuildPDCText_HoppieTelex(pdcId);
+        const std::string pdcBody = cfp.BuildPDCText_HoppieTelex(pdcId, m_cfg.pdcTemplateHoppie);
         const std::string scratchpad = pdcId;
 
         if (m_cfg.testMode)
@@ -5353,6 +5293,8 @@ private:
             << "  \"arrival_assignment_flow\": \"" << JsonEscape(m_cfg.arrivalAssignmentFlow) << "\",\n"
             << "  \"ui_theme\": \"" << UiThemeConfigName(m_cfg.uiTheme) << "\",\n"
             << "  \"duals_mode\": \"" << dualsMode << "\",\n"
+            << "  \"pdc_template_bridge\": \"" << JsonEscape(m_cfg.pdcTemplateBridge) << "\",\n"
+            << "  \"pdc_template_hoppie\": \"" << JsonEscape(m_cfg.pdcTemplateHoppie) << "\",\n"
             << "  \"confirm_every_pdc\": " << (m_cfg.confirmEveryPdc ? 1 : 0) << ",\n"
             << "  \"pdc_sound_enabled\": " << (m_cfg.pdcSoundEnabled ? 1 : 0) << ",\n"
             << "  \"ifr_sound_enabled\": " << (m_cfg.ifrSoundEnabled ? 1 : 0) << ",\n"
@@ -5472,6 +5414,10 @@ private:
 
         JsonStringValue(json, "hoppie_logon_code", m_cfg.logonCode);
         JsonStringValue(json, "station_code", m_cfg.stationCode);
+        m_cfg.pdcTemplateBridge.clear(); m_cfg.pdcTemplateHoppie.clear();
+        size_t templatePos = 0;
+        if (FindJsonValueStart(json, "pdc_template_bridge", templatePos)) ParseJsonStringAt(json, templatePos, m_cfg.pdcTemplateBridge);
+        if (FindJsonValueStart(json, "pdc_template_hoppie", templatePos)) ParseJsonStringAt(json, templatePos, m_cfg.pdcTemplateHoppie);
         JsonIntValue(json, "poll_seconds", m_cfg.pollSeconds);
         JsonStringValue(json, "airport_direction", m_cfg.airportDirection);
         JsonStringValue(json, "operation", m_cfg.operation);

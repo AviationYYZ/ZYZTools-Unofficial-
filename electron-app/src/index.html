@@ -391,7 +391,6 @@
       <button data-tab="sids">SID Matrix</button>
       <button data-tab="replay">Replay & Recordings</button>
       <button data-tab="statistics">Statistics</button>
-      <button data-tab="feedback">Flight Narrative</button>
       <button data-tab="appearance">Appearance</button>
       <button data-tab="advanced">Advanced</button>
     </nav>
@@ -415,6 +414,15 @@
       </section>
 
       <section id="operations">
+        <div class="card">
+          <div class="caption">PDC message templates</div>
+          <p>Click a template, then a variable to insert it at the cursor. Values come from the aircraft's current clearance. Messages are sent in uppercase. Altitude is the filed altitude; timestamp is UTC. Hoppie remains TELEX, with its route wrapped as before.</p>
+          <div id="pdcTemplateVariables" class="buttons"></div>
+          <label for="pdcTemplateBridge">EuroScope / bridge message</label><textarea id="pdcTemplateBridge" rows="7" maxlength="2000"></textarea>
+          <label for="pdcTemplateHoppie">Hoppie TELEX message</label><textarea id="pdcTemplateHoppie" rows="14" maxlength="2000"></textarea>
+          <p>Keep {identifier} for clearance acknowledgement. Restore defaults recovers the original message formats; save to apply.</p>
+          <div class="buttons"><button id="savePdcTemplatesBtn" class="good">Save templates</button><button id="resetPdcTemplatesBtn">Restore defaults</button></div>
+        </div>
         <div class="card">
           <div class="caption">Arrival runway assignment</div>
           <label class="check"><input id="arrivalAssignmentEnabled" type="checkbox" />Assign CYYZ arrival runways from VATCANSitu SFI</label>
@@ -569,34 +577,6 @@
         </div>
       </section>
 
-      <section id="feedback">
-        <div class="card">
-          <div class="caption">Aircraft movement narrative</div>
-          <p>Native movement history for CYYZ arrivals and departures starts when the updated plugin connects to the network. About one radar sample is recorded every five seconds, plus assigned-data and flight-plan changes. For past sessions, import a EuroScope log below.</p>
-          <p class="subtle">Select a time range to describe the aircraft's recorded altitude, ground speed, heading (if available) and ground-track changes in readable sentences. Consecutive changes are grouped. Local AI improves the wording; it does not decide what was right or wrong.</p>
-          <label for="feedbackLogDate">Log start date (optional — inferred from EuroScopeYYYYMMDD filename)</label><input id="feedbackLogDate" placeholder="YYYY-MM-DD (UTC)" maxlength="10" />
-          <button id="importFeedbackLogBtn">Import EuroScope log</button>
-          <button id="refreshFeedbackBtn">Refresh aircraft</button>
-          <label for="feedbackAircraft">Aircraft / recorded session</label><select id="feedbackAircraft"><option value="">No recorded aircraft yet</option></select>
-          <p id="feedbackAvailableRange">Select an aircraft to see its available recording period.</p>
-          <div class="grid2"><label for="feedbackStart">Start (UTC)<input id="feedbackStart" type="datetime-local" step="1" /></label><label for="feedbackEnd">End (UTC)<input id="feedbackEnd" type="datetime-local" step="1" /></label></div>
-          <p class="subtle">Starts with the last ten recorded minutes. Adjust the range to the portion you want, or leave both fields blank for the complete history.</p>
-          <label for="feedbackPhase">Phase of flight (your selected interval)</label><select id="feedbackPhase"><option value="all">All / not specified</option><option value="ground">Ground / taxi</option><option value="takeoff">Takeoff</option><option value="climb">Climb</option><option value="cruise">Cruise</option><option value="descent">Descent</option><option value="approach">Approach</option><option value="landing">Landing</option><option value="go-around">Go-around</option></select>
-          <p class="subtle">Use the time range to isolate this phase. The label is supplied by you; it is not automatic phase detection. Waypoint context requires recorded navigation data. Older logs may only contain filed route names.</p>
-          <label for="feedbackQuestion">Questions about this flight (optional)</label><textarea id="feedbackQuestion" maxlength="4000" placeholder="For example: When did it turn? What was its speed during the turn? Which waypoint was it recorded direct to?"></textarea>
-          <div class="card">
-            <div class="caption">Local AI (optional)</div>
-            <p>Install Ollama once, then download Qwen3 4B (about 2.5 GB). Internet is needed for setup, not for incident analysis. The model loads only when you generate an AI report and is requested to unload afterward. CPU/GPU usage may be noticeable during generation.</p>
-            <div class="buttons"><button id="installFeedbackAIBtn">Get Ollama for Windows</button><button id="checkFeedbackAIBtn">Check local AI</button><button id="downloadFeedbackModelBtn">Download Qwen3 4B (2.5 GB)</button></div>
-            <p id="feedbackAIStatus" role="status">Check local AI to see installed models.</p>
-            <label for="feedbackAIModel">Installed local model</label><select id="feedbackAIModel"><option value="">No model selected</option></select>
-            <label class="check"><input id="feedbackUseAI" type="checkbox" checked />Use local AI to phrase the movement into a readable narrative</label>
-          </div>
-          <div class="buttons"><button id="generateFeedbackBtn" class="primary">Generate narrative / answer questions</button><button id="cancelFeedbackAIBtn" hidden>Cancel AI (keep factual narrative)</button><button id="saveFeedbackBtn" hidden>Save narrative</button><button id="exportFeedbackEvidenceBtn" hidden>Export evidence JSON</button></div>
-          <p id="feedbackStatus" role="status">Select an aircraft and time range.</p>
-        </div>
-        <div class="card"><div class="caption">Flight narrative</div><pre id="feedbackReport" style="white-space:pre-wrap;overflow-wrap:anywhere;user-select:text;font:inherit">No narrative generated yet.</pre></div>
-      </section>
       <section id="appearance">
         <div class="card">
           <div class="caption">Theme</div>
@@ -681,6 +661,7 @@
   </main>
 
   <script src="custom-theme.js"></script>
+  <script src="pdc-templates.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>
