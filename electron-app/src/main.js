@@ -45,6 +45,8 @@ const DEFAULT_CONFIG = {
   airport_direction: "EAST",
   operation: "DUALS",
   runway_assignment_config: "off",
+  arrival_assignment_enabled: 0,
+  arrival_assignment_flow: "west",
   ui_theme: "current",
   duals_mode: "off",
   confirm_every_pdc: 0,
@@ -202,6 +204,7 @@ function normalizeTheme(value) {
   const theme = String(value || "current").trim().toLowerCase();
   if (theme === "vatcan" || theme === "vatcansitu") return "vatcan";
   if (theme === "navcan" || theme === "navcanada") return "navcan";
+  if (theme === "custom") return "custom";
   if (theme === "cpp" || theme === "plugincore" || theme === "plugin_core" || theme === "core") return "plugincore";
   return "current";
 }
@@ -260,6 +263,8 @@ function normalizeConfig(raw) {
   merged.airport_direction = String(merged.airport_direction || "WEST").trim().toUpperCase();
   merged.operation = String(merged.operation || "DUALS").trim().toUpperCase();
   merged.ui_theme = normalizeTheme(merged.ui_theme);
+  merged.arrival_assignment_enabled = Number(merged.arrival_assignment_enabled) === 1 ? 1 : 0;
+  merged.arrival_assignment_flow = ['west', 'east', 'north', 'south'].includes(merged.arrival_assignment_flow) ? merged.arrival_assignment_flow : 'west';
   merged.runway_assignment_config = ["east", "west"].includes(merged.runway_assignment_config)
     ? merged.runway_assignment_config : "off";
   if (merged.runway_assignment_config !== "off") {
@@ -325,7 +330,8 @@ function getInitialState() {
     payloadFolder: payloadFolder(),
     appPath: appExecutablePath(),
     installed: fs.existsSync(path.join(installFolder, "PreferredCYYZPdcPlugin.dll")),
-    config: startupConfig
+    config: startupConfig,
+    customTheme: loadCustomTheme()
   };
 }
 
@@ -794,6 +800,18 @@ app.on("window-all-closed", () => {
 });
 
 ipcMain.handle("app:initialState", async () => getInitialState());
+function loadCustomTheme() {
+  try { return require('./custom-theme').normalize(JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'custom-theme.json'), 'utf8'))); }
+  catch { return require('./custom-theme').normalize(); }
+}
+ipcMain.handle('theme:saveCustom', async (_event, value) => {
+  const theme = require('./custom-theme').normalize(value);
+  fs.mkdirSync(app.getPath('userData'), { recursive: true });
+  const target = path.join(app.getPath('userData'), 'custom-theme.json');
+  fs.writeFileSync(target + '.tmp', JSON.stringify(theme));
+  fs.renameSync(target + '.tmp', target);
+  return theme;
+});
 ipcMain.handle("test:tokenSettings", async () => shell.openExternal('https://github.com/settings/personal-access-tokens/new'));
 ipcMain.handle("test:publish", async (_event, options = {}) => {
   if (!channel.test) throw new Error("Beta publishing is available only in ZYZTools test.");

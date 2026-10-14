@@ -372,6 +372,7 @@
     }
   </style>
   <link rel="stylesheet" href="vatcan-theme.css" />
+  <link rel="stylesheet" href="custom-theme.css" />
 </head>
 <body data-theme="current">
   <header>
@@ -413,6 +414,15 @@
       </section>
 
       <section id="operations">
+        <div class="card">
+          <div class="caption">Arrival runway assignment</div>
+          <label class="check"><input id="arrivalAssignmentEnabled" type="checkbox" />Assign CYYZ arrival runways from VATCANSitu SFI</label>
+          <label for="arrivalAssignmentFlow">Arrival flow</label>
+          <select id="arrivalAssignmentFlow" disabled><option value="west">West</option><option value="east">East</option><option value="north">North</option><option value="south">South</option></select>
+          <table aria-label="SFI arrival runway mapping"><thead><tr><th>SFI</th><th>West</th><th>East</th><th>North</th><th>South</th></tr></thead><tbody><tr><td>N / Y</td><td>23</td><td>05</td><td>N/A</td><td>N/A</td></tr><tr><td>L</td><td>24L</td><td>06L</td><td>33L</td><td>15L</td></tr><tr><td>R</td><td>24R</td><td>06R</td><td>33R</td><td>15R</td></tr></tbody></table>
+          <p>Off by default. Enabled assignment follows the SFI and selected flow. N/A or unrecognized SFI leaves the runway unchanged. Scratchpad text is preserved. Save settings to apply; existing arrivals are checked within two seconds.</p>
+          <div class="buttons"><button id="saveArrivalSettingsBtn" class="good">Save settings</button></div>
+        </div>
         <div class="card">
           <div class="caption">Airport operation</div>
           <label for="runwayAssignmentConfig">Departure configuration</label>
@@ -568,15 +578,39 @@
             <option value="vatcan">VATCAN website</option>
             <option value="navcan">NAV CANADA website</option>
             <option value="plugincore">Classic</option>
+            <option value="custom">Custom theme</option>
           </select>
           <div class="buttons">
             <button data-theme-choice="current">ZYZTools dark</button>
             <button data-theme-choice="vatcan">VATCAN</button>
             <button data-theme-choice="navcan">NAV CANADA</button>
             <button data-theme-choice="plugincore">Classic</button>
+            <button data-theme-choice="custom">Custom</button>
           </div>
           <p class="subtle">Production and test apps store their themes separately.</p>
           <button id="saveAppearanceBtn" class="good">Save appearance</button>
+        </div>
+        <div id="customThemeEditor" class="card" hidden>
+          <div class="caption">Custom theme editor</div>
+          <p>Preview colors, font, layout and title styling live. Save appearance to keep your changes. Custom themes stay separate in the regular and test apps.</p>
+          <div class="custom-theme-grid">
+            <label>Background<input id="customBackground" type="color" /></label>
+            <label>Header<input id="customHeader" type="color" /></label>
+            <label>Navigation<input id="customNavigation" type="color" /></label>
+            <label>Panels<input id="customPanel" type="color" /></label>
+            <label>Text<input id="customText" type="color" /></label>
+            <label>Secondary text<input id="customMuted" type="color" /></label>
+            <label>Accent<input id="customAccent" type="color" /></label>
+            <label>Title color<input id="customTitle" type="color" /></label>
+          </div>
+          <div class="grid2">
+            <label>Font<select id="customFont"><option>Segoe UI</option><option>Arial</option><option>Consolas</option><option>Georgia</option><option>Trebuchet MS</option><option>Century Gothic</option></select></label>
+            <label>Menu layout<select id="customLayout"><option value="top">Top navigation</option><option value="sidebar">Sidebar</option></select></label>
+            <label>Title size (px)<input id="customTitleSize" type="number" min="18" max="44" /></label>
+            <label>Corner rounding (px)<input id="customRadius" type="number" min="0" max="16" /></label>
+            <label>Title style<select id="customTitleCase"><option value="normal">ZYZTools</option><option value="uppercase">ZYZTOOLS</option></select></label>
+          </div>
+          <div class="buttons"><button id="resetCustomThemeBtn">Reset custom theme</button><button id="saveCustomThemeBtn" class="good">Save appearance</button></div>
         </div>
       </section>
 
@@ -617,6 +651,7 @@
     </div>
   </main>
 
+  <script src="custom-theme.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>

@@ -9,6 +9,9 @@ let currentStatistics = null;
 let currentAppVersion = '';
 let betaPublished = false;
 let pluginFolderName = 'PreferredCYYZPdcPlugin';
+let appDisplayName = 'ZYZTools';
+let customTheme = window.ZyzCustomTheme.normalize();
+const customFields = { background: 'customBackground', header: 'customHeader', navigation: 'customNavigation', panel: 'customPanel', text: 'customText', muted: 'customMuted', accent: 'customAccent', title: 'customTitle', font: 'customFont', layout: 'customLayout', titleSize: 'customTitleSize', radius: 'customRadius', titleCase: 'customTitleCase' };
 
 const $ = (id) => document.getElementById(id);
 
@@ -38,6 +41,7 @@ function normalizeTheme(value) {
   const theme = String(value || "current").trim().toLowerCase();
   if (theme === "vatcan" || theme === "vatcansitu") return "vatcan";
   if (theme === "navcan" || theme === "navcanada") return "navcan";
+  if (theme === "custom") return "custom";
   if (theme === "cpp" || theme === "plugincore" || theme === "plugin_core" || theme === "core") return "plugincore";
   return "current";
 }
@@ -45,12 +49,36 @@ function normalizeTheme(value) {
 function applyTheme(value) {
   const theme = normalizeTheme(value);
   document.body.dataset.theme = theme;
+  for (const key of Object.keys(window.ZyzCustomTheme.variables(customTheme))) document.body.style.removeProperty(key);
+  if (theme === 'custom') {
+    for (const [key, value] of Object.entries(window.ZyzCustomTheme.variables(customTheme))) document.body.style.setProperty(key, value);
+    document.body.dataset.customLayout = customTheme.layout;
+  } else delete document.body.dataset.customLayout;
+  $('customThemeEditor').hidden = theme !== 'custom';
+  updateThemeTitle();
   if ($("uiTheme")) $("uiTheme").value = theme;
   document.querySelectorAll('[data-theme-choice]').forEach(button => {
     const selected = button.dataset.themeChoice === theme;
     button.classList.toggle('primary', selected);
     button.setAttribute('aria-pressed', String(selected));
   });
+}
+
+function updateThemeTitle() {
+  const brand = document.createElement('span'); brand.className = 'brand-name';
+  for (const word of ['ZYZ', 'Tools']) { const span = document.createElement('span'); span.textContent = word; brand.append(span); }
+  $('appTitle').replaceChildren(brand);
+  if (/\btest\b/i.test(appDisplayName)) {
+    const badge = document.createElement('span'); badge.className = 'brand-test'; badge.textContent = 'test'; $('appTitle').append(badge);
+  }
+  $('appTitle').setAttribute('aria-label', appDisplayName);
+}
+function customThemeToForm() {
+  for (const [key, id] of Object.entries(customFields)) $(id).value = customTheme[key];
+}
+function previewCustomTheme() {
+  customTheme = window.ZyzCustomTheme.normalize(Object.fromEntries(Object.entries(customFields).map(([key, id]) => [key, $(id).value])));
+  applyTheme('custom');
 }
 
 function normalizeListText(value) {
@@ -107,6 +135,8 @@ function formToConfig() {
     next.operation = "DUALS";
   }
   next.ui_theme = normalizeTheme($("uiTheme").value);
+  next.arrival_assignment_enabled = boolInt('arrivalAssignmentEnabled');
+  next.arrival_assignment_flow = $('arrivalAssignmentFlow').value;
   next.duals_mode = next.runway_assignment_config === "east" ? "05"
     : next.runway_assignment_config === "west" ? "23" : "off";
   next.confirm_every_pdc = boolInt("confirmEveryPdc");
@@ -143,6 +173,9 @@ function configToForm(next) {
   $("stationCode").value = config.station_code || "CYYZ";
   $("pollSeconds").value = config.poll_seconds || 60;
   $("runwayAssignmentConfig").value = config.runway_assignment_config || "off";
+  setBool('arrivalAssignmentEnabled', config.arrival_assignment_enabled);
+  $('arrivalAssignmentFlow').value = config.arrival_assignment_flow || 'west';
+  $('arrivalAssignmentFlow').disabled = !Number(config.arrival_assignment_enabled);
   applyTheme(config.ui_theme || "current");
   setBool("confirmEveryPdc", config.confirm_every_pdc);
   setBool("pdcSoundEnabled", config.pdc_sound_enabled);
@@ -169,6 +202,7 @@ function configToForm(next) {
 }
 
 async function saveConfig(message = "Settings saved.") {
+  customTheme = await api.saveCustomTheme(customTheme);
   config = formToConfig();
   if (installed) {
     config = await api.saveInstalledConfig(installFolder, config);
@@ -333,6 +367,9 @@ async function refreshTrackAudioTapStatus(showStatus = false) {
 
 async function boot() {
   const state = await api.initialState();
+  appDisplayName = state.appDisplayName;
+  customTheme = window.ZyzCustomTheme.normalize(state.customTheme);
+  customThemeToForm();
   pluginFolderName = state.pluginFolderName;
   $("appTitle").textContent = state.appDisplayName;
   document.title = state.appDisplayName;
@@ -381,6 +418,14 @@ $("uiTheme").addEventListener("change", () => {
 document.querySelectorAll('[data-theme-choice]').forEach(button => {
   button.addEventListener('click', () => applyTheme(button.dataset.themeChoice));
 });
+customThemeToForm();
+updateThemeTitle();
+for (const id of Object.values(customFields)) {
+  $(id).addEventListener('input', previewCustomTheme);
+  $(id).addEventListener('change', previewCustomTheme);
+}
+$('resetCustomThemeBtn').addEventListener('click', () => { customTheme = window.ZyzCustomTheme.normalize(); customThemeToForm(); applyTheme('custom'); });
+$('saveCustomThemeBtn').addEventListener('click', () => saveConfig('Appearance saved.').catch(error => setStatus(error.message, 'error')));
 
 $("browseBtn").addEventListener("click", async () => {
   const result = await api.browseParentFolder(parentFolder);
@@ -414,8 +459,8 @@ $("installPluginBtn").addEventListener("click", async () => {
 $("openInstallBtn").addEventListener("click", () => api.openFolder(installFolder));
 $("openLocalSettingsBtn").addEventListener("click", () => api.openFolder(localSettingsFolder));
 
-["saveOperationsBtn", "saveHoppieBtn", "saveSidsBtn", "saveReplaySettingsBtn", "saveAdvancedBtn", "saveAppearanceBtn"].forEach((id) => {
-  $(id).addEventListener("click", () => saveConfig());
+['saveArrivalSettingsBtn', "saveOperationsBtn", "saveHoppieBtn", "saveSidsBtn", "saveReplaySettingsBtn", "saveAdvancedBtn", "saveAppearanceBtn"].forEach((id) => {
+  $(id).addEventListener("click", () => saveConfig().catch(error => setStatus(error.message, 'error')));
 });
 
 $("audioStatusBtn").addEventListener("click", async () => {
@@ -427,6 +472,7 @@ $("audioStatusBtn").addEventListener("click", async () => {
 });
 
 $("trackAudioVersion").addEventListener("change", () => refreshTrackAudioTapStatus(true));
+$('arrivalAssignmentEnabled').addEventListener('change', () => { $('arrivalAssignmentFlow').disabled = !$('arrivalAssignmentEnabled').checked; });
 $("trackAudioStatusBtn").addEventListener("click", () => refreshTrackAudioTapStatus(true));
 $("txRadioIntensity").addEventListener("input", updateTxRadioIntensityLabel);
 $("txRadioIntensity").addEventListener("change", () => saveConfig('Controller filter intensity applied. New captured audio uses this setting.').catch(error => setStatus(error.message, 'error')));
