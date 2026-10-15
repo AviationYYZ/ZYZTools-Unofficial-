@@ -404,7 +404,8 @@ document.querySelectorAll("nav button[data-tab]").forEach((button) => {
     $(button.dataset.tab).classList.add("active");
     if (button.dataset.tab === "statistics") {
       await refreshStatistics(false);
-
+    } else if (button.dataset.tab === 'discord') {
+      await refreshDiscord(true);
     } else if (button.dataset.tab === "replay") {
       await refreshRecordings(false);
       await refreshTrackAudioTapStatus(false);
@@ -640,3 +641,32 @@ for (const variable of window.pdcTemplates.variables) {
   $('pdcTemplateVariables').appendChild(button);
 }
 $('resetPdcTemplatesBtn').addEventListener('click',()=>{ $('pdcTemplateBridge').value=window.pdcTemplates.defaults.bridge;$('pdcTemplateHoppie').value=window.pdcTemplates.defaults.hoppie; });
+
+const discordFields = {
+  enabled:'discordEnabled', airports:'discordAirports', details:'discordDetails', state:'discordState',
+  medium:'discordMedium', high:'discordHigh', lowLabel:'discordLowLabel', mediumLabel:'discordMediumLabel',
+  highLabel:'discordHighLabel', radius:'discordRadius', altitude:'discordAltitude', speed:'discordSpeed',
+  showElapsed:'discordShowElapsed', largeImage:'discordLargeImage', largeText:'discordLargeText',
+  button1Label:'discordButton1Label',button1Url:'discordButton1Url',button2Label:'discordButton2Label',button2Url:'discordButton2Url'
+};
+function renderDiscord(result, populate) {
+  if(populate) for(const [key,id] of Object.entries(discordFields)) {
+    if($(id).type==='checkbox') $(id).checked=!!result.config[key]; else $(id).value=result.config[key]??'';
+  }
+  $('discordStatus').textContent=result.status;
+  $('discordPreview').textContent=result.preview ? [result.preview.details,result.preview.state].filter(Boolean).join('\n') : 'No status currently published.';
+}
+async function refreshDiscord(populate=false) {
+  try {renderDiscord(await api.loadDiscord(installFolder),populate);}
+  catch(error){$('discordStatus').textContent=error.message;}
+}
+$('saveDiscordBtn').addEventListener('click',async()=>{
+  const value={};
+  for(const [key,id] of Object.entries(discordFields)) value[key]=$(id).type==='checkbox'?$(id).checked:$(id).value;
+  $('saveDiscordBtn').disabled=true;
+  try {renderDiscord(await api.saveDiscord(installFolder,value),true);}
+  catch(error){$('discordStatus').textContent=error.message;}
+  finally{$('saveDiscordBtn').disabled=false;}
+});
+$('refreshDiscordBtn').addEventListener('click',()=>refreshDiscord(false));
+setInterval(()=>{if($('discord').classList.contains('active'))refreshDiscord(false);},5000);

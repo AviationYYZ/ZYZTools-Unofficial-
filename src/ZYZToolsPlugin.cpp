@@ -1975,6 +1975,7 @@ public:
 
     ~CZYZToolsPlugin() override
     {
+        DeleteFileA((GetThisDllDir() + "DiscordPresence.json").c_str());
         EndStatisticsSession("plugin unload");
         StopAudioRecordingPlayback();
         StopHoppieWorker();
@@ -2218,6 +2219,7 @@ public:
     void OnTimer(int Counter) override
     {
         UpdateStatisticsConnectionState();
+        if (Counter % 5 == 0) WriteDiscordPresence();
         if (Counter % 2 == 0)
             RefreshDepartureAssignmentConfig();
         PollSettingsActions();
@@ -2532,12 +2534,12 @@ private:
     {
         std::string callsign, dep, dest, sid, rwy, squawk, actype, alt, route;
 
-        std::string CustomPdc(const std::string &text, const std::string &pdcId, bool telex) const
+        std::string CustomPdc(const std::string &text, const std::string &pdcId, bool telex, const std::string &controller) const
         {
             if (text.empty() || text.size() > 2000 || text.find("{identifier}") == std::string::npos) return {};
             for (unsigned char c : text) if (c != '\n' && (c < 32 || c > 126)) return {};
             auto rendered = RenderPdcTemplate(text, {
-                {"timestamp", TimestampDDMonYY_HHMM()}, {"callsign", callsign}, {"departure", dep},
+                {"timestamp", TimestampDDMonYY_HHMM()}, {"callsign", callsign}, {"controller_callsign", controller}, {"departure", dep},
                 {"destination", dest}, {"aircraft_type", actype}, {"altitude", alt}, {"squawk", squawk},
                 {"sid", sid}, {"runway", rwy}, {"identifier", pdcId},
                 {"route", telex ? JoinWrapped(RouteTokens_NoStepClimbs(route), 26) : route}
@@ -2546,9 +2548,9 @@ private:
             return Upper(rendered);
         }
 
-        std::string BuildPDCText_Bridge(const std::string &pdcId, const std::string &text = "") const
+        std::string BuildPDCText_Bridge(const std::string &pdcId, const std::string &text = "", const std::string &controller = "") const
         {
-            const auto custom = CustomPdc(text, pdcId, false);
+            const auto custom = CustomPdc(text, pdcId, false, controller);
             if (!custom.empty()) return custom;
             std::ostringstream out;
             out
@@ -2567,9 +2569,9 @@ private:
             return Upper(out.str());
         }
 
-        std::string BuildPDCText_HoppieTelex(const std::string &pdcId, const std::string &text = "") const
+        std::string BuildPDCText_HoppieTelex(const std::string &pdcId, const std::string &text = "", const std::string &controller = "") const
         {
-            const auto custom = CustomPdc(text, pdcId, true);
+            const auto custom = CustomPdc(text, pdcId, true, controller);
             if (!custom.empty()) return custom;
             std::vector<std::string> toks = RouteTokens_NoStepClimbs(route);
             std::string routeWrapped = JoinWrapped(toks, 26);
@@ -3195,6 +3197,26 @@ private:
         default:
             return "CLEARED";
         }
+    }
+
+    void WriteDiscordPresence()
+    {
+        const bool connected = IsStatisticsNetworkConnection();
+        const CController myself = ControllerMyself();
+        const std::string position = connected && myself.IsValid() && myself.GetCallsign() ? myself.GetCallsign() : "";
+        int owned = 0;
+        if (connected)
+            for (CFlightPlan fp = FlightPlanSelectFirst(); fp.IsValid(); fp = FlightPlanSelectNext(fp))
+                if (fp.GetTrackingControllerIsMe()) ++owned;
+        const std::string target = GetThisDllDir() + "DiscordPresence.json";
+        const std::string temp = target + ".tmp";
+        std::ofstream out(temp, std::ios::binary | std::ios::trunc);
+        if (!out) return;
+        out << "{\"ts\":" << std::time(nullptr) << ",\"connected\":" << (connected ? "true" : "false")
+            << ",\"position\":\"" << JsonEscape(position) << "\",\"owned\":" << owned
+            << ",\"session\":" << m_statisticsSession.startedAt << "}";
+        out.close();
+        if (out) MoveFileExA(temp.c_str(), target.c_str(), MOVEFILE_REPLACE_EXISTING);
     }
 
     bool IsStatisticsNetworkConnection() const
@@ -4390,7 +4412,9 @@ private:
         }
 
         const std::string pdcId = GeneratePdcIdentifier(cs);
-        const std::string pdc = it->second.BuildPDCText_Bridge(pdcId, m_cfg.pdcTemplateBridge);
+        const CController controller = ControllerMyself();
+        const std::string controllerCallsign = controller.IsValid() && controller.GetCallsign() ? controller.GetCallsign() : "";
+        const std::string pdc = it->second.BuildPDCText_Bridge(pdcId, m_cfg.pdcTemplateBridge, controllerCallsign);
 
         std::string err;
         if (!SendToBridge(cs, pdc, err))
@@ -5171,7 +5195,9 @@ private:
 
         const CachedFp &cfp = it->second;
         const std::string pdcId = GeneratePdcIdentifier(cs);
-        const std::string pdcBody = cfp.BuildPDCText_HoppieTelex(pdcId, m_cfg.pdcTemplateHoppie);
+        const CController controller = ControllerMyself();
+        const std::string controllerCallsign = controller.IsValid() && controller.GetCallsign() ? controller.GetCallsign() : "";
+        const std::string pdcBody = cfp.BuildPDCText_HoppieTelex(pdcId, m_cfg.pdcTemplateHoppie, controllerCallsign);
         const std::string scratchpad = pdcId;
 
         if (m_cfg.testMode)

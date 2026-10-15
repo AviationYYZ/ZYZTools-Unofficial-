@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.2.21 — Local test, awaiting user approval
+
+- Added opt-in Discord Rich Presence using the shared ZYZTools Application ID, with airport list, editable text/traffic thresholds, image asset and two configurable link buttons.
+- APP/CTR positions use owned EuroScope tags; other positions estimate ground traffic from VATSIM and cached airport reference data. Disconnects, disabled status, stale data and app exit clear presence.
+
+## 1.2.20 — Local test, awaiting user approval
+
+- Added {controller_callsign} to both PDC template editors, using the current EuroScope controller identity at send time. Existing default messages are unchanged.
+
+## 1.2.19 — Local test, awaiting user approval
+
+- Essential startup updates now display a visible automatic update notice before downloading and closing the app, with a minimum display time and clear failure messages.
+
 ## 1.2.18 — Local test, awaiting user approval
 
 - Added Operations-page PDC template editing for EuroScope/bridge and Hoppie TELEX, with insertable aircraft variables and original-format defaults.

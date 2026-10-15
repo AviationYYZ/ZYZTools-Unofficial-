@@ -387,6 +387,7 @@
     <nav>
       <button data-tab="install" class="primary" aria-current="page">Install / Link</button>
       <button data-tab="operations">Operations</button>
+      <button data-tab="discord">Discord status</button>
       <button data-tab="hoppie">Hoppie</button>
       <button data-tab="sids">SID Matrix</button>
       <button data-tab="replay">Replay & Recordings</button>
@@ -420,7 +421,7 @@
           <div id="pdcTemplateVariables" class="buttons"></div>
           <label for="pdcTemplateBridge">EuroScope / bridge message</label><textarea id="pdcTemplateBridge" rows="7" maxlength="2000"></textarea>
           <label for="pdcTemplateHoppie">Hoppie TELEX message</label><textarea id="pdcTemplateHoppie" rows="14" maxlength="2000"></textarea>
-          <p>Keep {identifier} for clearance acknowledgement. Restore defaults recovers the original message formats; save to apply.</p>
+          <p>{controller_callsign} uses your connected EuroScope controller callsign (blank if unavailable). Keep {identifier} for clearance acknowledgement. Restore defaults recovers the original message formats; save to apply.</p>
           <div class="buttons"><button id="savePdcTemplatesBtn" class="good">Save templates</button><button id="resetPdcTemplatesBtn">Restore defaults</button></div>
         </div>
         <div class="card">
@@ -446,6 +447,48 @@
         </div>
       </section>
 
+      <section id="discord">
+        <div class="card">
+          <div class="caption">Discord Rich Presence</div>
+          <label class="check"><input id="discordEnabled" type="checkbox" />Show my controller status on Discord</label>
+          <p>Uses the shared ZYZTools application (1560430298968105010). Keep this app and Discord desktop open, and enable Discord activity sharing. Enable this in only one of the production/test apps at a time. Your position, traffic summary and configured links are publicly visible on your Discord profile.</p>
+          <label for="discordAirports">Controlled airports (ICAO codes)</label><input id="discordAirports" placeholder="CYYZ, CYTZ, CYHM" />
+          <p>Positions ending in _APP or _CTR use all aircraft whose tags you own in EuroScope. Other positions count aircraft near the listed airports using VATSIM's public feed. Each aircraft is counted once, including departures, landed arrivals and local traffic. Ground counts are estimated, not an explicit feed field. VATSIM is refreshed at most once a minute; owned-tag counts refresh every five seconds.</p>
+          <label for="discordDetails">First status line</label><input id="discordDetails" maxlength="128" />
+          <label for="discordState">Second status line</label><input id="discordState" maxlength="128" />
+          <p>Variables: {position}, {airports}, {count}, {traffic}, {source}. Discord truncates expanded lines to 128 characters. The application name is managed in the Discord Developer Portal.</p>
+          <div class="grid2">
+            <div><label>Moderate traffic: aircraft or more</label><input id="discordMedium" type="number" min="1" max="500" /></div>
+            <div><label>Heavy traffic: aircraft or more</label><input id="discordHigh" type="number" min="2" max="1000" /></div>
+          </div>
+          <div class="grid3">
+            <div><label>Light traffic label</label><input id="discordLowLabel" maxlength="128" /></div>
+            <div><label>Moderate traffic label</label><input id="discordMediumLabel" maxlength="128" /></div>
+            <div><label>Heavy traffic label</label><input id="discordHighLabel" maxlength="128" /></div>
+          </div>
+          <details><summary>Ground-count detection</summary>
+            <p>Airport coordinates/elevations are downloaded once from the public mwgg/Airports dataset and cached locally. Adjust these tolerances for your airports. Unknown airports and unavailable/stale feeds clear the status instead of showing zero traffic.</p>
+            <div class="grid3">
+              <div><label>Airport radius (NM)</label><input id="discordRadius" type="number" min="1" max="10" step="0.5" /></div>
+              <div><label>Altitude tolerance (feet)</label><input id="discordAltitude" type="number" min="50" max="1000" /></div>
+              <div><label>Maximum ground speed (knots)</label><input id="discordSpeed" type="number" min="1" max="150" /></div>
+            </div>
+          </details>
+          <label class="check"><input id="discordShowElapsed" type="checkbox" />Show elapsed controlling time</label>
+          <div class="grid2">
+            <div><label>Discord uploaded image asset key (optional)</label><input id="discordLargeImage" maxlength="128" /></div>
+            <div><label>Image hover text (optional)</label><input id="discordLargeText" maxlength="128" /></div>
+            <div><label>Button 1 label (optional)</label><input id="discordButton1Label" maxlength="32" /></div>
+            <div><label>Button 1 URL</label><input id="discordButton1Url" maxlength="512" placeholder="https://" /></div>
+            <div><label>Button 2 label (optional)</label><input id="discordButton2Label" maxlength="32" /></div>
+            <div><label>Button 2 URL</label><input id="discordButton2Url" maxlength="512" placeholder="https://" /></div>
+          </div>
+          <p>Buttons may not appear when viewing your own activity; check from another Discord account. Clear both fields to remove a button. Disconnecting or closing EuroScope clears the presence within about 20 seconds, including crash recovery.</p>
+          <div class="buttons"><button id="saveDiscordBtn" class="good">Save Discord settings</button><button id="refreshDiscordBtn">Refresh status</button></div>
+          <p id="discordStatus" role="status">Disabled</p>
+          <pre id="discordPreview" style="white-space:pre-wrap"></pre>
+        </div>
+      </section>
       <section id="hoppie">
         <div class="card">
           <div class="caption">Hoppie actions</div>

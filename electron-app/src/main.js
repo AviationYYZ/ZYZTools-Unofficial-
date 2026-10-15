@@ -18,6 +18,22 @@ app.setName(channel.name);
 app.setPath('userData', path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), channel.userDataName));
 
 let mainWindow = null;
+let discordPresence = null;
+function ensureDiscordPresence(folder) {
+  if (!discordPresence) {
+    const { PresenceService } = require('./discord-presence');
+    const file = path.join(app.getPath('userData'), 'discord-presence-settings.json');
+    let selected = folder;
+    if (!selected) {
+      try { selected = JSON.parse(fs.readFileSync(file, 'utf8')).pluginFolder; } catch {}
+    }
+    selected = installDestination(selected || commandLinePluginFolder() || discoveredInstalledPluginFolder() || defaultParentFolder());
+    discordPresence = new PresenceService(file, selected);
+    discordPresence.start();
+  }
+  if (folder) discordPresence.folder = installDestination(folder);
+  return discordPresence;
+}
 const ownsInstance = app.requestSingleInstanceLock();
 if (!ownsInstance) app.quit();
 else app.on('second-instance', () => { mainWindow?.show(); mainWindow?.focus(); });
@@ -789,21 +805,43 @@ function selectedUpdateStream() {
 app.whenReady().then(async () => {
   if (!ownsInstance) return;
   createWindow();
+  ensureDiscordPresence();
   // The development app must never replace itself with the consumer installer.
   if (channel.test) return;
   try {
     const release = await updates.check(updates.DEFAULT_REPOSITORY, app.getVersion(), undefined, selectedUpdateStream());
     if (release.available && release.essential) {
+      const notice = await require('./essential-update-notice').showEssentialUpdateNotice(BrowserWindow, mainWindow, channel.name);
+      try {
       const installer = await updates.download(release, path.join(app.getPath('temp'), channel.userDataName + '-Updates'));
+      await notice.beforeInstall();
       const child = childProcess.spawn(installer, ['/S'], { detached: true, stdio: 'ignore', windowsHide: true });
-      child.on('error', error => { if (mainWindow) dialog.showErrorBox('Essential update could not start', error.message); });
+      child.on('error', error => { notice.close(); dialog.showErrorBox('Essential update could not start', error.message); });
       child.once('spawn', () => { child.unref(); app.quit(); });
+      } catch (error) {
+        notice.close();
+        dialog.showErrorBox('Essential update could not be downloaded', error.message);
+      }
     }
   } catch (error) { console.warn('Startup update check:', error.message); }
 });
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
+});
+
+app.on('before-quit', () => { discordPresence?.stop().catch(() => {}); });
+ipcMain.handle('discord:load', async (_event, folder) => {
+  const service = ensureDiscordPresence(folder);
+  return { config: service.config, status: service.status, preview: service.preview };
+});
+ipcMain.handle('discord:save', async (_event, folder, value) => {
+  const target = installDestination(folder);
+  assertDestination(target, readJsonIfExists(configPathForInstall(target)));
+  const service = ensureDiscordPresence();
+  service.save({ ...value, pluginFolder: target }, target);
+  await service.tick();
+  return { config: service.config, status: service.status, preview: service.preview };
 });
 
 ipcMain.handle("app:initialState", async () => getInitialState());

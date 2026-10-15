@@ -1,6 +1,8 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("preferredCyyzPdc", {
+  loadDiscord: (folder) => ipcRenderer.invoke('discord:load', folder),
+  saveDiscord: (folder, config) => ipcRenderer.invoke('discord:save', folder, config),
   initialState: () => ipcRenderer.invoke("app:initialState"),
   saveCustomTheme: (theme) => ipcRenderer.invoke('theme:saveCustom', theme),
   checkUpdates: (stream) => ipcRenderer.invoke("updates:check", stream),
