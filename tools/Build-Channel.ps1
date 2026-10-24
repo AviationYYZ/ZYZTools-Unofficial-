@@ -16,7 +16,9 @@ function Compile([string]$architecture, [string]$arguments) {
   & $env:COMSPEC /d /s /c $command
   if($LASTEXITCODE -ne 0) { throw "Native $Channel build failed." }
 }
-Compile 'x86' ('/LD /I SDK /Fo"' + $output + '\Plugin.obj" src\ZYZToolsPlugin.cpp /link /LIBPATH:SDK EuroScopePlugInDll.lib Winhttp.lib Winmm.lib Gdi32.lib User32.lib /OUT:"' + $output + '\PreferredCYYZPdcPlugin.dll" /IMPLIB:"' + $output + '\Plugin.lib"')
+Get-ChildItem -LiteralPath (Join-Path $workspace 'assets/conflict') -File | Copy-Item -Destination $output
+& (Join-Path $workspace 'tools/Build-ConflictSounds.ps1') -Output $output
+Compile 'x86' ('/LD /I SDK /Fo"' + $output + '\\" src\ZYZToolsPlugin.cpp src\conflict\Engine.cpp src\conflict\SituDraw.cpp src\conflict\Sequencing.cpp /link /LIBPATH:SDK EuroScopePlugInDll.lib Winhttp.lib Winmm.lib Gdi32.lib User32.lib /OUT:"' + $output + '\PreferredCYYZPdcPlugin.dll" /IMPLIB:"' + $output + '\Plugin.lib"')
 Compile 'x86' ('/Fo"' + $output + '\Bridge.obj" tools\PDCBridge\PDCBridge.cpp /link User32.lib /OUT:"' + $output + '\PreferredCYYZPdcBridge.exe"')
 Compile 'x64' ('/Fo"' + $output + '\Replay.obj" tools\AudioReplay\AudioReplay.cpp /link Ole32.lib Mmdevapi.lib Shell32.lib Version.lib /OUT:"' + $output + '\PreferredCYYZAudioReplay.exe"')
 Write-Output "Built isolated native $Channel payload."

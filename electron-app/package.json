@@ -1,6 +1,6 @@
 {
   "name": "zyztools-test",
-  "version": "1.2.21",
+  "version": "1.2.33",
   "zyzBuildChannel": "test",
   "displayName": "ZYZTools test",
   "description": "ZYZTools EuroScope controller tools and plugin installer",
@@ -26,6 +26,13 @@
     },
     "files": [
       "src/**/*",
+      "!**/.env*",
+      "!**/*.env",
+      "!**/*.env.*",
+      "!**/openai-key.bin",
+      "!**/chatgpt-plan.bin*",
+      "!**/pilot-bridge.json",
+      "!**/training-sector.json",
       "package.json"
     ],
     "extraResources": [
@@ -40,6 +47,13 @@
           "EuroScopePlugInDll.dll",
           "PreferredCYYZPdcPlugin.json",
           "PDCBridge.ini",
+          "CZYZConflictAlert.ini",
+          "aircraft_wake.csv",
+          "parallel_approaches.txt",
+          "speed_restrictions.csv",
+          "wake_separation.csv",
+          "caution_chime.wav",
+          "urgent_alert.wav",
           "pdc_request.wav",
           "cpdlc_rx.wav",
           "IFR_release.wav",

@@ -1,0 +1,5 @@
+# Airport,waypoint,maximum IAS knots
+# Add published/locally required waypoint limits here. No chart limits were
+# invented from the SCT/ESE, which contain route geometry but not a complete
+# machine-readable set of approach speed constraints.
+# Example syntax (commented out): CYYZ,WAYPOINT,210

@@ -11,6 +11,8 @@
 #include "DepartureAssignment.h"
 #include "ArrivalAssignment.h"
 #include "PdcTemplate.h"
+#include "conflict/ConflictModule.h"
+#include <memory>
 
 #include <algorithm>
 #include <atomic>
@@ -1911,6 +1913,7 @@ public:
         : CPlugIn(COMPATIBILITY_CODE, ZYZTOOLS_PLUGIN_NAME, "1.2.6", "Charlie Yablon and Elliot Potts", "ZYZTools EuroScope controller tools")
     {
         RegisterTagItemType("CYYZ_PDC STATUS", TAG_PDC_FLAG_TYPE);
+        m_conflict = std::make_unique<zyzca::ConflictModule>(*this, GetThisDllDir());
         RegisterTagItemType("CYYZ_PDC RWY", TAG_PDC_RUNWAY_TYPE);
         RegisterTagItemType("PDC Flag (legacy)", TAG_PDC_FLAG_LEGACY_TYPE);
         RegisterTagItemFunction("CYYZ_PDC SEND PDC", FUNC_PDC_GENERATE);
@@ -1975,6 +1978,7 @@ public:
 
     ~CZYZToolsPlugin() override
     {
+        m_conflict.reset();
         DeleteFileA((GetThisDllDir() + "DiscordPresence.json").c_str());
         EndStatisticsSession("plugin unload");
         StopAudioRecordingPlayback();
@@ -1983,10 +1987,15 @@ public:
         ShutdownBridge();
     }
     CRadarScreen *OnRadarScreenCreated(const char *sDisplayName, bool NeedRadarContent, bool GeoReferenced, bool CanBeSaved, bool CanBeCreated) override;
+    void OnAirportRunwayActivityChanged() override { if (m_conflict) m_conflict->dirty = true; }
 
-    void OnGetTagItem(CFlightPlan FlightPlan, CRadarTarget, int ItemCode, int,
-                      char sItemString[16], int *pColorCode, COLORREF *pRGB, double *) override
+    void OnGetTagItem(CFlightPlan FlightPlan, CRadarTarget target, int ItemCode, int tagData,
+                      char sItemString[16], int *pColorCode, COLORREF *pRGB, double *fontSize) override
     {
+        if (ItemCode == zyzca::CallsignItem || ItemCode == zyzca::MarkerItem) {
+            if (m_conflict) m_conflict->OnGetTagItem(FlightPlan, target, ItemCode, tagData, sItemString, pColorCode, pRGB, fontSize);
+            return;
+        }
         if (ItemCode != TAG_PDC_FLAG_TYPE &&
             ItemCode != TAG_PDC_FLAG_LEGACY_TYPE &&
             ItemCode != TAG_PDC_RUNWAY_TYPE)
@@ -2121,6 +2130,7 @@ public:
 
     void OnFlightPlanDisconnect(CFlightPlan FlightPlan) override
     {
+        if (m_conflict) m_conflict->OnFlightPlanDisconnect(FlightPlan);
         std::string cs = Upper(Trim(FlightPlan.GetCallsign()));
         if (!cs.empty())
         {
@@ -2141,6 +2151,7 @@ public:
 
     void OnFlightPlanFlightPlanDataUpdate(CFlightPlan FlightPlan) override
     {
+        if (m_conflict) m_conflict->dirty = true;
         TryAssignArrivalRunway(FlightPlan);
         TryAssignSpawnRunway(FlightPlan);
         CacheFp(FlightPlan);
@@ -2149,6 +2160,7 @@ public:
 
     void OnFlightPlanControllerAssignedDataUpdate(CFlightPlan FlightPlan, int DataType) override
     {
+        if (m_conflict) m_conflict->dirty = true;
         if (DataType == CTR_DATA_TYPE_SCRATCH_PAD_STRING) TryAssignArrivalRunway(FlightPlan);
         CacheFp(FlightPlan);
 
@@ -2218,6 +2230,7 @@ public:
 
     void OnTimer(int Counter) override
     {
+        if (m_conflict) m_conflict->OnTimer(Counter);
         UpdateStatisticsConnectionState();
         if (Counter % 5 == 0) WriteDiscordPresence();
         if (Counter % 2 == 0)
@@ -2242,6 +2255,7 @@ public:
     bool OnCompileCommand(const char *sCommandLine) override
     {
         if (!sCommandLine) return false;
+        if (m_conflict && m_conflict->OnCompileCommand(sCommandLine)) return true;
         const std::string command = Upper(CollapseWhitespace(Trim(sCommandLine)));
         if (command == ".UI" || command == "." + ReplaySaveCommandKey())
             return HandleUiAction(sCommandLine);
@@ -2508,6 +2522,7 @@ private:
     };
 
     Config m_cfg{};
+    std::unique_ptr<zyzca::ConflictModule> m_conflict;
     DualsMode m_dualsMode = DualsMode::Off;
 
     bool m_hoppieMode = false; // default OFF
@@ -5629,10 +5644,13 @@ private:
 class CSettingsScreen final : public CRadarScreen
 {
 public:
-    explicit CSettingsScreen(CZYZToolsPlugin *plugin) : m_plugin(plugin) {}
+    explicit CSettingsScreen(CZYZToolsPlugin *plugin) : m_plugin(plugin) {
+        if (m_plugin->m_conflict) m_plugin->m_conflict->screens.insert(this);
+    }
 
     void OnAsrContentToBeClosed(void) override
     {
+        if (m_plugin && m_plugin->m_conflict) m_plugin->m_conflict->screens.erase(this);
         delete this;
     }
 

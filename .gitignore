@@ -5,3 +5,11 @@ build/
 *.dll
 *.exe
 *.pdb
+.env
+.env.*
+*.env
+*.env.*
+**/openai-key.bin
+**/chatgpt-plan.bin*
+**/pilot-bridge.json
+**/training-sector.json

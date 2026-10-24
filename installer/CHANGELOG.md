@@ -1,5 +1,60 @@
 # Changelog
 
+## 1.2.29 — Local test, awaiting user approval
+
+- Preserve dirty aircraft edits on selection change, Start and Export; clear stale spawn fixes when coordinates change. Added regressions for delayed/separate spawns and reset.
+- One filed route now drives navigation. Import adjacent ESE procedures and airway navdata, expand runway-specific STARs/airway segments, reject missing/ambiguous items and preserve portable compiled fixes. Added anticipatory fly-by turns and outbound guidance.
+- Added individual pause/resume, assigned IAS, published-speed resume and simulated ILS approach clear/cancel. Strip/route runway assignments select the centreline; glidepath capture is from below/near the beam, not a dive from above. Generic 3-degree training approximation, not a certified approach database.
+- Transcribed 59 runway-specific jet speed rules from the ten user-provided charts (effective 27 Nov 2025). Holding-only limits and 15/33-flow rules are not invented; missing coverage is visible. Current chart validity is not independently established.
+- Added ChatGPT-own-voice readback mode and concise pilot skill with one post-readback maneuver call. Completion is an agent report, not a verified ChatGPT audio callback; four-second response/order cannot be guaranteed on every host. Windows verified playback mode remains optional. No paid API request, model-weight fine-tuning, VATSIM connection or publication.
+
+## 1.2.28 — Local test, awaiting user approval
+
+- Fixed pilot MCP discovery: portable packages use a bare Windows launcher and contained working directory instead of a rejected absolute executable. Added Set up / repair and Check pilot connection buttons; desktop-host discovery verified both tools.
+- Replaced the clock-style spawn editor with explicit minutes plus seconds after Run. Added aircraft duplication, next-unused squawk and route-copy helpers.
+- Removed periodic flight-plan retransmission that could reset EuroScope tags/dialogs. Added validated EuroScope $AM amendments, corrected filed altitude units to feet, stored controller metadata and announced initial assigned squawks separately from actual transponders.
+- Added optional ASR layer selections, viewport and rotation over named SCT geometry, with sector colours and filtered fix labels. This preview does not reproduce EuroScope plugin overlays, custom fonts, regions or free-text rendering.
+- Local protocol/UI/host tests do not establish end-to-end behaviour for every EuroScope build or ChatGPT voice mode. No VATSIM connection or publication.
+
+## 1.2.27 — Local test, awaiting user approval
+
+- Split Scenario Builder from the Local Training run/command centre. Added local sector-fix/map import, click/fix spawn placement, scheduled spawn times and portable used-fix coordinates.
+- Added screenshot-style full flight-plan fields, explicit simulated-route preview/ETA estimates, isolated live flight-plan amendments and squawk/IDENT/standby controls.
+- Added optional local ChatGPT pilot MCP/skill export with exact-callsign/bounded-command checks, duplicate/stale/manual-override gates and Windows spoken-readback completion before maneuver execution. No VATSIM control path or paid API call is added.
+- Simulator/IPC/UI tests use synthetic traffic. Local-plugin installation and actual ChatGPT voice behavior require desktop-host verification; simplified performance, true-heading/TAS conventions and no automatic airway/STAR decoding remain explicit.
+
+## 1.2.26 — Local test, awaiting user approval
+
+- Fixed the training endpoint mismatch: EuroScope uses standard port 6809, not the old test port 6819. Test/production remain isolated using 127.0.0.1 / 127.0.0.2, with no public-network fallback.
+- Start now shows progress, LISTENING/stopped state, ready/errors beside the button, aircraft count and credential-free connection activity. Empty scenarios can start with an explicit warning.
+- Added one-click two-aircraft demo and clearer non-VATSIM connection instructions. Start disables while running/starting. No EuroScope executable patch or VATSIM authentication change.
+
+## 1.2.25 — Local test, awaiting user approval
+
+- Added Local Training: aircraft/waypoint scenario editor, portable initial-setup files, generic motion and ALT/RATE/SPD/HDG/DCT/ROUTE RESUME controls.
+- Added a loopback-only classic-FSD traffic source with no outbound connection or VATSIM/SweatBox authentication. Test/production default ports are separate. Closing the app stops the source.
+- Run, Pause, Reset and Stop controls; no automatic approach/landing, type-specific performance or STAR expansion. Native EuroScope client compatibility still requires an isolated local-session test.
+
+## 1.2.24 — Local test, awaiting user approval
+
+- Added Continue with ChatGPT for the documented plan-usage OAuth flow, with PKCE, signed identity validation, Windows-encrypted profile storage and serialized token refresh.
+- Added saved account/workspace selection, account-specific model picker, usage settings link and local sign-out. API keys remain an explicit separate billing option; no automatic fallback.
+- ChatGPT sequencing can revise once after all candidates fail native validation (maximum two rounds per manual request). No automatic clearances or background inference.
+- Isolated OAuth, streaming, native-ack and UI tests use synthetic credentials. Account eligibility and actual plan-backed inference require the user's browser sign-in and live test.
+
+## 1.2.23 — Local test, awaiting user approval
+
+- Added manual OpenAI-assisted sequencing with structured proposals, anonymized traffic context, encrypted local key import, cancellation and explicit API-charge consent.
+- AI maneuvers require current native validation; unsupported/unsafe candidates are rejected and accepted results expire. No automatic clearances.
+- Expanded local sequencing to ten minutes, spatial merge matching, full forward-route shortcuts, first-fix vector rejoins and bounded delaying vectors, with rejection diagnostics instead of generic failure.
+- Excluded environment/key files from packaging/publication and added a source-secret guard.
+
+## 1.2.22 — Local test, awaiting user approval
+
+- Merged CZYZ Conflict Alert 1.0.4 into the ZYZTools DLL, retaining native alerts, SiTu/list decorations, exclusions and audio.
+- Added Conflict & Sequencing controls, live alert list and advisory selected-pair shortcut/speed analysis with third-aircraft conflict rejection. No automatic clearances or aircraft changes.
+- Added default alert tones, legacy support-file migration and standalone-DLL duplicate protection. Both new features are opt-in.
+
 ## 1.2.21 — Local test, awaiting user approval
 
 - Added opt-in Discord Rich Presence using the shared ZYZTools Application ID, with airport list, editable text/traffic thresholds, image asset and two configurable link buttons.
@@ -141,3 +196,22 @@
 - Added unified JSON configuration and legacy migration.
 - Added configurable native normal-message bridge.
 - Added self-contained native installer.
+# 1.2.31 — Shared manual sweatbox controls
+
+- Added opt-in authenticated shared aircraft command centre, including flight-plan editing, via a separate loopback HTTP panel suitable for an HTTPS tunnel.
+- Host retains simulation lifecycle; AI pilot bridge and manual sharing are mutually exclusive. No remote FSD exposure, automatic tunnel, VATSIM connection or publication.
+- Keys rotate on restart and are revoked on Stop; bounded requests, stale-session/duplicate gates and host action history.
+
+# 1.2.32 — Remote EuroScope connector
+
+- Added opt-in controller-side loopback connector over the existing authenticated HTTPS tunnel, with bounded FSD queues, ordered writes and revocation on host Stop.
+- Captured ILS now explains why RATE cannot override the glidepath; manual 2000/3000/6000 ft/min rates tested independently.
+- Radar packet cadence reduced to 1 Hz while retaining 10 Hz integration as a prediction-plugin compatibility mitigation; EuroScope Tools needs live confirmation.
+
+# 1.2.33 — Magnetic headings and IAS control polish
+
+- Heading commands/readbacks and live displays are magnetic; true geometry/FSD packets remain unchanged. Scenario variation is editable and imported from SCT INFO; legacy Toronto defaults use the supplied sector's 10.37°W.
+- Fixed directed-turn interception boundary that could retain a turn flag; cancel approach captures current heading.
+- SPD now aliases IAS (80–400 knots); no-wind GS uses approximate ISA TAS, not indicated speed.
+- Host and shared manual command boxes clear only after successful sends, preserving failed or newly typed commands.
+

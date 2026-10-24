@@ -387,6 +387,9 @@
     <nav>
       <button data-tab="install" class="primary" aria-current="page">Install / Link</button>
       <button data-tab="operations">Operations</button>
+      <button data-tab="conflicts">Conflict &amp; Sequencing</button>
+      <button data-tab="training">Local Training</button>
+      <button data-tab="trainingBuilder">Scenario Builder</button>
       <button data-tab="discord">Discord status</button>
       <button data-tab="hoppie">Hoppie</button>
       <button data-tab="sids">SID Matrix</button>
@@ -489,7 +492,168 @@
           <pre id="discordPreview" style="white-space:pre-wrap"></pre>
         </div>
       </section>
-      <section id="hoppie">
+      <section id="conflicts">
+        <div class="card">
+          <div class="caption">United conflict alerts</div>
+          <label class="check"><input id="conflictEnabled" type="checkbox" />Enable conflict alerts inside ZYZTools</label>
+          <label class="check"><input id="conflictSituAdapter" type="checkbox" />Decorate VATCANSitu tags</label>
+          <label class="check"><input id="conflictMuted" type="checkbox" />Mute conflict sounds</label>
+          <label for="conflictAirports">Arrival airports for five-minute prediction</label><input id="conflictAirports" />
+          <p>Existing 3 NM / 1,000 ft detection, five-minute early warnings and 45/30/15-second escalation are retained. Below 2,000 ft, VFR, uncorrelated, stale and approach-cleared targets are excluded. Short-term alerts cover eligible aircraft, not only your owned tags.</p>
+          <p>Unload the separate CZYZConflictAlert DLL first: this is now part of the ZYZTools DLL. For inbound/exit list warnings select ZYZTools → CA Callsign in the ACID display field, keeping existing click actions. SiTu tag rendering needs drawing permission. Both features are off by default until you enable and save.</p>
+          <div class="buttons"><button id="conflictCautionSound">Choose caution WAV</button><button id="conflictUrgentSound">Choose urgent WAV</button></div>
+          <p>Default chime and urgent tones are included. Your chosen WAV files are preserved on plugin updates.</p>
+          <p id="conflictStatus" role="status">Waiting for EuroScope.</p>
+          <table><thead><tr><th>Aircraft</th><th>Conflicting aircraft</th><th>Stage</th><th>Predicted loss</th><th>Reason</th><th></th></tr></thead><tbody id="conflictAlerts"></tbody></table>
+        </div>
+        <div class="card">
+          <div class="caption">Advisory arrival sequencing</div>
+          <label class="check"><input id="conflictSequencing" type="checkbox" />Calculate sequencing recommendations</label>
+          <label class="check"><input id="conflictOwnedOnly" type="checkbox" />Only analyze a selected pair when I own both tags</label>
+          <datalist id="conflictAircraftList"></datalist>
+          <div class="grid3">
+            <div><label for="conflictLeader">Aircraft to put first</label><input id="conflictLeader" list="conflictAircraftList" maxlength="16" /></div>
+            <div><label for="conflictFollower">Aircraft to follow</label><input id="conflictFollower" list="conflictAircraftList" maxlength="16" /></div>
+            <div><label for="conflictMergeFix">Common merge waypoint (optional)</label><input id="conflictMergeFix" maxlength="16" placeholder="Auto: first shared forward fix" /></div>
+          </div>
+          <div class="buttons"><button id="swapConflictPair">Swap order</button><button id="saveConflictBtn" class="good">Save / analyze selected order</button><button id="refreshConflictBtn">Refresh</button></div>
+          <p>Choose which aircraft goes first. The local solver tries route shortcuts, speed changes and bounded delaying doglegs, checks ten minutes ahead, and reports why candidates fail. Shared geometry does not require identical waypoint names. Nothing is assigned automatically.</p>
+          <p id="conflictRecommendationStatus" role="status"></p>
+          <div id="conflictRecommendations"></div>
+          <p class="subtle">Simulation aid only—not certified separation assurance. Assumes a 10-second response and turns up to 3°/second. Model ground tracks are not magnetic heading clearances. No weather, terrain, restricted-airspace, procedure or performance validation. Review every suggestion. Recomputed about every five seconds; native alerts continue without the app.</p>
+        </div>
+        <div class="card">
+            <div class="caption">AI-assisted sequencing</div>
+          <p>AI proposes structured maneuvers; the native engine checks them against fresh traffic before displaying any as model-validated. Immediate conflict alerts stay local. No maneuver is assigned automatically.</p>
+            <label for="aiProvider">AI connection</label><select id="aiProvider"><option value="chatgpt">ChatGPT plan (sign in)</option><option value="api">API key (separate API billing)</option></select>
+            <div id="chatGPTPanel">
+              <p id="chatGPTStatus" role="status">Continue with ChatGPT to connect your account.</p>
+              <label for="chatGPTProfile">Saved account / workspace</label><select id="chatGPTProfile"></select>
+              <div class="buttons"><button id="chatGPTSignIn">Continue with ChatGPT</button><button id="chatGPTAdd">Add account / workspace</button><button id="chatGPTCancel" disabled>Cancel sign-in</button><button id="chatGPTSignOut">Sign out locally</button><button id="chatGPTUsage">Manage usage</button></div>
+              <label for="chatGPTModel">Available ChatGPT model</label><select id="chatGPTModel"></select><button id="chatGPTModels">Refresh models</button>
+              <p>Uses your eligible ChatGPT plan allowance, shared with other apps—not API credits. Availability and limits depend on your account. No automatic API-key fallback. Sign-in alone does not verify inference access. Tokens stay in Windows-encrypted storage. Local sign-out removes tokens; disconnect this app in ChatGPT settings to revoke access remotely.</p>
+              <p>Each manual request allows at most two AI rounds: propose, then revise once if native checks reject every proposal. Each round uses plan allowance and can take up to 45 seconds. No background agent or automatic clearances.</p>
+            </div>
+            <div id="aiAPISettings" hidden>
+            <p id="aiKeyStatus" role="status">Checking local API key…</p>
+          <div class="buttons"><button id="importAIKeyBtn">Import local .env key</button><button id="forgetAIKeyBtn">Forget saved key</button></div>
+          <p>The key stays in the main process and Windows-encrypted user storage, never the plugin config, source upload or installer. Each user needs their own key; your key is not shared with other installations.</p>
+          <label for="aiModel">OpenAI model ID</label><input id="aiModel" value="gpt-5-mini" maxlength="80" />
+            </div>
+            <label class="check"><input id="aiConsent" type="checkbox" /><span id="aiConsentLabel">I agree to send this anonymized traffic snapshot to OpenAI and use my ChatGPT plan allowance</span></label>
+          <p>Only sends on request: selected pair and up to 24 nearby targets, relative positions, altitude/speed/track, clearance intent, wake and route fix geometry. Callsigns are replaced with LEADER/FOLLOWER/T1…; no pilot names, CIDs, remarks, recordings, logs or API credentials are included in the prompt. Network latency means suggestions are never instantaneous. An API request can take up to 45 seconds.</p>
+          <div class="buttons"><button id="analyzeAIBtn" class="good">Ask AI for this order</button><button id="cancelAIBtn" disabled>Cancel AI request</button></div>
+          <p id="aiStatus" role="status">AI is manual; no background requests.</p>
+          <div id="aiRecommendations"></div>
+          <p class="subtle">AI proposals are rechecked locally about every five seconds and expire after one minute. A rejected or expired proposal is not a clearance. Check the named aircraft and live situation; even a passing model check cannot establish real-world safety.</p>
+        </div>
+      </section>
+        <section id="training">
+          <div class="card">
+            <div class="caption">Local training — never connects to VATSIM or SweatBox</div>
+            <p>This embedded traffic server binds only to this app's fixed loopback address. It has no outbound connection, online authentication, licence check or forwarding path. Do not run a second simulator engine for these aircraft.</p>
+            <p><strong>Quick start:</strong> 1. Load demo (or create/import aircraft). 2. Start local server and wait for “LISTENING”. 3. Connect EuroScope using the exact server address below. 4. Press Run.</p>
+            <p>EuroScope: disconnect any current session; select “Direct to VATSIM” as the connection-mode label, but <strong>leave Connect to VATSIM UNCHECKED</strong>. Enter the exact address below, with no :port suffix. Use dummy ID/password/name, not VATSIM credentials. NOT “Start SweatBox simulator session”: ZYZTools runs the aircraft. Do not select AUTOMATIC or a public server.</p>
+            <p>ZYZTools cannot prevent you from manually connecting EuroScope to another server. Never change the server to a VATSIM/SweatBox address. This module sends nothing outside your computer; unrelated app features and third-party plugins are separate.</p>
+            <label>Server address to enter in EuroScope (fixed port 6809)<input id="trainingAddress" readonly value="127.0.0.1" /></label>
+            <p>Test app: 127.0.0.1. Production app: 127.0.0.2. Both addresses are local to this computer; no custom port is needed.</p>
+            <div class="buttons"><button id="trainingDemo">Load two-aircraft demo</button><button id="trainingStart">Start local server</button><button id="trainingRun">Run</button><button id="trainingPause">Pause</button><button id="trainingReset">Reset initial positions</button><button id="trainingStop">Stop / disconnect</button></div>
+            <p id="trainingConnection" role="status">Server stopped.</p>
+            <p id="trainingActivity" role="status">No local connection received yet.</p>
+            <p id="trainingNotice" role="alert" aria-live="assertive">No server is started automatically. Use Load demo to try it immediately. For editable flight plans connect with a controller callsign such as TOR_APP, not an OBS position.</p>
+          </div>
+          <div class="card">
+            <div class="caption">Aircraft / pilot command centre</div>
+            <table><thead><tr><th>Callsign</th><th>Type</th><th>Altitude</th><th>IAS / GS</th><th>Magnetic heading</th><th>Status / route</th><th>Squawk</th></tr></thead><tbody id="trainingAircraft"></tbody></table>
+            <label>Aircraft<select id="trainingSelected"></select></label><label>Command<input id="trainingCommand" placeholder="ALT 5000" maxlength="100" /></label><div class="buttons"><button id="trainingSend">Apply command</button><button id="trainingIdent">Squawk IDENT</button><button id="trainingEditLive">Edit live flight plan</button></div>
+            <div class="buttons"><button id="trainingPauseAircraft">Pause selected aircraft</button><button id="trainingClearApproach">Cleared for approach</button><button id="trainingCancelApproach">Cancel approach</button><button id="trainingPublished">Resume published speeds</button></div>
+            <label>Assigned speed (IAS knots)<input id="trainingAssignedIAS" type="number" value="210" min="80" max="400" /></label><button id="trainingSetIAS">Assign speed</button>
+            <p id="trainingAircraftState">Select an active aircraft to see runway, approach and speed mode.</p>
+            <p>APP CLEAR arms a generic sector-centreline/3° simulated ILS for the runway selected in the flight plan. It does not instantly turn or dive onto final: a suitable intercept vector and altitude are needed. IAS is converted to TAS using approximate ISA density, with no wind. This is not a certified approach/performance model.</p>
+            <p>ALT feet · RATE ft/min · SPD / IAS indicated knots · HDG/LHDG/RHDG degrees magnetic · DCT fix · SQ 1234 · MODE C/STBY · IDENT (18 simulation seconds) · ROUTE RESUME. Scheduled aircraft appear when simulation time reaches their spawn time.</p>
+            <p id="trainingStatus" role="status">Create a scenario in Scenario Builder or load the demo.</p>
+          </div>
+          <div class="card"><div class="caption">Multiplayer — shared manual aircraft controls</div>
+            <p>Your computer hosts the scenario and EuroScope connection. Another person uses the shared browser command centre to manually control aircraft and edit flight plans—no AI, voice synthesis or remote desktop needed. You retain Run/Pause/Reset. Coordinate aircraft ownership verbally; simultaneous edits use the last accepted instruction.</p>
+            <div class="buttons"><button id="trainingSharedStart">Start shared control</button><button id="trainingSharedStop">Stop shared control / revoke key</button><button id="trainingSharedOpen">Open shared panel</button></div>
+            <label>Panel address<input id="trainingSharedAddress" readonly /></label><label>Access key (share privately)<input id="trainingSharedKey" type="password" readonly /></label><button id="trainingSharedReveal">Show / hide key</button>
+            <p id="trainingSharedStatus" role="status">Shared control is off. Start the local training server first; disable the AI pilot bridge.</p>
+            <p>For someone outside your computer, run the tunnel command below with cloudflared installed. Send them the HTTPS URL it prints and the access key separately. Only tunnel this panel port—never EuroScope port 6809. No public tunnel starts automatically. Stopping shared control immediately revokes the key.</p>
+            <label>Optional tunnel command<input id="trainingSharedTunnel" readonly /></label>
+            <p>A tunnel sends simulated scenario/aircraft data through its provider to your invited participant, not VATSIM. Use HTTPS; do not expose the HTTP port directly. Close the tunnel terminal after training. Manual readbacks/voice are outside this panel.</p>
+            <h3>Join as a remote EuroScope controller</h3><p>On the controller's computer, install this ZYZTools version and leave its local training server stopped. Enter the host's HTTPS tunnel URL and access key. Start connector, then connect EuroScope to the local address below with Connect to VATSIM UNCHECKED and dummy credentials. Keep the connector running. Do not enter the public URL in EuroScope.</p>
+            <label>Host tunnel URL<input id="trainingJoinUrl" placeholder="https://example.trycloudflare.com" /></label><label>Host access key<input id="trainingJoinKey" type="password" autocomplete="off" /></label><div class="buttons"><button id="trainingJoinStart">Start EuroScope connector</button><button id="trainingJoinStop">Stop connector</button></div><p id="trainingJoinStatus" role="status">Remote connector off.</p>
+          </div>
+          <div class="card"><div class="caption">ChatGPT pilot agent (optional)</div>
+            <label class="check"><input id="trainingAgentEnabled" type="checkbox" />Enable local simulated-pilot bridge</label>
+            <label>Pilot readback<select id="trainingReadbackMode"><option value="windows">Windows robotic voice — automatic check-ins and readbacks</option><option value="chatgpt">ChatGPT voice — optional, slower</option></select></label>
+            <p>ChatGPT mode uses your open voice chat, not Windows speech. The pilot skill is instructed to finish a concise readback before submitting its maneuver. Execution trusts the agent's completion report: this app cannot verify ChatGPT speaker playback or guarantee four-second latency. Windows mode retains its verified local speech-completion gate. No VATSIM connection is made.</p>
+            <label>Local readback voice<select id="trainingVoice"></select></label>
+            <div class="buttons"><button id="trainingInstallPilot">Set up / repair pilot plugin</button><button id="trainingCheckPilot">Check pilot connection</button></div>
+            <p>1. Set up the plugin once. 2. Enable the bridge above. 3. Start the server and Run. 4. In a new local desktop chat, select @ZYZTools Local Pilots test (or the production equivalent). Try a typed clearance first. The connection check below tests the local bridge, not whether a particular chat has loaded its tools.</p>
+            <details><summary>Advanced: portable plugin export</summary><button id="trainingExportPilot">Export ChatGPT pilot plugin</button></details>
+            <p id="trainingAgentStatus" role="status">Bridge disabled. Use Set up / repair to install the matching plugin without copying commands.</p>
+          </div>
+        </section>
+        <section id="trainingBuilder">
+          <div class="card"><label>Magnetic variation, degrees WEST (negative for east)<input id="trainingMagVar" type="number" min="-180" max="180" step="0.01" value="10.37" /></label><p>Match EuroScope’s sector variation. CYYZ legacy scenarios default to 10.37°W from your supplied sector, not a live magnetic model. Applies to heading commands; internal route geometry remains true.</p></div>
+          <div class="card">
+            <div class="caption">Scenario Builder — offline sector map</div>
+            <div class="buttons"><button id="trainingImportSector">Import .sct / .sct2 fixes and map</button><button id="trainingZoomIn">Zoom +</button><button id="trainingZoomOut">Zoom −</button><button id="trainingPanN">North</button><button id="trainingPanS">South</button><button id="trainingPanW">West</button><button id="trainingPanE">East</button></div>
+            <p id="trainingSectorStatus">Import your sector file once. Its named fixes are cached locally, separately for test/production.</p>
+            <div class="buttons"><button id="trainingImportAsr">Load .asr display profile</button><button id="trainingClearAsr">Clear display profile</button></div>
+            <p id="trainingAsrStatus">Optional: load your EuroScope ASR to select its named map layers, fixes, view area and rotation. This is a sector-map preview, not the EuroScope/VATCANSitu rendering engine; plugin overlays and custom fonts are not reproduced.</p>
+            <label>Find / spawn at fix<input id="trainingSpawnFix" list="trainingFixList" placeholder="BOXUM" maxlength="16" /></label><datalist id="trainingFixList"></datalist><button id="trainingUseFix">Use fix as spawn and centre map</button>
+            <svg id="trainingMap" viewBox="0 0 900 500" style="width:100%;height:auto;aspect-ratio:9/5;background:var(--bg);border:1px solid var(--line);touch-action:none" role="img" aria-label="Offline sector map; click to set aircraft spawn"></svg>
+            <p id="trainingMapStatus">Click the map to place the aircraft currently being created. Coordinates are decimal degrees. North is up unless an ASR display rotation is applied. No online map tiles.</p>
+          </div>
+          <div class="card">
+            <div class="caption">Aircraft spawn and reusable scenario</div>
+            <label>Scenario name<input id="trainingName" value="New scenario" maxlength="100" /></label>
+            <details><summary>Optional custom fix overrides</summary><label>NAME LATITUDE LONGITUDE per line<textarea id="trainingWaypoints" rows="3" placeholder="FIXA 43.8 -79.8"></textarea></label></details>
+            <p>The filed flight plan is the aircraft's route. Import the sector again to load its adjacent .ese procedures and navdata/airway.txt automatically. Use ENTRY AIRWAY EXIT or a STAR with an arrival runway. Missing or ambiguous items are rejected, not silently skipped.</p>
+            <div class="grid2">
+              <label>Latitude<input id="training_lat" type="number" step="any" value="44.0" /></label><label>Longitude<input id="training_lon" type="number" step="any" value="-79.8" /></label>
+              <label>Initial altitude (ft)<input id="training_altitude" type="number" value="10000" /></label><label>Initial speed (kt IAS)<input id="training_speed" type="number" value="250" /></label>
+              <label>Initial magnetic heading<input id="training_heading" type="number" value="180" /></label><label>Vertical rate magnitude (ft/min)<input id="training_rate" type="number" value="1500" /></label>
+              <label>Spawn delay — minutes after Run<input id="training_spawnTime" type="number" min="0" max="1440" step="1" value="0" /></label><label>Additional seconds<input id="training_spawnSeconds" type="number" min="0" max="59" step="1" value="0" /></label>
+              <p>0 minutes + 0 seconds = immediate. 5 minutes + 30 seconds = 5½ minutes after the simulation starts. Pausing also pauses this timer. This is never UTC.</p>
+              <label>Transponder mode<select id="training_squawkMode"><option value="N">Mode C</option><option value="S">Standby</option></select></label>
+              <input id="training_route" type="hidden" />
+              <label>Arrival runway<input id="training_arrivalRunway" placeholder="23" maxlength="3" /></label><label>Aircraft category<select id="training_category"><option value="jet">Jet</option><option value="prop">Prop</option><option value="unknown">Unknown</option></select></label>
+              <label class="check"><input id="trainingPublishedDefault" type="checkbox" checked />Follow published speeds by default</label>
+            </div>
+          </div>
+          <div class="card" id="trainingFlightPlan"><div class="caption">Create / edit flight plan</div>
+            <p>Enter callsign, aircraft type, origin and destination, place the spawn on the map, then Add aircraft. All other fields have editable defaults.</p>
+            <div class="buttons"><button id="trainingDuplicate">Duplicate selected aircraft</button><button id="trainingValidateRoute">Preview filed route</button><button id="trainingNextSquawk">Next unused squawk</button></div>
+            <div class="grid3">
+              <label>Callsign<input id="training_callsign" placeholder="ACA114" /></label><label>Flight rules<select id="training_flightRules"><option value="I">IFR</option><option value="V">VFR</option></select></label><label>Aircraft type<input id="training_type" value="A320" /></label>
+              <label>Origin<input id="training_origin" value="CYUL" /></label><label>Destination<input id="training_destination" value="CYYZ" /></label><label>Alternate<input id="training_alternate" /></label>
+              <label>TAS (filed knots)<input id="training_cruiseSpeed" type="number" value="450" /></label><label>Altitude (filed feet)<input id="training_cruiseAltitude" type="number" value="36000" /></label><label>Squawk<input id="training_squawk" value="2000" /></label>
+            </div>
+            <details><summary>Additional flight-plan fields / live altitude assignments</summary><div class="grid3">
+              <label>Dep EST (HHMM Z)<input id="training_departureTime" value="0000" maxlength="4" /></label><label>Actual (HHMM Z)<input id="training_actualDepartureTime" value="0000" maxlength="4" /></label><label>Wake<select id="training_wake"><option>M</option><option>L</option><option>H</option><option>J</option></select></label>
+              <label>Enroute hours<input id="training_enrouteHours" type="number" value="1" /></label><label>Enroute minutes<input id="training_enrouteMinutes" type="number" value="0" /></label><label>Equipment<input id="training_equipment" value="S" /></label>
+              <label>Fuel hours<input id="training_fuelHours" type="number" value="2" /></label><label>Fuel minutes<input id="training_fuelMinutes" type="number" value="0" /></label><label>Temp altitude (feet; live command)<input id="training_tempAltitude" type="number" value="10000" /></label>
+              <label>RFL (flight level; sets filed cruise altitude)<input id="training_rfl" type="number" min="0" max="600" value="360" /></label>
+            </div></details>
+            <label>Route (complete filed flight plan)<textarea id="training_flightPlanRoute" rows="3" placeholder="BETES3 FOXEE Q145 HVQ DCT HLRRY ONDRE1"></textarea></label>
+            <p id="trainingRouteStatus">Enter the filed route to preview expanded fixes.</p>
+            <table><thead><tr><th>Expanded filed-route fix</th><th>Coordinates / source</th><th>Leg distance NM</th><th>ETA minutes (approximate)</th></tr></thead><tbody id="trainingRoutePreview"></tbody></table>
+            <label>Remarks<textarea id="training_remarks" rows="3"></textarea></label>
+            <p>Only one route is used: the filed flight plan, including expanded airways/STARs. EuroScope amendments rebuild it; vectors remain in effect until ROUTE RESUME or DCT. Arrival-runway assignments in the route/strip select the approach and chart-speed branch. Initial squawks are assigned and transmitted at spawn. Start/Export saves the aircraft currently being edited so changed spawn delays are not discarded.</p>
+            <div class="buttons"><button id="trainingAdd">Add / update aircraft</button><button id="trainingNewAircraft">Clear edit selection</button><button id="trainingSave">Export scenario file</button><button id="trainingLoad">Import scenario file</button></div>
+            <div class="buttons"><button id="trainingSaveLive">Save live flight plan</button><button id="trainingSetTemp">Set live temp altitude</button><button id="trainingSetRFL">Set live RFL</button></div>
+            <p id="trainingBuilderNotice" role="alert">Stop the server before editing initial scenario aircraft. Live flight-plan editing changes only the running copy.</p>
+            <p>Export saves a portable initial scenario with expanded fixes, runway geometry and speed rules. Reset restores it; Pause freezes the session. Movement uses generic performance, ISA IAS/TAS conversion, no wind (GS = TAS, not IAS), magnetic heading commands, bank-limited fly-by turns (up to 3°/s), and 2 kt/s IAS changes. The approach is a sector-centreline/3° simulation, not a real-world training or separation certification tool.</p>
+          </div>
+          <div class="card">
+            <div class="caption">Initial aircraft schedule</div><table><thead><tr><th>Callsign</th><th>Delay after Run</th><th>Spawn position/fix</th><th>Route</th><th>Edit</th></tr></thead><tbody id="trainingSchedule"></tbody></table>
+          </div>
+          <div class="card"><div class="caption">Published speed profiles — scenario data</div><p id="trainingSpeedSource">59 rules from the supplied jet STAR charts, effective 27 Nov 2025; not independently verified current. East/west flow only. No holding speeds or 15/33-flow limits are inferred. Not for navigation.</p><details><summary>Review / edit runway-specific rules</summary><textarea id="trainingSpeedRules" rows="10" spellcheck="false"></textarea><div class="buttons"><button id="trainingApplySpeeds">Apply JSON rules to scenario</button><button id="trainingDefaultSpeeds">Load supplied-chart defaults</button></div></details></div>
+        </section>
+        <section id="hoppie">
         <div class="card">
           <div class="caption">Hoppie actions</div>
           <label for="actionCallsign">Aircraft callsign</label><input id="actionCallsign" maxlength="12" placeholder="ACA123" />
@@ -706,5 +870,7 @@
   <script src="custom-theme.js"></script>
   <script src="pdc-templates.js"></script>
   <script src="renderer.js"></script>
+  <script src="training-ui.js"></script>
+  <script src="training-multiplayer-ui.js"></script>
 </body>
 </html>

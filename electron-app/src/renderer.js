@@ -406,6 +406,9 @@ document.querySelectorAll("nav button[data-tab]").forEach((button) => {
       await refreshStatistics(false);
     } else if (button.dataset.tab === 'discord') {
       await refreshDiscord(true);
+    } else if (button.dataset.tab === 'conflicts') {
+      await refreshConflicts(true);
+      await refreshAIKey();
     } else if (button.dataset.tab === "replay") {
       await refreshRecordings(false);
       await refreshTrackAudioTapStatus(false);
@@ -670,3 +673,98 @@ $('saveDiscordBtn').addEventListener('click',async()=>{
 });
 $('refreshDiscordBtn').addEventListener('click',()=>refreshDiscord(false));
 setInterval(()=>{if($('discord').classList.contains('active'))refreshDiscord(false);},5000);
+
+const conflictFields={enabled:'conflictEnabled',sequencing:'conflictSequencing',ownedOnly:'conflictOwnedOnly',situAdapter:'conflictSituAdapter',muted:'conflictMuted',arrivalAirports:'conflictAirports',leader:'conflictLeader',follower:'conflictFollower',mergeFix:'conflictMergeFix'};
+function renderConflicts(result,populate){
+  if(populate)for(const[key,id]of Object.entries(conflictFields)){
+    if($(id).type==='checkbox')$(id).checked=!!result.config[key];else $(id).value=result.config[key]??'';
+  }
+  const data=result.snapshot;
+  $('conflictStatus').textContent=data.status;
+  $('conflictAircraftList').replaceChildren();
+  for(const a of data.aircraft||[]){
+    const option=document.createElement('option');option.value=a.callsign;
+    option.label=(a.owned?'Owned • ':'')+a.altitude+' ft • '+a.speed+' kt';$('conflictAircraftList').appendChild(option);
+  }
+  $('conflictAlerts').replaceChildren();
+  for(const a of data.alerts||[]){
+    const row=document.createElement('tr');
+    for(const value of [a.callsign,a.other,['None','Early (5 min)','Yellow (45s)','Red (30s)','Urgent (15s)'][a.stage]||'Unknown',Math.max(0,Math.round(a.seconds))+'s',a.reason]){
+      const cell=document.createElement('td');cell.textContent=value;row.appendChild(cell);
+    }
+    const cell=document.createElement('td'),button=document.createElement('button');button.textContent='Sequence pair';
+    button.addEventListener('click',()=>{$('conflictLeader').value=a.callsign;$('conflictFollower').value=a.other;});
+    cell.appendChild(button);row.appendChild(cell);$('conflictAlerts').appendChild(row);
+  }
+  $('conflictRecommendationStatus').textContent=data.recommendationStatus||'';
+  $('conflictRecommendations').replaceChildren();
+  for(const r of data.recommendations||[]){const p=document.createElement('p');p.className='card';p.textContent=r.text;$('conflictRecommendations').appendChild(p);}
+  $('aiRecommendations').replaceChildren();
+  for(const r of data.aiRecommendations||[]){const p=document.createElement('p');p.className='card';p.textContent=r.text;$('aiRecommendations').appendChild(p);}
+  if(!aiRequestRunning&&data.aiRequestId)$('aiStatus').textContent=data.aiStatus||'';
+}
+async function refreshConflicts(populate=false){
+  try{renderConflicts(await api.loadConflict(installFolder),populate);}catch(error){$('conflictStatus').textContent=error.message;}
+}
+$('saveConflictBtn').addEventListener('click',async()=>{
+  const value={};for(const[key,id]of Object.entries(conflictFields))value[key]=$(id).type==='checkbox'?$(id).checked:$(id).value;
+  $('saveConflictBtn').disabled=true;
+  try{renderConflicts(await api.saveConflict(installFolder,value),true);$('conflictRecommendationStatus').textContent='Settings saved. Waiting for the next native scan…';}
+  catch(error){$('conflictStatus').textContent=error.message;}
+  finally{$('saveConflictBtn').disabled=false;}
+});
+$('swapConflictPair').addEventListener('click',()=>{const before=$('conflictLeader').value;$('conflictLeader').value=$('conflictFollower').value;$('conflictFollower').value=before;});
+$('refreshConflictBtn').addEventListener('click',()=>refreshConflicts(false));
+for(const[kind,id]of [['caution','conflictCautionSound'],['urgent','conflictUrgentSound']])$(id).addEventListener('click',async()=>{
+  try{const result=await api.importConflictSound(installFolder,kind);if(!result.canceled)$('conflictStatus').textContent='Sound installed: '+result.path+' (used for the next alert).';}
+  catch(error){$('conflictStatus').textContent=error.message;}
+});
+setInterval(()=>{if($('conflicts').classList.contains('active'))refreshConflicts(false);},2000);
+
+let aiRequestRunning=false;
+async function refreshAIKey(){
+  await refreshChatGPT(true);
+  try{const status=await api.aiStatus();$('aiKeyStatus').textContent=status.configured?'OpenAI key configured locally (value hidden).':'No API key configured. Import your local .env file.';}
+  catch(error){$('aiKeyStatus').textContent=error.message;}
+}
+async function refreshChatGPT(models=false){
+  try{
+    const s=await api.chatGPTStatus();
+    $('chatGPTStatus').textContent=s.connected?(s.sharing?(s.verified?'ChatGPT connected; inference access verified.':'ChatGPT connected; inference access not tested yet.'):'Signed in, but ChatGPT plan permission was not granted.'):'Not connected. Continue with ChatGPT in your browser.';
+    const picker=$('chatGPTProfile');picker.replaceChildren();
+    for(const p of s.profiles){const o=document.createElement('option');o.value=p.id;o.textContent=p.label+(p.connected?'':' (reconnect)');picker.append(o);}picker.value=s.selected||'';
+    if(models&&s.sharing){const list=await api.chatGPTModels(),selected=$('chatGPTModel').value;$('chatGPTModel').replaceChildren();for(const m of list){const o=document.createElement('option');o.value=m.slug;o.textContent=m.display_name;$('chatGPTModel').append(o);}if(list.some(m=>m.slug===selected))$('chatGPTModel').value=selected;}
+  }catch(error){$('chatGPTStatus').textContent=error.message;}
+}
+function updateAIProvider(){const plan=$('aiProvider').value==='chatgpt';$('chatGPTPanel').hidden=!plan;$('aiAPISettings').hidden=plan;$('aiConsent').checked=false;$('aiConsentLabel').textContent=plan?'I agree to send this anonymized traffic snapshot to OpenAI and use my ChatGPT plan allowance':'I agree to send this anonymized traffic snapshot to OpenAI and incur separate API charges';if(plan)refreshChatGPT(true);}
+$('aiProvider').addEventListener('change',updateAIProvider);
+async function signInChatGPT(newProfile){
+  $('chatGPTSignIn').disabled=true;$('chatGPTAdd').disabled=true;$('chatGPTCancel').disabled=false;$('chatGPTStatus').textContent='Complete sign-in and consent in your system browser. Waiting up to three minutes…';
+  try{await api.chatGPTSignIn(newProfile);await refreshChatGPT(true);}catch(error){$('chatGPTStatus').textContent=error.message;}
+  finally{$('chatGPTSignIn').disabled=false;$('chatGPTAdd').disabled=false;$('chatGPTCancel').disabled=true;}
+}
+$('chatGPTSignIn').addEventListener('click',()=>signInChatGPT(false));
+$('chatGPTAdd').addEventListener('click',()=>signInChatGPT(true));
+$('chatGPTCancel').addEventListener('click',()=>api.chatGPTCancel());
+$('chatGPTSignOut').addEventListener('click',async()=>{try{await api.chatGPTSignOut();$('chatGPTModel').replaceChildren();await refreshChatGPT();}catch(error){$('chatGPTStatus').textContent=error.message;}});
+$('chatGPTUsage').addEventListener('click',()=>api.chatGPTUsage());
+$('chatGPTModels').addEventListener('click',()=>refreshChatGPT(true));
+$('chatGPTProfile').addEventListener('change',async()=>{try{await api.chatGPTSelect($('chatGPTProfile').value);$('chatGPTModel').replaceChildren();$('aiConsent').checked=false;await refreshChatGPT(true);}catch(error){$('chatGPTStatus').textContent=error.message;}});
+$('importAIKeyBtn').addEventListener('click',async()=>{try{await api.importAIKey();await refreshAIKey();}catch(error){$('aiKeyStatus').textContent=error.message;}});
+$('forgetAIKeyBtn').addEventListener('click',async()=>{try{await api.forgetAIKey();await refreshAIKey();}catch(error){$('aiKeyStatus').textContent=error.message;}});
+$('cancelAIBtn').addEventListener('click',()=>api.cancelAI());
+$('analyzeAIBtn').addEventListener('click',async()=>{
+  if(!$('aiConsent').checked){$('aiStatus').textContent='Confirm the data-sharing and selected usage allowance checkbox first.';return;}
+  aiRequestRunning=true;$('analyzeAIBtn').disabled=true;$('cancelAIBtn').disabled=false;
+  $('aiRecommendations').replaceChildren();$('aiStatus').textContent='Saving selected order, then requesting AI proposals and native validation…';
+  try{
+    const value={};for(const[key,id]of Object.entries(conflictFields))value[key]=$(id).type==='checkbox'?$(id).checked:$(id).value;
+    await api.saveConflict(installFolder,value);
+    const provider=$('aiProvider').value,model=provider==='chatgpt'?$('chatGPTModel').value:$('aiModel').value.trim();
+    const result=await api.analyzeAI(installFolder,model,true,provider);
+    $('aiStatus').textContent=result.status;
+    if(result.usage?.total_tokens)$('aiStatus').textContent+=' Tokens: '+result.usage.total_tokens+'.';
+    await refreshConflicts(false);
+  }catch(error){$('aiStatus').textContent=error.message;}
+  finally{aiRequestRunning=false;$('analyzeAIBtn').disabled=false;$('cancelAIBtn').disabled=true;}
+});

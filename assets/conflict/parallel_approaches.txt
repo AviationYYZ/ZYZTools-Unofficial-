@@ -1,0 +1,11 @@
+# Candidate pairs from CYYZ sector geometry. Both targets must be approach
+# cleared, assigned these distinct active runways and established on final.
+# Remove any pair not used simultaneously in your local simulation procedures.
+CYYZ/05/06L
+CYYZ/05/06R
+CYYZ/06L/06R
+CYYZ/23/24L
+CYYZ/23/24R
+CYYZ/24L/24R
+CYYZ/15L/15R
+CYYZ/33L/33R

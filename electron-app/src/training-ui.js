@@ -1,0 +1,137 @@
+(() => {
+ const api=window.preferredCyyzPdc,$=id=>document.getElementById(id),ns='http://www.w3.org/2000/svg';
+ let current=null,draft={format:'ZYZTools-training',version:1,name:'New scenario',waypoints:[],aircraft:[]},edit=-1,busy=false,liveCallsign=null;
+ let sector={fixes:[],lines:[]},centre={lat:43.8,lon:-79.65},span=2.6,sectorLoaded=false,speaking=null,rotation=0;
+ const fields=['callsign','type','lat','lon','altitude','speed','heading','rate','origin','destination','squawk','spawnTime','squawkMode','flightRules','wake','equipment','departureTime','actualDepartureTime','cruiseAltitude','cruiseSpeed','enrouteHours','enrouteMinutes','fuelHours','fuelMinutes','alternate','remarks','flightPlanRoute','arrivalRunway','category'];
+ let routePreview={route:'',waypoints:[]},previewSequence=0,previewTimer=null,editorDirty=false;
+ const defaults={flightRules:'I',wake:'M',equipment:'S',departureTime:'0000',actualDepartureTime:'0000',cruiseAltitude:36000,cruiseSpeed:450,enrouteHours:1,enrouteMinutes:0,fuelHours:2,fuelMinutes:0,alternate:'',remarks:'',flightPlanRoute:'',spawnTime:0,squawkMode:'N'};
+ const message=text=>{for(const id of ['trainingStatus','trainingNotice','trainingBuilderNotice'])$(id).textContent=text;};
+ function time(value){const n=Math.floor(Number(value)||0);return [Math.floor(n/3600),Math.floor(n/60)%60,n%60].map(n=>String(n).padStart(2,'0')).join(':');}
+ function delay(value){const n=Math.floor(Number(value)||0);return Math.floor(n/60)+' min '+n%60+' sec';}
+ function fixes(){return new Map([...sector.fixes,...draft.waypoints,...routePreview.waypoints].map(w=>[w.name,w]));}
+ function button(label,fn,disabled=false){const b=document.createElement('button');b.textContent=label;b.onclick=()=>action(fn);b.disabled=disabled;return b;}
+ function cells(row,values){for(const value of values){const c=document.createElement('td');c.textContent=String(value??'');row.append(c);}}
+ function populate(a,live=false){
+  for(const f of fields){const value=a[f]??defaults[f]??'';$("training_"+f).value=f==='spawnTime'?Math.floor(Number(value)/60):value;}
+  $('training_spawnSeconds').value=Number(a.spawnTime||0)%60;
+  $('trainingPublishedDefault').checked=a.publishedSpeeds!==false;
+  $('training_heading').value=((Number(a.heading)+(current?.magneticVariationWest??10.37)+360)%360).toFixed(2);
+  if(live&&a.ias!==undefined)$('training_speed').value=Number(a.ias).toFixed(1);
+  if(a.speedBasis!=='IAS'&&!live)$('training_speed').value=(Number(a.speed)*Math.sqrt(Math.pow(1-2.25577e-5*Math.min(11000,Number(a.altitude)*.3048),4.25588))).toFixed(1);
+  $('trainingSpawnFix').value=a.spawnFix||'';$('training_tempAltitude').value=a.targetAltitude??a.altitude;
+  $('training_rfl').value=Math.round(Number(a.cruiseAltitude??a.altitude)/100);
+  liveCallsign=live?a.callsign:null;$('training_callsign').readOnly=live;centre={lat:a.lat,lon:a.lon};editorDirty=false;renderMap();preview();
+ }
+ function draw(state){
+  current=state;$('trainingAddress').value=state.host||'127.0.0.1';
+  const active=state.aircraft.filter(a=>a.active!==false);
+  $('trainingConnection').textContent=state.listening?'LISTENING — LOCAL ONLY — '+(state.host||'127.0.0.1')+':'+state.port+' | '+state.clients+' EuroScope connection(s) | '+(state.running?'Running':'Paused')+' | '+active.length+' active / '+state.aircraft.length+' total | '+time(state.elapsed):'STOPPED — no training server is listening.';
+  $('trainingActivity').textContent=state.error||state.lastEvent||'No local connection received yet.';
+  const selected=$('trainingSelected').value;$('trainingSelected').replaceChildren();$('trainingAircraft').replaceChildren();$('trainingSchedule').replaceChildren();
+  for(const a of state.listening?state.aircraft:draft.aircraft){
+   const row=document.createElement('tr');cells(row,[a.callsign,a.type,Math.round(a.altitude),state.listening?Math.round(a.ias??a.speed)+' / '+Math.round(a.speed):Math.round(a.speed)+' '+(a.speedBasis||'TAS')+' initial',Math.round(state.listening?(a.magneticHeading??a.heading):(Number(a.heading)+(state.magneticVariationWest||0)+360)%360),!state.listening?'Scheduled +'+delay(a.spawnTime):a.active===false?'Spawns after '+delay(a.spawnTime):a.paused?'PAUSED':a.approachState&&a.approachState!=='off'?a.approachState:a.navigation==='route'?'DCT '+(a.remaining[0]||'END'):a.navigation==='heading'?'HDG '+Math.round(a.targetMagneticHeading??a.targetHeading)+' M':a.route,a.squawk+(a.assignedSquawk&&a.assignedSquawk!==a.squawk?' (assigned '+a.assignedSquawk+')':'')+(a.identActive?' IDENT':'')]);$('trainingAircraft').append(row);
+   if(a.active!==false){const o=document.createElement('option');o.value=a.callsign;o.textContent=a.callsign;$('trainingSelected').append(o);}
+  }
+  if([...$('trainingSelected').options].some(o=>o.value===selected))$('trainingSelected').value=selected;
+  draft.aircraft.forEach((a,i)=>{const row=document.createElement('tr');cells(row,[a.callsign,delay(a.spawnTime),a.spawnFix||a.lat.toFixed(4)+', '+a.lon.toFixed(4),a.route]);const c=document.createElement('td');c.append(button('Edit',async()=>{await commitEditor();edit=draft.aircraft.findIndex(x=>x.callsign===a.callsign);populate(draft.aircraft[edit]);message('Editing '+a.callsign+'. Add / update saves the initial setup.');},state.listening),button('Delete',async()=>{draft.aircraft.splice(i,1);edit=-1;draw(state);},state.listening));row.append(c);$('trainingSchedule').append(row);});
+  for(const id of ['trainingAdd','trainingLoad','trainingDemo','trainingImportSector','trainingName','trainingWaypoints'])$(id).disabled=state.listening||busy;
+  $('trainingStart').disabled=state.listening||busy;$('trainingStart').textContent=state.listening?'Local server started':busy?'Starting…':'Start local server';
+  $('trainingRun').disabled=!state.listening;$('trainingPause').disabled=!state.listening;$('trainingStop').disabled=!state.listening;
+  $('trainingSaveLive').disabled=!state.listening||!liveCallsign;$('trainingSetTemp').disabled=!state.listening||!liveCallsign;
+  $('trainingSetRFL').disabled=!state.listening||!liveCallsign;
+  $('trainingDuplicate').disabled=state.listening;
+  $('trainingAdd').textContent=edit>=0?'Update aircraft':'Add aircraft';
+  selectedState();
+ }
+ function selectedState(){const a=current?.aircraft.find(a=>a.callsign===$('trainingSelected').value&&a.active);$('trainingPauseAircraft').textContent=a?.paused?'Resume selected aircraft':'Pause selected aircraft';for(const id of ['trainingPauseAircraft','trainingClearApproach','trainingCancelApproach','trainingPublished','trainingSetIAS'])$(id).disabled=!current?.listening||!a;$('trainingAircraftState').textContent=a?[a.callsign,'RWY '+(a.arrivalRunway||'not assigned'),a.paused?'PAUSED':!current.listening?'server stopped':!current.running?'session paused':'moving',a.approachState||'approach off','Speed: '+a.speedMode,(a.speedMode==='published'?a.speedNotice:'Assigned IAS '+Math.round(a.targetIAS||0))||''].join(' | '):'Select an active aircraft to see runway, approach and speed mode.';}
+ $('trainingSelected').onchange=selectedState;
+ function readDraft(){draft.name=$('trainingName').value;if($('trainingMagVar').value==='')throw Error('Enter the sector magnetic variation.');draft.magneticVariationWest=Number($('trainingMagVar').value);draft.waypoints=$('trainingWaypoints').value.trim().split(/\r?\n/).filter(l=>l.trim()).map(l=>{const p=l.trim().split(/\s+/);if(p.length!==3)throw Error('Each custom fix must be NAME LATITUDE LONGITUDE.');return {name:p[0].toUpperCase(),lat:Number(p[1]),lon:Number(p[2])};});return draft;}
+ function aircraftForm(){const a={};for(const f of fields)a[f]=$('training_'+f).value;const minutes=Number(a.spawnTime),seconds=Number($('training_spawnSeconds').value);if(a.spawnTime===''||$('training_spawnSeconds').value===''||!Number.isInteger(minutes)||!Number.isInteger(seconds)||minutes<0||seconds<0||seconds>59||minutes*60+seconds>86400)throw Error('Spawn delay must be whole minutes (0–1440) plus seconds (0–59), no more than 24 hours after Run.');a.spawnTime=minutes*60+seconds;a.spawnFix=$('trainingSpawnFix').value.trim().toUpperCase();for(const f of ['callsign','type','origin','destination','alternate','equipment','flightPlanRoute','arrivalRunway'])a[f]=a[f].trim().toUpperCase();a.heading=(Number(a.heading)-Number($('trainingMagVar').value)+360)%360;a.route=a.flightPlanRoute;a.speedBasis='IAS';a.publishedSpeeds=$('trainingPublishedDefault').checked;return a;}
+ async function action(fn){try{await fn();}catch(error){message('ERROR: '+error.message);}}
+ function acceptScenario(state){draft=state.scenario;$('trainingMagVar').value=draft.magneticVariationWest??10.37;editorDirty=false;edit=-1;liveCallsign=null;$('training_callsign').readOnly=false;$('trainingName').value=draft.name;$('trainingWaypoints').value=draft.waypoints.map(w=>`${w.name} ${w.lat} ${w.lon}`).join('\n');$('trainingSpeedRules').value=JSON.stringify(draft.speedRules||[],null,2);draw(state);renderMap();preview();}
+ async function commitEditor(){readDraft();if(current?.listening||!editorDirty)return;const a=aircraftForm();if(!a.callsign)return;const candidate={...draft,aircraft:[...draft.aircraft]},i=edit>=0?edit:candidate.aircraft.findIndex(x=>x.callsign===a.callsign);if(i>=0)candidate.aircraft[i]=a;else candidate.aircraft.push(a);acceptScenario(await api.training('load',candidate));editorDirty=false;}
+ $('trainingAdd').onclick=()=>action(async()=>{readDraft();const candidate={...draft,aircraft:[...draft.aircraft]},a=aircraftForm();if(edit>=0)candidate.aircraft[edit]=a;else candidate.aircraft.push(a);acceptScenario(await api.training('load',candidate));message('Aircraft saved to initial scenario. Export to keep it.');});
+ $('trainingNewAircraft').onclick=()=>action(async()=>{await commitEditor();edit=-1;liveCallsign=null;$('training_callsign').readOnly=false;$('training_callsign').value='';editorDirty=false;message('New aircraft: click map or choose spawn fix, then fill flight plan and Add.');});
+ function nextSquawk(){const used=new Set(draft.aircraft.map(a=>a.squawk));for(let n=parseInt('2001',8);n<=parseInt('7777',8);n++){const code=n.toString(8).padStart(4,'0');if(!['7500','7600','7700'].includes(code)&&!used.has(code)){$('training_squawk').value=code;return;}}throw Error('No unused squawk available.');}
+ $('trainingNextSquawk').onclick=()=>action(async()=>nextSquawk());
+ $('trainingDuplicate').onclick=()=>action(async()=>{if(current?.listening)throw Error('Stop the server before duplicating initial aircraft.');const a=aircraftForm();if(!a.callsign)throw Error('Edit an aircraft or fill the form first.');const match=a.callsign.match(/^(.*?)(\d+)$/);let n=match?Number(match[2])+1:1,base=match?match[1]:a.callsign;while(draft.aircraft.some(x=>x.callsign===base+n))n++;a.callsign=base+n;edit=-1;populate(a);nextSquawk();editorDirty=true;message('Copy ready with a new callsign and squawk. Adjust spawn delay/position, then Add aircraft.');});
+ $('trainingValidateRoute').onclick=()=>action(async()=>preview());
+ $('trainingStart').onclick=()=>action(async()=>{if(busy)return;busy=true;$('trainingStart').disabled=true;$('trainingStart').textContent='Starting…';message('Saving editor and starting local listener…');try{await commitEditor();await api.training('load',readDraft());const state=await api.training('start');draw(state);message('READY: enter '+state.host+' in EuroScope, with Connect to VATSIM UNCHECKED. '+(state.aircraft.length?'Connect, then press Run.':'No aircraft loaded. Stop, then Load demo or use Scenario Builder.'));}finally{busy=false;draw(await api.training('status'));}});
+ $('trainingDemo').onclick=()=>action(async()=>{const state=await api.training('demo');acceptScenario(state);editorDirty=false;if(state.scenario.aircraft[0])populate(state.scenario.aircraft[0]);message('Two demo aircraft loaded. Start local server next.');});
+ for(const [id,verb]of [['trainingRun','run'],['trainingPause','pause'],['trainingReset','reset'],['trainingStop','stop']])$(id).onclick=()=>action(async()=>draw(await api.training(verb)));
+ async function command(text){draw(await api.training('command',{callsign:$('trainingSelected').value,command:text}));message('Command applied to local simulation only.');}
+ $('trainingSend').onclick=()=>action(async()=>{const input=$('trainingCommand'),sent=input.value;await command(sent);if(input.value===sent)input.value='';input.focus();});$('trainingIdent').onclick=()=>action(()=>command('IDENT'));
+ $('trainingPauseAircraft').onclick=()=>action(()=>command(current?.aircraft.find(a=>a.callsign===$('trainingSelected').value)?.paused?'PAUSE OFF':'PAUSE ON'));
+ $('trainingClearApproach').onclick=()=>action(()=>command('APP CLEAR'));$('trainingCancelApproach').onclick=()=>action(()=>command('APP CANCEL'));$('trainingPublished').onclick=()=>action(()=>command('SPEED PUBLISHED'));$('trainingSetIAS').onclick=()=>action(()=>command('IAS '+$('trainingAssignedIAS').value));
+ $('trainingCommand').onkeydown=e=>{if(e.key==='Enter')$('trainingSend').click();};
+ $('trainingEditLive').onclick=()=>action(async()=>{const a=current?.aircraft.find(a=>a.callsign===$('trainingSelected').value);if(!current?.listening||!a?.active)throw Error('Start the local server and select an active aircraft.');populate(a,true);document.querySelector('[data-tab="trainingBuilder"]').click();$('trainingFlightPlan').scrollIntoView();message('Editing running flight plan for '+a.callsign+'. Initial scenario remains unchanged.');});
+ $('trainingSaveLive').onclick=()=>action(async()=>{const a=aircraftForm();draw(await api.training('amend',{callsign:liveCallsign,fields:a}));message('Live flight plan amended. Initial scenario unchanged.');});
+ $('trainingSetTemp').onclick=()=>action(async()=>{draw(await api.training('command',{callsign:liveCallsign,command:'ALT '+$('training_tempAltitude').value}));message('Live temporary altitude assigned (feet).');});
+ $('trainingSetRFL').onclick=()=>action(async()=>{const level=Number($('training_rfl').value);if(!Number.isInteger(level)||level<0||level>600)throw Error('RFL must be a flight level from 0 to 600.');draw(await api.training('amend',{callsign:liveCallsign,fields:{cruiseAltitude:level*100}}));$('training_cruiseAltitude').value=level*100;message('Requested flight level stored as the live filed cruise altitude; temporary altitude unchanged.');});
+ $('trainingSave').onclick=()=>action(async()=>{await commitEditor();await api.trainingSave(current?.listening?current.scenario:readDraft());message('Export finished or canceled. Current editor, initial positions, spawn delays and expanded fixes saved.');});
+ $('trainingApplySpeeds').onclick=()=>action(async()=>{const state=await api.training('speedRules',JSON.parse($('trainingSpeedRules').value));acceptScenario(state);message('Runway-specific speed rules saved to this scenario.');});
+ $('trainingDefaultSpeeds').onclick=()=>action(async()=>{const data=await api.training('speedDefaults');$('trainingSpeedRules').value=JSON.stringify(data.rules,null,2);$('trainingSpeedSource').textContent=data.notice;message('Defaults loaded into editor. Apply JSON rules to save to scenario.');});
+ $('trainingLoad').onclick=()=>action(async()=>{const state=await api.trainingLoad();if(state){acceptScenario(state);editorDirty=false;if(state.scenario.aircraft[0])populate(state.scenario.aircraft[0]);message('Scenario loaded. Reset restores initial setup and spawn schedule.');}});
+ async function loadSector(choose=false){sector=await api.trainingSector(choose);sectorLoaded=true;$('trainingSectorStatus').textContent=sector.fixes.length+' sector fixes; '+(sector.procedureCount||sector.procedures?.length||0)+' procedures; '+(sector.airwayCount||sector.airways?.length||0)+' airway links. Filed routes are expanded locally.';$('trainingFixList').replaceChildren();for(const w of sector.fixes.slice(0,5000)){const o=document.createElement('option');o.value=w.name;$('trainingFixList').append(o);}const profile=sector.profile;$('trainingAsrStatus').textContent=profile?'ASR: '+profile.name+' — '+profile.selections.length+' display selections. Sector layers/view only; EuroScope plugin graphics, labels and custom fonts may differ.':'No ASR profile — showing sector map. Load .asr to filter clutter and match its view.';rotation=profile?.rotation||0;if(profile?.bounds){const b=profile.bounds;centre={lat:(b.north+b.south)/2,lon:(b.east+b.west)/2};span=Math.max(b.east-b.west,(b.north-b.south)*900/500/Math.cos(centre.lat*Math.PI/180));}renderMap();preview();}
+ $('trainingImportSector').onclick=()=>action(()=>loadSector(true));
+ $('trainingImportAsr').onclick=()=>action(()=>loadSector('asr'));$('trainingClearAsr').onclick=()=>action(()=>loadSector('clearAsr'));
+ $('trainingUseFix').onclick=()=>action(async()=>{const name=$('trainingSpawnFix').value.trim().toUpperCase(),w=fixes().get(name);if(!w)throw Error('Unknown fix. Import its sector file first.');$('training_lat').value=w.lat;$('training_lon').value=w.lon;centre={lat:w.lat,lon:w.lon};editorDirty=true;$('trainingMapStatus').textContent='Spawn at '+name+': '+w.lat.toFixed(6)+', '+w.lon.toFixed(6);renderMap();preview();message('Spawn positioned at '+name+'. Set spawn time, then Add / update aircraft.');});
+ const latSpan=()=>span*500/900*Math.cos(centre.lat*Math.PI/180);
+ function rotate(x,y,angle){const r=angle*Math.PI/180;return {x:x*Math.cos(r)-y*Math.sin(r),y:x*Math.sin(r)+y*Math.cos(r)};}
+ function point(w){const p=rotate((w.lon-centre.lon)/span*900,-(w.lat-centre.lat)/latSpan()*500,rotation);return {x:450+p.x,y:250+p.y};}
+ function visible(section,name,mode){if(!sector.profile)return true;const kinds={GEO:'Geo',SID:'Sids',STAR:'Stars',RUNWAY:'Runways',ARTCC:'ARTCC boundary','ARTCC HIGH':'ARTCC high boundary','ARTCC LOW':'ARTCC low boundary',FIXES:'Fixes',VOR:'VORs',NDB:'NDBs',AIRPORT:'Airports',AIRPORTS:'Airports'};return sector.profile.selections.some(s=>s.kind===(kinds[section]||section)&&s.name.toUpperCase()===String(name).toUpperCase()&&(!mode||s.mode===mode));}
+ function element(type,attrs,text){const e=document.createElementNS(ns,type);for(const[k,v]of Object.entries(attrs))e.setAttribute(k,String(v));if(text!==undefined)e.textContent=text;return e;}
+ function renderMap(){
+  const svg=$('trainingMap');svg.setAttribute('preserveAspectRatio','none');svg.style.background=sector.profile?'#000000':'var(--bg)';svg.replaceChildren();const paths=new Map();
+  const geometry=sector.geometry?.length?sector.geometry:(sector.lines||[]).map(points=>({points,section:'GEO',name:''}));
+  for(const item of geometry){if(!visible(item.section,item.name))continue;const [a,b]=item.points.map(point);if(Math.max(a.x,b.x)<0||Math.min(a.x,b.x)>900||Math.max(a.y,b.y)<0||Math.min(a.y,b.y)>500)continue;const color=sector.profile&&/^#[0-9a-f]{6}$/i.test(item.color)?item.color:'#436575';paths.set(color,(paths.get(color)||'')+`M${a.x.toFixed(1)},${a.y.toFixed(1)}L${b.x.toFixed(1)},${b.y.toFixed(1)}`);}
+  for(const [stroke,d]of paths)svg.append(element('path',{d,stroke,'stroke-width':0.7,fill:'none','pointer-events':'none'}));let count=0;
+  const needed=new Set([...$('training_route').value.toUpperCase().split(/\s+/),$('trainingSpawnFix').value.toUpperCase(),...draft.waypoints.map(w=>w.name)]);
+  for(const w of fixes().values()){const required=needed.has(w.name),symbol=required||visible(w.kind||'FIXES',w.name,'symbol'),label=required||visible(w.kind||'FIXES',w.name,'name');if(!symbol&&!label)continue;const p=point(w);if(p.x<0||p.x>900||p.y<0||p.y>500||count++>900)continue;if(symbol)svg.append(element('circle',{cx:p.x,cy:p.y,r:2,fill:'#9bc1cc','pointer-events':'none'}));if(label)svg.append(element('text',{x:p.x+4,y:p.y-4,fill:'#9bc1cc','font-size':9,'pointer-events':'none'},w.name));}
+  const route=$('training_route').value.toUpperCase().split(/\s+/).map(n=>fixes().get(n)).filter(Boolean).map(point);if(route.length)svg.append(element('polyline',{points:route.map(p=>`${p.x},${p.y}`).join(' '),stroke:'#e4cb64','stroke-width':1.5,fill:'none','pointer-events':'none'}));
+  for(const a of draft.aircraft){const p=point(a);svg.append(element('text',{x:p.x,y:p.y,fill:'#6ee39b','font-size':12,'pointer-events':'none'},'✈ '+a.callsign+' +'+delay(a.spawnTime)));}
+  const p=point({lat:Number($('training_lat').value),lon:Number($('training_lon').value)});svg.append(element('circle',{cx:p.x,cy:p.y,r:7,stroke:'#ffae64','stroke-width':2,fill:'none','pointer-events':'none'}));
+ }
+ $('trainingMap').onclick=e=>{if(current?.listening&&!liveCallsign){message('Stop the server before editing initial spawns.');return;}editorDirty=true;const r=e.currentTarget.getBoundingClientRect(),p=rotate((e.clientX-r.left)/r.width*900-450,(e.clientY-r.top)/r.height*500-250,-rotation);$('training_lat').value=(centre.lat-p.y/500*latSpan()).toFixed(6);$('training_lon').value=(centre.lon+p.x/900*span).toFixed(6);$('trainingSpawnFix').value='';$('trainingMapStatus').textContent='Spawn selected: '+$('training_lat').value+', '+$('training_lon').value;renderMap();preview();};
+ for(const [id,fn]of [['trainingZoomIn',()=>span=Math.max(.05,span/1.5)],['trainingZoomOut',()=>span=Math.min(30,span*1.5)],['trainingPanN',()=>centre.lat=Math.min(80,centre.lat+latSpan()/4)],['trainingPanS',()=>centre.lat=Math.max(-80,centre.lat-latSpan()/4)],['trainingPanW',()=>centre.lon-=span/4],['trainingPanE',()=>centre.lon+=span/4]])$(id).onclick=()=>{fn();renderMap();};
+ async function preview(){
+  const sequence=++previewSequence,table=$('trainingRoutePreview');table.replaceChildren();
+  try{
+   const result=await api.training('routePreview',{aircraft:aircraftForm(),waypoints:readDraft().waypoints});if(sequence!==previewSequence)return;
+   routePreview=result;$('training_route').value=result.route;$('trainingRouteStatus').textContent=result.route?'Expanded: '+result.route:'No route — aircraft holds its initial heading.';
+   let previous={lat:Number($('training_lat').value),lon:Number($('training_lon').value)},elapsed=0;
+   for(const w of result.waypoints){const distance=Math.hypot((w.lat-previous.lat)*60,(w.lon-previous.lon)*60*Math.cos(w.lat*Math.PI/180));elapsed+=distance/Math.max(1,Number($('training_speed').value))*60;const row=document.createElement('tr');cells(row,[w.name,w.lat.toFixed(4)+', '+w.lon.toFixed(4),distance.toFixed(1),elapsed.toFixed(1)]);table.append(row);previous=w;}
+   renderMap();
+  }catch(error){if(sequence!==previewSequence)return;routePreview={route:'',waypoints:[]};$('training_route').value='';$('trainingRouteStatus').textContent='Route not resolved: '+error.message;renderMap();}
+ }
+ for(const id of ['training_flightPlanRoute','training_arrivalRunway','training_origin','training_destination','training_lat','training_lon','training_speed'])$(id).addEventListener('input',()=>{if(['training_lat','training_lon'].includes(id))$('trainingSpawnFix').value='';renderMap();clearTimeout(previewTimer);previewTimer=setTimeout(preview,200);});
+ for(const f of fields)for(const event of ['input','change'])$('training_'+f).addEventListener(event,()=>editorDirty=true);
+ for(const id of ['training_spawnSeconds','trainingSpawnFix','trainingPublishedDefault'])$(id).addEventListener('input',()=>editorDirty=true);
+ async function refresh(){if(!['training','trainingBuilder'].some(id=>$(id).classList.contains('active'))||busy)return;await action(async()=>{const state=await api.training('status');if(!current)acceptScenario(state);draw(state);if(!sectorLoaded)await loadSector();});}
+ for(const tab of ['training','trainingBuilder'])document.querySelector('[data-tab="'+tab+'"]').addEventListener('click',refresh);setInterval(refresh,1000);
+ // Agent controls are opt-in and never synthesize a maneuver before local readback ends.
+ async function configureReadback(){
+  const mode=$('trainingReadbackMode').value;$('trainingVoice').disabled=mode!=='windows';
+  if(mode==='windows'){const voices=await api.trainingPilot('voices');if(!voices.length)throw Error('No enabled English Windows voice installed.');$('trainingVoice').replaceChildren();for(const v of voices){const o=document.createElement('option');o.value=v;o.textContent=v;$('trainingVoice').append(o);}}
+  return api.trainingPilot('readbackMode',{mode});
+ }
+ $('trainingVoice').disabled=true;
+ $('trainingReadbackMode').onchange=()=>action(async()=>{await configureReadback();$('trainingAgentStatus').textContent=$('trainingReadbackMode').value==='chatgpt'?'ChatGPT reads back first, then reports completion to execute. Playback/4-second latency cannot be independently guaranteed.':'Windows speech completion gates maneuvers.';});
+ $('trainingAgentEnabled').onchange=()=>action(async()=>{const enabled=$('trainingAgentEnabled').checked;try{if(enabled)await configureReadback();const result=await api.trainingPilot('enable',{enabled});$('trainingAgentStatus').textContent=result.enabled?'Bridge enabled. Run the simulation, then open the matching pilot plugin in ChatGPT voice.':'Bridge disabled; pending commands discarded.';}catch(error){$('trainingAgentEnabled').checked=false;throw error;}});
+ $('trainingExportPilot').onclick=()=>action(async()=>{const result=await api.trainingPilot('export');$('trainingAgentStatus').textContent=result.canceled?'Export canceled.':'Plugin exported. Register this marketplace with codex plugin marketplace add "'+result.marketplaceRoot+'", then restart ChatGPT desktop and install ZYZTools Local Pilots from its Plugins Directory. This is local only, not a GitHub publication.';});
+ $('trainingInstallPilot').onclick=()=>action(async()=>{const b=$('trainingInstallPilot');b.disabled=true;$('trainingAgentStatus').textContent='Installing/repairing the local pilot plugin…';try{const result=await api.trainingPilot('install');$('trainingAgentStatus').textContent=result.message;}catch(error){$('trainingAgentStatus').textContent='Setup failed: '+error.message;}finally{b.disabled=false;}});
+ $('trainingCheckPilot').onclick=()=>action(async()=>{try{const result=await api.trainingPilot('check'),s=result.status;$('trainingAgentStatus').textContent='Local pilot connection OK. '+(s.running?'Simulation running':'Press Start local server, then Run')+'; '+s.aircraft.length+' active aircraft. Now select the plugin in a new local chat. This does not verify chat tool discovery.';}catch(error){$('trainingAgentStatus').textContent='Connection check: '+error.message;}});
+ let checkInSession='',checkedIn=new Set();
+ setInterval(async()=>{
+  if(!$('trainingAgentEnabled').checked||$('trainingReadbackMode').value!=='windows'||speaking)return;
+  try{const result=await api.trainingPilot('status');
+   if(!result.running)return;
+   if(checkInSession!==result.sessionId){checkInSession=result.sessionId;checkedIn.clear();}
+   const pending=result.pending?.[0];
+   if(!pending){const a=result.aircraft.find(a=>!a.paused&&!checkedIn.has(a.callsign));if(!a)return;speaking='checkin';await api.trainingPilot('checkIn',{sessionId:result.sessionId,callsign:a.callsign,voice:$('trainingVoice').value});checkedIn.add(a.callsign);return;}
+   speaking=pending.id;
+   $('trainingAgentStatus').textContent='Pilot: '+pending.readback;
+   await api.trainingPilot('speak',{id:pending.id,sessionId:pending.sessionId,voice:$('trainingVoice').value});$('trainingAgentStatus').textContent='Readback finished; local maneuver started.';
+  }catch(error){$('trainingAgentStatus').textContent=error.message;}finally{speaking=null;}
+ },100);
+})();

@@ -1,0 +1,8 @@
+{
+  "format":"ZYZTools-training","version":1,"name":"Synthetic Toronto-area practice - not a published procedure",
+  "waypoints":[{"name":"TRAINA","lat":43.95,"lon":-79.85},{"name":"TRAINB","lat":43.85,"lon":-79.65},{"name":"TRAINC","lat":43.75,"lon":-79.65}],
+  "aircraft":[
+    {"callsign":"TEST101","type":"A320","lat":44.1,"lon":-79.85,"altitude":11000,"speed":250,"heading":180,"rate":1500,"origin":"CYUL","destination":"CYYZ","squawk":"2001","route":"TRAINA TRAINB TRAINC"},
+    {"callsign":"TEST202","type":"B738","lat":43.95,"lon":-79.25,"altitude":12000,"speed":250,"heading":270,"rate":1500,"origin":"CYOW","destination":"CYYZ","squawk":"2002","route":"TRAINB TRAINC"}
+  ]
+}

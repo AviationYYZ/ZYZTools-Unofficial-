@@ -19,6 +19,32 @@ app.setPath('userData', path.join(process.env.APPDATA || path.join(os.homedir(),
 
 let mainWindow = null;
 let discordPresence = null;
+let sequencingAI=null;
+let chatGPTPlan=null;
+// EuroScope's classic direct connection uses fixed port 6809. Distinct loopback
+// addresses keep production and test training sources separate without custom ports.
+const localTraining=new (require('./local-training').LocalTraining)(channel.test?'127.0.0.1':'127.0.0.2');
+const trainingMultiplayer=new (require('./training-multiplayer').TrainingMultiplayer)(localTraining,channel.test?6811:6812);
+const trainingConnector=new (require('./training-fsd-tunnel').FsdConnector)(channel.test?'127.0.0.1':'127.0.0.2');
+const sectorFile=()=>path.join(app.getPath('userData'),'training-sector.json');
+let trainingSector=null;
+function getTrainingSector(){if(!trainingSector){try{trainingSector=JSON.parse(fs.readFileSync(sectorFile(),'utf8'));}catch{trainingSector={fixes:[],lines:[]};}}return trainingSector;}
+function prepareTraining(value){return require('./training-sector').resolveScenario(value,getTrainingSector());}
+localTraining.planResolver=a=>require('./training-routes').expandRoute(a,getTrainingSector(),localTraining.runtimeWaypoints||localTraining.scenario.waypoints);
+let trainingPilot=null;
+const trainingSpeech=new (require('./training-speech').TrainingSpeech)();
+function getTrainingPilot(){if(!trainingPilot)trainingPilot=new (require('./training-pilot').TrainingPilot)(localTraining,app.getPath('userData'),channel.test);return trainingPilot;}
+function getChatGPTPlan(){
+  if(!chatGPTPlan){const {ChatGPTPlan}=require('./chatgpt-plan');chatGPTPlan=new ChatGPTPlan(app.getPath('userData'),safeStorage,url=>shell.openExternal(url),app.getName());}
+  return chatGPTPlan;
+}
+function getSequencingAI(){
+  if(!sequencingAI){
+    const {KeyStore,AISequencing}=require('./ai-sequencing');
+    sequencingAI=new AISequencing(new KeyStore(app.getPath('userData'),safeStorage),fetch,getChatGPTPlan());
+  }
+  return sequencingAI;
+}
 function ensureDiscordPresence(folder) {
   if (!discordPresence) {
     const { PresenceService } = require('./discord-presence');
@@ -39,6 +65,7 @@ if (!ownsInstance) app.quit();
 else app.on('second-instance', () => { mainWindow?.show(); mainWindow?.focus(); });
 
 const FILES_TO_INSTALL = [
+  ...['CZYZConflictAlert.ini','aircraft_wake.csv','parallel_approaches.txt','speed_restrictions.csv','wake_separation.csv','caution_chime.wav','urgent_alert.wav'].map(name=>({name,preserve:true})),
   { name: "PreferredCYYZPdcPlugin.dll", preserve: false },
   { name: "PreferredCYYZPdcBridge.exe", preserve: false },
   { name: "PreferredCYYZAudioReplay.exe", preserve: false },
@@ -590,6 +617,12 @@ function installEuroScopePayload(parentFolder, config) {
   const destination = installDestination(parentFolder);
   fs.mkdirSync(destination, { recursive: true });
 
+  // Migrate only supporting files; never install or load a second conflict DLL.
+  const legacyConflict = path.join(path.dirname(destination), 'CZYZConflictAlert');
+  for (const name of ['CZYZConflictAlert.ini','aircraft_wake.csv','parallel_approaches.txt','speed_restrictions.csv','wake_separation.csv','caution_chime.wav','urgent_alert.wav']) {
+    const oldFile=path.join(legacyConflict,name),newFile=path.join(destination,name);
+    if(fs.existsSync(oldFile)&&!fs.existsSync(newFile))fs.copyFileSync(oldFile,newFile);
+  }
   const copied = FILES_TO_INSTALL.map((file) => copyPayloadFile(file.name, destination, file.preserve));
   const merged = normalizeConfig({
     ...loadConfig(destination),
@@ -830,7 +863,7 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-app.on('before-quit', () => { discordPresence?.stop().catch(() => {}); });
+app.on('before-quit', () => { trainingConnector.stop();trainingMultiplayer.stop();trainingSpeech.cancel();trainingPilot?.enable(false);localTraining.stop();chatGPTPlan?.cancel();sequencingAI?.cancel();discordPresence?.stop().catch(() => {}); });
 ipcMain.handle('discord:load', async (_event, folder) => {
   const service = ensureDiscordPresence(folder);
   return { config: service.config, status: service.status, preview: service.preview };
@@ -845,6 +878,135 @@ ipcMain.handle('discord:save', async (_event, folder, value) => {
 });
 
 ipcMain.handle("app:initialState", async () => getInitialState());
+ipcMain.handle('training:action',async(_event,action,value)=>{
+  if(action==='status')return localTraining.status();
+  if(action==='load')return localTraining.load(prepareTraining(value));
+  if(action==='start')return localTraining.start(6809);
+  if(action==='demo')return localTraining.load(require('./training-demo.json'));
+  if(action==='run')return localTraining.run();
+  if(action==='pause')return localTraining.pause();
+  if(action==='reset')return localTraining.reset();
+  if(action==='stop'){trainingMultiplayer.stop();return localTraining.stop();}
+  if(action==='command')return localTraining.command(value?.callsign,value?.command);
+  if(action==='amend')return localTraining.amend(value?.callsign,value?.fields);
+  if(action==='routePreview')return require('./training-routes').expandRoute(value?.aircraft||value,getTrainingSector(),value?.waypoints||localTraining.scenario.waypoints);
+  if(action==='speedDefaults')return require('./training-speed-data');
+  if(action==='speedRules'){
+    if(localTraining.server)throw Error('Stop the server before changing scenario speed rules.');
+    return localTraining.load({...localTraining.scenario,speedRules:require('./training-flight').normalizeSpeedRules(value)});
+  }
+  throw Error('Unknown local training action.');
+});
+ipcMain.handle('training:save',async(_event,value)=>{
+  const scenario=require('./local-training').normalize(prepareTraining(value));
+  const result=await dialog.showSaveDialog(mainWindow,{title:'Export initial training scenario',defaultPath:path.join(app.getPath('documents'),scenario.name.replace(/[^A-Za-z0-9_-]/g,'_')+'.zyztraining.json'),filters:[{name:'ZYZTools training',extensions:['json']}]});
+  if(result.canceled||!result.filePath)return false;
+  fs.writeFileSync(result.filePath,JSON.stringify(scenario,null,2),'utf8');return true;
+});
+ipcMain.handle('training:load',async()=>{
+  if(localTraining.server)throw Error('Stop the local server before importing a scenario.');
+  const result=await dialog.showOpenDialog(mainWindow,{title:'Import training scenario',properties:['openFile'],filters:[{name:'ZYZTools training',extensions:['json']}]});
+  if(result.canceled)return null;
+  const file=result.filePaths[0];if(fs.statSync(file).size>1024*1024)throw Error('Scenario exceeds 1 MB.');
+  let data;try{data=JSON.parse(fs.readFileSync(file,'utf8'));}catch{throw Error('Scenario is not valid JSON.');}
+  return localTraining.load(prepareTraining(data));
+});
+ipcMain.handle('training:sector',async(_event,choose=false)=>{
+  if(choose==='clearAsr'){const data={...getTrainingSector()};delete data.profile;fs.writeFileSync(sectorFile(),JSON.stringify(data),'utf8');trainingSector=data;}
+  else if(choose==='asr'){
+    if(!getTrainingSector().geometry?.length)throw Error('Import your sector file again first so named display layers are available.');
+    const result=await dialog.showOpenDialog(mainWindow,{title:'Use EuroScope ASR display selections',defaultPath:path.join(process.env.APPDATA||app.getPath('documents'),'EuroScope'),properties:['openFile'],filters:[{name:'EuroScope radar screen',extensions:['asr']}]});
+    if(!result.canceled){const file=result.filePaths[0];if(fs.statSync(file).size>5*1024*1024)throw Error('ASR file exceeds 5 MB.');const profile=require('./training-sector').parseAsr(fs.readFileSync(file,'utf8'),path.basename(file));const data={...getTrainingSector(),profile};fs.writeFileSync(sectorFile(),JSON.stringify(data),'utf8');trainingSector=data;}
+  }
+  else if(choose===true){
+    const result=await dialog.showOpenDialog(mainWindow,{title:'Import sector fixes and map geometry',defaultPath:path.join(process.env.APPDATA||app.getPath('documents'),'EuroScope'),properties:['openFile','multiSelections'],filters:[{name:'EuroScope sector',extensions:['sct','sct2']}]});
+    if(!result.canceled){const data=require('./training-sector').importSectors(result.filePaths);fs.mkdirSync(app.getPath('userData'),{recursive:true});fs.writeFileSync(sectorFile(),JSON.stringify(data),'utf8');trainingSector=data;}
+  }
+  const data=getTrainingSector();return {...data,airwayCount:data.airways?.length||0,procedureCount:data.procedures?.length||0,airways:undefined,procedures:undefined};
+});
+ipcMain.handle('training:multiplayer',async(_event,action,value)=>{
+ if(action==='connectorStatus')return trainingConnector.status();
+ if(action==='connectorStop')return trainingConnector.stop();
+ if(action==='connectorStart'){if(localTraining.server)throw Error('Stop your local training server before joining a remote host.');return trainingConnector.start(value);}
+ if(action==='status')return trainingMultiplayer.status();
+ if(action==='stop')return trainingMultiplayer.stop();
+ if(action==='start'){
+  if(trainingPilot?.enabled)throw Error('Disable the AI pilot bridge before starting shared manual control.');
+  return trainingMultiplayer.start();
+ }
+ if(action==='open'){if(!trainingMultiplayer.server)throw Error('Start shared control first.');await shell.openExternal(trainingMultiplayer.status().url);return trainingMultiplayer.status();}
+ throw Error('Unknown multiplayer action.');
+});
+ipcMain.handle('training:pilot',async(_event,action,value)=>{
+  const pilot=getTrainingPilot();
+  if(action==='enable'&&value?.enabled===true&&trainingMultiplayer.server)throw Error('Stop shared manual control before enabling the AI pilot bridge.');
+  if(action==='enable'){if(value?.enabled!==true)trainingSpeech.cancel();return pilot.enable(value?.enabled===true);}
+  if(action==='status')return pilot.snapshot();
+  if(action==='voices')return trainingSpeech.voices();
+  if(action==='readbackMode'){trainingSpeech.cancel();return pilot.setReadbackMode(value?.mode);}
+  if(action==='speak')return require('./training-speech').playReadback(pilot,trainingSpeech,value);
+  if(action==='checkIn')return require('./training-speech').playCheckIn(pilot,trainingSpeech,value);
+  if(action==='cancel')return pilot.cancel(value?.id);
+  if(action==='install'){
+    const result=await require('./training-pilot-setup').install(path.join(__dirname,'pilot-plugin'),path.join(app.getPath('userData'),'pilot-plugin-packages'),app.getPath('exe'),channel.test);
+    fs.writeFileSync(path.join(app.getPath('userData'),'pilot-install.json'),JSON.stringify({folder:result.folder}));
+    return {installed:true,message:'Pilot plugin repaired and installed. Open a new local chat and select ZYZTools Local Pilots'+(channel.test?' test':'')+'. If the host keeps the previous tool list, restart it once.'};
+  }
+  if(action==='check'){
+    const file=path.join(app.getPath('userData'),'pilot-install.json');if(!fs.existsSync(file))throw Error('Click Set up / repair pilot plugin first.');
+    return require('./training-pilot-setup').check(JSON.parse(fs.readFileSync(file,'utf8')).folder);
+  }
+  if(action==='export'){
+    const result=await dialog.showOpenDialog(mainWindow,{title:'Choose a folder for the local ChatGPT pilot plugin',properties:['openDirectory','createDirectory']});
+    if(result.canceled)return {canceled:true};return require('./training-pilot-package').exportPlugin(path.join(__dirname,'pilot-plugin'),result.filePaths[0],app.getPath('exe'),channel.test);
+  }
+  throw Error('Unknown local pilot action.');
+});
+ipcMain.handle('ai:status',async()=>getSequencingAI().keys.status());
+ipcMain.handle('chatgpt:status',async()=>getChatGPTPlan().status());
+ipcMain.handle('chatgpt:signin',async(_event,newProfile)=>{if(getSequencingAI().busy)throw Error('Cancel the AI request before changing accounts.');return getChatGPTPlan().signIn(newProfile===true);});
+ipcMain.handle('chatgpt:cancel',async()=>{getChatGPTPlan().cancel();return true;});
+ipcMain.handle('chatgpt:signout',async()=>{getSequencingAI().cancel();return getChatGPTPlan().signOut();});
+ipcMain.handle('chatgpt:select',async(_event,id)=>{getSequencingAI().cancel();return getChatGPTPlan().select(id);});
+ipcMain.handle('chatgpt:models',async()=>getChatGPTPlan().models());
+ipcMain.handle('chatgpt:usage',async()=>shell.openExternal('https://chatgpt.com/settings/usage'));
+ipcMain.handle('ai:import',async()=>{
+  const result=await dialog.showOpenDialog(mainWindow,{title:'Import OpenAI key from a local .env file',properties:['openFile'],filters:[{name:'Environment files',extensions:['env']},{name:'All files',extensions:['*']}]});
+  if(result.canceled)return {canceled:true};
+  return getSequencingAI().keys.import(result.filePaths[0]);
+});
+ipcMain.handle('ai:forget',async()=>getSequencingAI().keys.clear());
+ipcMain.handle('ai:cancel',async()=>{getSequencingAI().cancel();return true;});
+ipcMain.handle('ai:analyze',async(_event,folder,model,consent,provider='chatgpt')=>{
+  const target=installDestination(folder);
+  assertDestination(target,readJsonIfExists(configPathForInstall(target)));
+  return getSequencingAI().analyze(target,model,consent,provider);
+});
+ipcMain.handle('conflict:load', async (_event, folder) => {
+  const target=installDestination(folder);
+  assertDestination(target, readJsonIfExists(configPathForInstall(target)));
+  const settings=require('./conflict-settings');
+  return {config:settings.load(target),snapshot:settings.snapshot(target)};
+});
+ipcMain.handle('conflict:save', async (_event, folder, config) => {
+  const target=installDestination(folder);
+  assertDestination(target, readJsonIfExists(configPathForInstall(target)));
+  const settings=require('./conflict-settings');
+  return {config:settings.save(target,config),snapshot:settings.snapshot(target)};
+});
+ipcMain.handle('conflict:sound', async (_event, folder, kind) => {
+  if(!['caution','urgent'].includes(kind))throw Error('Unknown alert sound.');
+  const target=installDestination(folder);
+  assertDestination(target, readJsonIfExists(configPathForInstall(target)));
+  const result=await dialog.showOpenDialog(mainWindow,{title:'Choose conflict alert PCM WAV',properties:['openFile'],filters:[{name:'WAV audio',extensions:['wav']}]});
+  if(result.canceled)return {canceled:true};
+  const source=result.filePaths[0], bytes=fs.readFileSync(source);
+  if(bytes.length<44||bytes.length>20*1024*1024||bytes.toString('ascii',0,4)!=='RIFF'||bytes.toString('ascii',8,12)!=='WAVE')throw Error('Choose a valid WAV smaller than 20 MB.');
+  fs.mkdirSync(target,{recursive:true});
+  const output=path.join(target,kind==='caution'?'caution_chime.wav':'urgent_alert.wav');
+  if(path.resolve(source)!==path.resolve(output))fs.copyFileSync(source,output);
+  return {path:output};
+});
 function loadCustomTheme() {
   try { return require('./custom-theme').normalize(JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'custom-theme.json'), 'utf8'))); }
   catch { return require('./custom-theme').normalize(); }
