@@ -2,6 +2,7 @@ const { execFileSync } = require('node:child_process');
 const path = require('node:path');
 const arg = process.argv[2] || 'test';
 if (!['test', 'production', 'both'].includes(arg)) throw new Error('Choose test or production.');
+execFileSync('powershell.exe', ['-NoProfile','-ExecutionPolicy','Bypass','-File',path.join(__dirname,'../tools/Prepare-Tunnel.ps1')],{stdio:'inherit',windowsHide:true});
 execFileSync(process.execPath, [path.join(__dirname, 'build-test-source.cjs')], { stdio: 'inherit' });
 for (const kind of arg === 'production' ? ['production'] : ['production', 'test']) {
   execFileSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, '../tools/Build-Channel.ps1'), '-Channel', kind], { stdio: 'inherit', windowsHide: true });

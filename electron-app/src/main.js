@@ -26,14 +26,22 @@ let chatGPTPlan=null;
 const localTraining=new (require('./local-training').LocalTraining)(channel.test?'127.0.0.1':'127.0.0.2');
 const trainingMultiplayer=new (require('./training-multiplayer').TrainingMultiplayer)(localTraining,channel.test?6811:6812);
 const trainingConnector=new (require('./training-fsd-tunnel').FsdConnector)(channel.test?'127.0.0.1':'127.0.0.2');
+const tunnelCache=path.join(app.getPath('userData'),'managed-tunnel');
+const trainingTunnel=new (require('./training-tunnel').TrainingTunnel)(tunnelCache,()=>trainingMultiplayer.server?trainingMultiplayer.status().url:null,{verify:()=>{
+ const pinned=require('./training-tunnel-release.json'),source=app.isPackaged?path.join(process.resourcesPath,'tunnel/cloudflared.bin'):path.resolve(__dirname,'../../build/Tunnel/cloudflared.exe');
+ if(!fs.existsSync(source))throw Error('Bundled tunnel helper missing. Reinstall this ZYZTools version.');const bytes=fs.readFileSync(source);if(crypto.createHash('sha256').update(bytes).digest('hex')!==pinned.sha256)throw Error('Bundled tunnel integrity check failed. Reinstall ZYZTools.');
+ fs.mkdirSync(tunnelCache,{recursive:true});const target=path.join(tunnelCache,pinned.file);if(!fs.existsSync(target)||crypto.createHash('sha256').update(fs.readFileSync(target)).digest('hex')!==pinned.sha256)fs.writeFileSync(target,bytes,{mode:0o700});return target;
+}});
 const sectorFile=()=>path.join(app.getPath('userData'),'training-sector.json');
+async function readTrainingImport(file){return require('./training-import').readScenario(file,getTrainingSector(),async report=>{
+ const detail=[...(report.rejected.length?['NOT IMPORTED:',...report.rejected]:[]),...report.warnings].join('\n');if(detail.length>12000)throw Error('Too many compatibility issues to review safely. Split or correct the scenario before importing.');
+ const r=await dialog.showMessageBox(mainWindow,{type:'warning',title:'SweatBox compatibility review',message:report.imported+' of '+report.total+' aircraft can be imported.',detail,buttons:['Cancel','Import reviewed aircraft'],defaultId:0,cancelId:0,noLink:true});return r.response===1;
+});}
 let trainingSector=null;
 function getTrainingSector(){if(!trainingSector){try{trainingSector=JSON.parse(fs.readFileSync(sectorFile(),'utf8'));}catch{trainingSector={fixes:[],lines:[]};}}return trainingSector;}
 function prepareTraining(value){return require('./training-sector').resolveScenario(value,getTrainingSector());}
 localTraining.planResolver=a=>require('./training-routes').expandRoute(a,getTrainingSector(),localTraining.runtimeWaypoints||localTraining.scenario.waypoints);
-let trainingPilot=null;
-const trainingSpeech=new (require('./training-speech').TrainingSpeech)();
-function getTrainingPilot(){if(!trainingPilot)trainingPilot=new (require('./training-pilot').TrainingPilot)(localTraining,app.getPath('userData'),channel.test);return trainingPilot;}
+const instructorClient=new (require('./training-instructor').InstructorClient)(app.getPath('userData'),safeStorage);
 function getChatGPTPlan(){
   if(!chatGPTPlan){const {ChatGPTPlan}=require('./chatgpt-plan');chatGPTPlan=new ChatGPTPlan(app.getPath('userData'),safeStorage,url=>shell.openExternal(url),app.getName());}
   return chatGPTPlan;
@@ -863,7 +871,7 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-app.on('before-quit', () => { trainingConnector.stop();trainingMultiplayer.stop();trainingSpeech.cancel();trainingPilot?.enable(false);localTraining.stop();chatGPTPlan?.cancel();sequencingAI?.cancel();discordPresence?.stop().catch(() => {}); });
+app.on('before-quit', () => { instructorClient.disconnect();trainingTunnel.stop();trainingConnector.stop();trainingMultiplayer.stop();localTraining.stop();chatGPTPlan?.cancel();sequencingAI?.cancel();discordPresence?.stop().catch(() => {}); });
 ipcMain.handle('discord:load', async (_event, folder) => {
   const service = ensureDiscordPresence(folder);
   return { config: service.config, status: service.status, preview: service.preview };
@@ -886,7 +894,7 @@ ipcMain.handle('training:action',async(_event,action,value)=>{
   if(action==='run')return localTraining.run();
   if(action==='pause')return localTraining.pause();
   if(action==='reset')return localTraining.reset();
-  if(action==='stop'){trainingMultiplayer.stop();return localTraining.stop();}
+  if(action==='stop'){trainingTunnel.stop();trainingMultiplayer.stop();return localTraining.stop();}
   if(action==='command')return localTraining.command(value?.callsign,value?.command);
   if(action==='amend')return localTraining.amend(value?.callsign,value?.fields);
   if(action==='routePreview')return require('./training-routes').expandRoute(value?.aircraft||value,getTrainingSector(),value?.waypoints||localTraining.scenario.waypoints);
@@ -905,11 +913,9 @@ ipcMain.handle('training:save',async(_event,value)=>{
 });
 ipcMain.handle('training:load',async()=>{
   if(localTraining.server)throw Error('Stop the local server before importing a scenario.');
-  const result=await dialog.showOpenDialog(mainWindow,{title:'Import training scenario',properties:['openFile'],filters:[{name:'ZYZTools training',extensions:['json']}]});
+  const result=await dialog.showOpenDialog(mainWindow,{title:'Import training / EuroScope SweatBox scenario',properties:['openFile'],filters:[{name:'Training scenarios',extensions:['json','txt']}]});
   if(result.canceled)return null;
-  const file=result.filePaths[0];if(fs.statSync(file).size>1024*1024)throw Error('Scenario exceeds 1 MB.');
-  let data;try{data=JSON.parse(fs.readFileSync(file,'utf8'));}catch{throw Error('Scenario is not valid JSON.');}
-  return localTraining.load(prepareTraining(data));
+  const scenario=await readTrainingImport(result.filePaths[0]);return scenario?localTraining.load(scenario):null;
 });
 ipcMain.handle('training:sector',async(_event,choose=false)=>{
   if(choose==='clearAsr'){const data={...getTrainingSector()};delete data.profile;fs.writeFileSync(sectorFile(),JSON.stringify(data),'utf8');trainingSector=data;}
@@ -925,42 +931,54 @@ ipcMain.handle('training:sector',async(_event,choose=false)=>{
   const data=getTrainingSector();return {...data,airwayCount:data.airways?.length||0,procedureCount:data.procedures?.length||0,airways:undefined,procedures:undefined};
 });
 ipcMain.handle('training:multiplayer',async(_event,action,value)=>{
+ if(action==='inviteCopy'){const t=trainingTunnel.status();if(t.state!=='ready'||!trainingMultiplayer.server)throw Error('Wait for the internet tunnel to be ready.');require('electron').clipboard.writeText(require('./training-invite').makeInvite(t.url,trainingMultiplayer.token));return {copied:true};}
+ if(action==='invitePaste')return {invite:require('electron').clipboard.readText()};
+ if(action==='copyConnectorAddress'){if(!trainingConnector.server)throw Error('Join the host first.');require('electron').clipboard.writeText(trainingConnector.host);return {copied:true};}
+ if(action==='inviteJoin'){if(localTraining.server)throw Error('Stop your local training server before joining a remote host.');const input=String(value?.invite||'').trim();return trainingConnector.start(/^https:\/\//i.test(input)?require('./training-invite').parseInvite(input):await require('./training-directory').resolveCode(input));}
+ if(action==='hostStart'){
+  if(trainingConnector.server||trainingConnector.starting)throw Error('Stop the remote connector before hosting.');
+  if(!localTraining.scenario.aircraft.length)throw Error('Import/create a scenario or Load demo before hosting.');
+  if(!localTraining.server)await localTraining.start(6809);
+  await trainingMultiplayer.start();if(!trainingTunnel.status().running)await trainingTunnel.start();
+  return {training:localTraining.status(),shared:trainingMultiplayer.status(),tunnel:trainingTunnel.status()};
+ }
+ if(action==='hostStop'){trainingTunnel.stop();trainingMultiplayer.stop();return localTraining.stop();}
+ if(action==='tunnelStatus')return trainingTunnel.status();
+ if(action==='tunnelStart')return trainingTunnel.start();
+ if(action==='tunnelStop')return trainingTunnel.stop();
+ if(action==='tunnelCopy'){const s=trainingTunnel.status();if(s.state!=='ready'||!s.url)throw Error('Wait for the tunnel to connect.');require('electron').clipboard.writeText(s.url);return s;}
  if(action==='connectorStatus')return trainingConnector.status();
  if(action==='connectorStop')return trainingConnector.stop();
  if(action==='connectorStart'){if(localTraining.server)throw Error('Stop your local training server before joining a remote host.');return trainingConnector.start(value);}
  if(action==='status')return trainingMultiplayer.status();
- if(action==='stop')return trainingMultiplayer.stop();
+ if(action==='stop'){trainingTunnel.stop();return trainingMultiplayer.stop();}
  if(action==='start'){
-  if(trainingPilot?.enabled)throw Error('Disable the AI pilot bridge before starting shared manual control.');
   return trainingMultiplayer.start();
  }
  if(action==='open'){if(!trainingMultiplayer.server)throw Error('Start shared control first.');await shell.openExternal(trainingMultiplayer.status().url);return trainingMultiplayer.status();}
  throw Error('Unknown multiplayer action.');
 });
-ipcMain.handle('training:pilot',async(_event,action,value)=>{
-  const pilot=getTrainingPilot();
-  if(action==='enable'&&value?.enabled===true&&trainingMultiplayer.server)throw Error('Stop shared manual control before enabling the AI pilot bridge.');
-  if(action==='enable'){if(value?.enabled!==true)trainingSpeech.cancel();return pilot.enable(value?.enabled===true);}
-  if(action==='status')return pilot.snapshot();
-  if(action==='voices')return trainingSpeech.voices();
-  if(action==='readbackMode'){trainingSpeech.cancel();return pilot.setReadbackMode(value?.mode);}
-  if(action==='speak')return require('./training-speech').playReadback(pilot,trainingSpeech,value);
-  if(action==='checkIn')return require('./training-speech').playCheckIn(pilot,trainingSpeech,value);
-  if(action==='cancel')return pilot.cancel(value?.id);
-  if(action==='install'){
-    const result=await require('./training-pilot-setup').install(path.join(__dirname,'pilot-plugin'),path.join(app.getPath('userData'),'pilot-plugin-packages'),app.getPath('exe'),channel.test);
-    fs.writeFileSync(path.join(app.getPath('userData'),'pilot-install.json'),JSON.stringify({folder:result.folder}));
-    return {installed:true,message:'Pilot plugin repaired and installed. Open a new local chat and select ZYZTools Local Pilots'+(channel.test?' test':'')+'. If the host keeps the previous tool list, restart it once.'};
-  }
-  if(action==='check'){
-    const file=path.join(app.getPath('userData'),'pilot-install.json');if(!fs.existsSync(file))throw Error('Click Set up / repair pilot plugin first.');
-    return require('./training-pilot-setup').check(JSON.parse(fs.readFileSync(file,'utf8')).folder);
-  }
-  if(action==='export'){
-    const result=await dialog.showOpenDialog(mainWindow,{title:'Choose a folder for the local ChatGPT pilot plugin',properties:['openDirectory','createDirectory']});
-    if(result.canceled)return {canceled:true};return require('./training-pilot-package').exportPlugin(path.join(__dirname,'pilot-plugin'),result.filePaths[0],app.getPath('exe'),channel.test);
-  }
-  throw Error('Unknown local pilot action.');
+ipcMain.handle('training:instructor',async(event,action,value={})=>{
+ if(event.sender!==mainWindow?.webContents||event.senderFrame!==mainWindow.webContents.mainFrame)throw Error('Invalid sender.');
+ if(action==='status')return instructorClient.status();
+ if(action==='connect')return instructorClient.connect(value.pairing,value.remember===true);
+ if(action==='restore')return instructorClient.restore();
+ if(action==='disconnect')return instructorClient.disconnect(value.forget===true);
+ if(action==='state')return instructorClient.state();
+ if(action==='aircraft')return instructorClient.aircraft(value.slot);
+ if(action==='upload'){
+  const r=await dialog.showOpenDialog(mainWindow,{title:'Upload training / EuroScope SweatBox scenario',filters:[{name:'Training scenarios',extensions:['json','txt']}],properties:['openFile']});if(r.canceled)return {canceled:true};
+  const scenario=await readTrainingImport(r.filePaths[0]);if(!scenario)return {canceled:true};return instructorClient.action(value.slot,'import',value.epoch,{scenario});
+ }
+ if(action==='connectEuroScope'){
+  if(localTraining.server)throw Error('Stop the local practice server before connecting to your server PC.');
+  if(trainingConnector.server||trainingConnector.starting)throw Error('A EuroScope connector is already active. Disconnect it under Student before switching servers.');
+  const result=await instructorClient.action(value.slot,'studentInvite',value.epoch);const s=await trainingConnector.start(require('./training-invite').parseInvite(result.invite));require('electron').clipboard.writeText(s.address);
+  await dialog.showMessageBox(mainWindow,{type:'info',title:'Instructor EuroScope view ready',message:'Server address copied: '+s.address,detail:'In EuroScope disconnect any old session, choose the normal direct connection, leave Connect to VATSIM UNCHECKED, use dummy credentials and a unique instructor callsign. Paste '+s.address+' as Server (port 6809). Keep ZYZTools running. This joins the selected server’s traffic; it does not transfer simulation to your PC.'});return s;
+ }
+ if(action==='studentInvite'){const result=await instructorClient.action(value.slot,'studentInvite',value.epoch);require('electron').clipboard.writeText(result.invite);return {copied:true};}
+ if(action==='action')return instructorClient.action(value.slot,value.action,value.epoch,value.payload);
+ throw Error('Unknown instructor action.');
 });
 ipcMain.handle('ai:status',async()=>getSequencingAI().keys.status());
 ipcMain.handle('chatgpt:status',async()=>getChatGPTPlan().status());

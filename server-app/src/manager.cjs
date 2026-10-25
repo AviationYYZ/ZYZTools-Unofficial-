@@ -1,0 +1,45 @@
+const fs=require('node:fs'),path=require('node:path'),{fork,execFile}=require('node:child_process'),{EventEmitter}=require('node:events'),engine=require('./engine.cjs');
+class ServerManager extends EventEmitter{
+ constructor(folder,helper,options={}){
+  super();this.folder=folder;this.helper=helper;this.launch=options.launch||fork;this.quitting=false;this.sequence=0;
+  fs.mkdirSync(folder,{recursive:true});this.file=path.join(folder,'servers.json');
+  let saved={};if(fs.existsSync(this.file)){try{saved=JSON.parse(fs.readFileSync(this.file,'utf8'));}catch{throw Error('Server settings are unreadable. Preserve servers.json and restore a backup before continuing.');}}
+  this.config={startup:saved.startup===true,instructorEnabled:saved.instructorEnabled===true,slots:[1,2,3].map(id=>({id,name:String(saved.slots?.[id-1]?.name||'Server '+id).slice(0,80),autostart:saved.slots?.[id-1]?.autostart===true}))};
+  this.slots=this.config.slots.map(c=>({id:c.id,epoch:require('node:crypto').randomUUID(),child:null,pending:new Map(),state:'stopped',info:{},attempts:0,desired:false,log:[]}));
+ }
+ save(){const tmp=this.file+'.tmp';fs.writeFileSync(tmp,JSON.stringify(this.config,null,2));fs.renameSync(tmp,this.file);}
+ slot(id){const s=this.slots.find(s=>s.id===id);if(!s)throw Error('Choose server 1, 2 or 3.');return s;}
+ dir(id){return path.join(this.folder,'server-'+this.slot(id).id);}
+ log(s,message){const entry={time:new Date().toISOString(),message};s.log.push(entry);if(s.log.length>100)s.log.shift();fs.mkdirSync(this.dir(s.id),{recursive:true});const file=path.join(this.dir(s.id),'events.log');if(fs.existsSync(file)&&fs.statSync(file).size>128000)fs.renameSync(file,file+'.previous');fs.appendFileSync(file,entry.time+' '+message+'\n');}
+ status(){return {startup:this.config.startup,slots:this.slots.map(s=>({id:s.id,epoch:s.epoch,autostart:this.config.slots[s.id-1].autostart,hasScenario:fs.existsSync(path.join(this.dir(s.id),'scenario.json')),state:s.state,...s.info,scenarioName:s.info.name||'',name:this.config.slots[s.id-1].name,log:s.log.slice(-8)}))};}
+ changed(s){s.epoch=require('node:crypto').randomUUID();}
+ import(id,raw){const s=this.slot(id);if(s.child||s.desired)throw Error('Stop this server before replacing its scenario.');const normalized=engine('local-training').normalize(raw);if(!normalized.aircraft.length)throw Error('Scenario must contain at least one aircraft.');const folder=this.dir(id);fs.mkdirSync(folder,{recursive:true});fs.writeFileSync(path.join(folder,'scenario.json.tmp'),JSON.stringify(normalized));fs.renameSync(path.join(folder,'scenario.json.tmp'),path.join(folder,'scenario.json'));s.info={name:normalized.name,aircraft:normalized.aircraft.length};this.changed(s);this.log(s,'Scenario imported.');return this.status();}
+ configure(id,value){const s=this.slot(id),c=this.config.slots[id-1];if(typeof value.name==='string')c.name=value.name.replace(/[\x00-\x1f]/g,'').slice(0,80)||'Server '+id;if(typeof value.autostart==='boolean')c.autostart=value.autostart;this.save();return this.status();}
+ async start(id,run=false,recovery=false){
+  const s=this.slot(id);if(s.child)throw Error('Server is already started.');if(!fs.existsSync(path.join(this.dir(id),'scenario.json')))throw Error('Import a scenario first.');
+  s.desired=true;s.run=run;s.state='starting';s.info={};this.changed(s);if(!recovery)s.attempts=0;
+  const workerFolder=__dirname.replace(/app\.asar([\\/])/, 'app.asar.unpacked$1');
+  const child=this.launch(path.join(workerFolder,'worker.cjs'),[String(id),this.dir(id),this.helper],{windowsHide:true,env:{...process.env,ELECTRON_RUN_AS_NODE:'1'},stdio:['ignore','ignore','ignore','ipc']});s.child=child;
+  child.on('message',m=>{if(s.child!==child)return;if(Number.isInteger(m.tunnelPid)&&m.tunnelPid>0)s.tunnelPid=m.tunnelPid;if(m.status){s.info=m.status;s.state=m.status.listening?(m.status.running?'running':'paused'):'starting';}if(m.id&&s.pending.has(m.id)){const p=s.pending.get(m.id);s.pending.delete(m.id);clearTimeout(p.timer);m.error?p.reject(Error(m.error)):p.resolve(m.result);}});
+  child.on('error',()=>{s.state='error';s.info.error='Server process could not start.';});
+  child.on('exit',()=>{if(s.child!==child)return;
+   // A killed Node worker cannot run its own cleanup. Target only its verified
+   // cloudflared child, never all cloudflared processes or another app's helper.
+   if(process.platform==='win32'&&s.tunnelPid){const pid=s.tunnelPid;s.tunnelPid=null;execFile('powershell.exe',['-NoProfile','-NonInteractive','-Command',`$p=Get-CimInstance Win32_Process -Filter 'ProcessId = ${pid}'; if ($p -and $p.ParentProcessId -eq ${child.pid} -and $p.Name -eq 'cloudflared.exe') { Stop-Process -Id ${pid} -Force -ErrorAction SilentlyContinue }`],{windowsHide:true,timeout:10000},()=>{});}
+   s.child=null;for(const p of s.pending.values()){clearTimeout(p.timer);p.reject(Error('Server process ended.'));}s.pending.clear();s.info={};
+   if(s.desired&&!this.quitting&&s.attempts<3){s.attempts++;s.state='recovering';this.log(s,'Process ended. Restarting scenario from the beginning, paused.');s.retry=setTimeout(()=>{s.retry=null;this.start(id,false,true).catch(()=>{});},2000*2**(s.attempts-1));}
+   else{s.state=s.desired?'error':'stopped';if(s.desired){s.desired=false;this.log(s,'Automatic recovery stopped after three attempts. Check ports and restart manually.');}}
+  });
+  try{const result=await this.call(id,'start',{run});s.info=result;s.state=run?'running':'paused';this.log(s,recovery?'Recovered paused; simulation clock reset.':'Server started.');return this.status();}
+  catch(e){s.desired=false;child.kill();s.state='error';s.info.error='Could not start the simulator. Check ports or scenario and try again.';throw Error(s.info.error);}
+ }
+ call(id,action,value={}){const s=this.slot(id);if(!s.child?.connected)return Promise.reject(Error('Start this server first.'));const key=++this.sequence;return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{s.pending.delete(key);reject(Error('Server did not respond.'));},15000);s.pending.set(key,{resolve,reject,timer});s.child.send({id:key,action,...value},e=>{if(e&&s.pending.has(key)){clearTimeout(timer);s.pending.delete(key);reject(Error('Server process disconnected.'));}});});}
+ async action(id,action){if(!['run','pause','reset'].includes(action))throw Error('Unsupported server action.');const result=await this.call(id,action);const s=this.slot(id);s.info=result;s.state=result.running?'running':'paused';this.changed(s);this.log(s,action==='reset'?'Scenario reset.':action==='run'?'Simulation running.':'Simulation paused.');return this.status();}
+ async stop(id){const s=this.slot(id);this.changed(s);s.desired=false;clearTimeout(s.retry);s.retry=null;if(!s.child){s.state='stopped';s.info={};return this.status();}s.state='stopping';const child=s.child;
+  await new Promise(resolve=>{const timer=setTimeout(()=>{child.kill();resolve();},4000);child.once('exit',()=>{clearTimeout(timer);resolve();});if(child.connected)child.send({action:'shutdown'});else child.kill();});
+  this.log(s,'Server stopped; session credentials revoked or left to expire within two minutes.');return this.status();
+ }
+ async shutdown(){this.quitting=true;await Promise.all(this.slots.map(s=>this.stop(s.id)));}
+ async autostart(){for(const c of this.config.slots)if(c.autostart)await this.start(c.id,false).catch(()=>{});}
+}
+module.exports={ServerManager};

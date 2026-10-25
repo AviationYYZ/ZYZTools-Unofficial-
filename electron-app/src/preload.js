@@ -5,7 +5,7 @@ contextBridge.exposeInMainWorld("preferredCyyzPdc", {
   trainingSave: value => ipcRenderer.invoke('training:save',value),
   trainingLoad: () => ipcRenderer.invoke('training:load'),
   trainingSector: (choose=false) => ipcRenderer.invoke('training:sector',choose),
-  trainingPilot: (action,value) => ipcRenderer.invoke('training:pilot',action,value),
+    trainingInstructor: (action,value) => ipcRenderer.invoke('training:instructor',action,value),
   trainingMultiplayer: (action,value) => ipcRenderer.invoke('training:multiplayer',action,value),
   aiStatus: () => ipcRenderer.invoke('ai:status'),
   chatGPTStatus: () => ipcRenderer.invoke('chatgpt:status'),

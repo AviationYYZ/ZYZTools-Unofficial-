@@ -1,5 +1,25 @@
 # Shared manual sweatbox (1.2.31)
 
+Current 1.2.37 navigation: **Training → Student · join** for students; **Training → Local practice → Optional share** for desktop-hosted manual sharing. For the spare-PC instructor/server/student workflow, use [THREE_SERVER_SETUP.md](THREE_SERVER_SETUP.md). The training AI-pilot/readback system is removed. The older instructions below describe optional desktop hosting, not the server-PC instructor workflow.
+
+## Quick connect (1.2.35)
+
+Host: create/import your scenario, then click **Start hosting** under Local practice. This saves the current editor, starts the local simulator server and prepares shared control plus the managed internet tunnel. Wait for the tunnel to say **ready**, then click **Copy private invite**. Send this link only to your invited participant. Press **Run** when everyone is ready; hosting does not start the clock automatically or reset an already-running simulation.
+
+Browser participant: open the invite. It signs into the manual command panel automatically. The access key is in the URL fragment, not sent in HTTP URL requests; the page removes the fragment from the current browser history entry and holds the key in memory only. Browser extensions or clipboard history may still see the copied invite, so treat it as a password.
+
+EuroScope participant: open ZYZTools → Local Training → Multiplayer. Click **Paste invite**, then **Join with EuroScope**. The app checks the remote host and access key before marking the connector ready. Click **Copy EuroScope server address**, paste it into EuroScope's non-VATSIM connection dialog, use dummy credentials and a distinct callsign, and keep **Connect to VATSIM UNCHECKED**. EuroScope connection selection is deliberately not automated. Keep ZYZTools running. Old URL/key fields remain as a manual fallback.
+
+Click **Stop hosting / disconnect everyone** to close the local server, managed tunnel and shared controls and revoke invites. A new hosting session needs a fresh invite. This is a small private training host, not a full replacement for every inter-controller FSD feature. Coordinate manual aircraft ownership; last accepted command wins.
+
+## Built-in tunnel (1.2.34)
+
+No separate tunnel app or terminal is needed. The host starts the local simulation and shared control, then clicks **Start internet tunnel** in Multiplayer. Wait for **ready**, copy its public HTTPS URL, and send it and the shared-control key privately to the invited participant. Browser participants open the URL; EuroScope participants enter it and the key in ZYZTools' existing remote connector. The host must keep ZYZTools running. Stopping shared control, stopping the local server or normally exiting the app also stops this managed helper. A restarted tunnel has a new URL. External tunnels previously launched manually are not managed by ZYZTools; close those separately.
+
+The installer bundles the official, unmodified cloudflared 2026.10.3 Windows 386 helper, Apache License 2.0, source https://github.com/cloudflare/cloudflared/tree/2026.10.3 . Its SHA256 is pinned from the official release metadata and rechecked before execution. Bundled resources are copied into a channel-private cache; no administrator permission, PATH entry, service installation or runtime download is required. Cloudflare's temporary tunnel service still processes connection data and offers no uptime guarantee. The host's access key is never passed to cloudflared or placed in the public URL. No public tunnel starts without a click. There is no VATSIM connection.
+
+The manual terminal instructions below remain an advanced alternative for older builds, not the normal 1.2.34 workflow.
+
 ## 1.2.33 command conventions
 
 HDG/LHDG/RHDG are magnetic in degrees. Use the Scenario Builder magnetic variation field to match EuroScope (positive WEST, negative EAST). SCT INFO imports supply this value; legacy Toronto scenarios default to 10.37°W from the user's sector, not a date/location-dependent magnetic model. Internal saved heading coordinates and FSD position packets remain true for geographic route/ILS compatibility. The initial-heading editor and live displays convert to magnetic. Re-export your scenario to preserve its variation.
@@ -17,7 +37,7 @@ Use distinct controller callsigns. This supports viewing simulated traffic and t
 Manual RATE is 100–6000 ft/min toward the assigned ALT. It does not initiate descent alone. Captured ILS glidepath controls descent instead and rejects RATE with an explicit explanation; use APP CANCEL, then ALT and RATE to fly a manual rate. Radar samples now publish at 1 Hz (motion still integrates at 10 Hz) as a compatibility mitigation for prediction plugins; EuroScope Tools PTL has not been live-verified.
 
 1. Import a scenario, Start local server, and connect the host's EuroScope using the existing non-VATSIM instructions.
-2. Disable the AI pilot bridge. In Local Training → Multiplayer, click Start shared control. Click Open shared panel to try it locally.
+2. Under Local practice → Optional share, click Start shared control. Click Open shared panel to try it locally.
 3. For internet access, install cloudflared from its official distribution and run the exact tunnel command shown by the app. Test uses `cloudflared tunnel --url http://127.0.0.1:6811`; production uses port 6812.
 4. Share the generated HTTPS URL and host access key privately, preferably separately. The other person opens that URL, enters the key and clicks Connect. Never publish the key. Anyone with it has all manual aircraft controls.
 5. Host clicks Run. The other person selects an active aircraft and enters ALT, RATE, IAS, HDG/LHDG/RHDG, DCT, SQ or other commands listed on the panel. Quick buttons support IDENT, individual pause/resume, approach clear/cancel and published speeds. Flight-plan edits use Load selected flight plan then Apply flight plan. Selected runway supplies the simulated ILS. Aircraft spawning later appear as scheduled until active.

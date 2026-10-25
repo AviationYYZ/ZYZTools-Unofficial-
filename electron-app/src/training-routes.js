@@ -15,7 +15,7 @@ function airwayPath(name,from,to,catalogue,map){
 }
 function expandRoute(aircraft,catalogue,waypoints=[]){
  const map=new Map([...(catalogue.fixes||[]),...waypoints].map(w=>[w.name,w])),route=[],usedProcedures=[];
- if(aircraft.compiledPlan===aircraft.flightPlanRoute&&aircraft.compiledRunway===(aircraft.arrivalRunway||'')&&aircraft.route&&aircraft.route.split(' ').every(n=>map.has(n)))return {route:aircraft.route,waypoints:aircraft.route.split(' ').map(n=>map.get(n)),arrivalRunway:aircraft.arrivalRunway||'',procedures:aircraft.procedures||[]};
+ if(aircraft.compiledPlan===aircraft.flightPlanRoute&&aircraft.compiledRunway===(aircraft.arrivalRunway||'')&&typeof aircraft.route==='string'&&aircraft.route.split(' ').filter(Boolean).every(n=>map.has(n)))return {route:aircraft.route,waypoints:aircraft.route.split(' ').filter(Boolean).map(n=>map.get(n)),arrivalRunway:aircraft.arrivalRunway||'',procedures:aircraft.procedures||[]};
  const tokens=String(aircraft.flightPlanRoute??aircraft.route??'').trim().toUpperCase().split(/\s+/).filter(Boolean);
  let arrivalRunway=aircraft.arrivalRunway||'';
  for(const t of tokens){const m=t.match(new RegExp('^'+(aircraft.destination||'CYYZ')+'/(\\d{2}[LRC]?)$'));if(m)arrivalRunway=m[1];}

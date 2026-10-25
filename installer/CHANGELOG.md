@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.2.38 — Local test, awaiting user approval
+
+- Import EuroScope SweatBox TXT in Scenario Builder and instructor uploads, with mandatory compatibility review. Preserve flight plans, explicit navigation, START minutes, squawks and ILS geometry; reject missing fixes and ambiguous/duplicate records. Original scenario files are not modified or redistributed.
+- Report unsupported simulation features. Ground traffic is stationary, not a taxi/takeoff model; altitude instructions/holdings/performance/response-delay directives are not executed. Airborne speed defaults are explicit approximations, not full EuroScope performance compatibility.
+- Added Connect my EuroScope for the instructor's selected server. Automatically obtain the session transport key, prepare the existing connector and copy its local address; require non-VATSIM EuroScope setup with dummy credentials and a unique callsign. Do not replace an active local server/connector.
+- Server 0.2.0 remains compatible. No server rebuild, cloud deployment or GitHub publication required.
+
+## 1.2.37 — Local test, awaiting user approval
+
+- One private instructor pairing controls all three server-PC slots from the client: upload local scenarios, start/run/pause/reset/stop, aircraft dashboard, manual commands, flight-plan amendments and Copy student invite. ZYZTools Server test 0.2.0 keeps all simulation on the spare PC.
+- Separate instructor authorization from server-hosted student access. Student keys cannot manage servers or manually command aircraft; EuroScope controller edits remain available. Validate uploads before replacement; reject stale/duplicate/conflicting instructions.
+- Organized Training into Student, Instructor and Local practice views, collapsed optional local sharing/help, and retained Scenario Builder separately.
+- Removed the training AI-pilot bridge, ChatGPT/Windows readbacks, check-ins, speech helper and pilot-plugin package/IPC. Unrelated conflict-sequencing AI is unchanged.
+- Instructor pairing may be remembered only with explicit Windows-encrypted opt-in. Scenario changes do not require re-pairing; restarting the server app/recreating the management tunnel can. No backend deployment, GitHub publication or billing changes.
+
+## 1.2.36 — Local test, awaiting user approval
+
+- Added connection-code joining alongside existing private invites in Training. The fixed Cloudflare directory validates short codes and managed session URLs; credentials are not logged.
+- Added a separate ZYZTools Server test 0.1.0 installer for a spare Windows PC: three process-isolated scenarios, independent clocks/controls, private tunnels and directory heartbeats, per-slot pause/run/reset/stop, copied scenarios and bounded logs.
+- Optional startup after Windows sign-in and per-slot paused autostart. Worker crash recovery is bounded and restarts only the affected scenario from the beginning, paused; no claim of aircraft-state restoration or tunnel uptime guarantee.
+- Verify the public session before advertising its code. Clean up only owned helpers, revoke/expire codes on shutdown, keep host administration local, and preserve non-VATSIM loopback-only FSD transport.
+- Build installers outside OneDrive to reduce sync/indexing load. No GitHub publication or account/billing changes.
+
 ## 1.2.29 — Local test, awaiting user approval
 
 - Preserve dirty aircraft edits on selection change, Start and Export; clear stale spawn fixes when coordinates change. Added regressions for delayed/separate spawns and reset.
@@ -214,4 +237,17 @@
 - Fixed directed-turn interception boundary that could retain a turn flag; cancel approach captures current heading.
 - SPD now aliases IAS (80–400 knots); no-wind GS uses approximate ISA TAS, not indicated speed.
 - Host and shared manual command boxes clear only after successful sends, preserving failed or newly typed commands.
+
+# 1.2.34 — Built-in internet tunnel controls
+
+- Bundled checksum-pinned cloudflared with its license; no external installation or terminal required.
+- Added Start/Stop internet tunnel, live status, public URL and Copy URL to Multiplayer. Checks local panel availability before exposing it.
+- Managed tunnel stops when shared control, the simulation server or ZYZTools closes. Public tunnel stays opt-in; manual external tunnels are not touched.
+
+# 1.2.35 — Guided hosting and private invites
+
+- Start hosting saves the editor, prepares the local server, switches off AI pilots, starts shared control and the managed tunnel. Simulation clock is not started automatically.
+- Copy private invite combines URL and key in a fragment-only invite. Browser users auto-join; EuroScope users paste the same invite into ZYZTools and click Join.
+- Connector validates host and key before opening its local EuroScope address; clearer expired-invite, 502 and non-ZYZTools response errors. Copy server address button and explicit VATSIM-off instructions.
+- Stop hosting disconnects all clients and revokes the invite. Credentials remain in memory, not settings; invite links are passwords.
 

@@ -1,9 +1,9 @@
 // Optional manual control panel. Never exposes the EuroScope/FSD socket.
 const http=require('node:http'),crypto=require('node:crypto'),fs=require('node:fs'),path=require('node:path');
 class TrainingMultiplayer{
- constructor(training,port){this.training=training;this.port=port;this.requests=new Map();this.log=[];this.generation=0;this.fsd=new (require('./training-fsd-tunnel').FsdSessions)(training);}
+ constructor(training,port,options={}){this.training=training;this.port=port;this.readOnly=options.readOnly===true;this.requests=new Map();this.log=[];this.generation=0;this.fsd=new (require('./training-fsd-tunnel').FsdSessions)(training);}
  status(){return {enabled:!!this.server,port:this.port,url:'http://127.0.0.1:'+this.port,token:this.server?this.token:'',lastAction:this.log.at(-1)||null};}
- snapshot(){const s=this.training.status();return {sessionId:s.sessionId,name:s.scenario.name,running:s.running,listening:s.listening,elapsed:s.elapsed,aircraft:s.aircraft.map(a=>({...a})),fixes:(this.training.runtimeWaypoints||s.scenario.waypoints).map(w=>({name:w.name,lat:w.lat,lon:w.lon})),log:this.log.filter(x=>x.sessionId===s.sessionId).slice(-30)};}
+ snapshot(){const s=this.training.status();return {role:this.readOnly?'student':'shared',readOnly:this.readOnly,sessionId:s.sessionId,name:s.scenario.name,running:s.running,listening:s.listening,elapsed:s.elapsed,aircraft:s.aircraft.map(a=>({...a})),fixes:(this.training.runtimeWaypoints||s.scenario.waypoints).map(w=>({name:w.name,lat:w.lat,lon:w.lon})),log:this.log.filter(x=>x.sessionId===s.sessionId).slice(-30)};}
  async start(){
   if(this.server)return this.status();if(this.starting)throw Error('Shared control is starting.');
   if(!this.training.server)throw Error('Start the local training server first.');
@@ -26,6 +26,7 @@ class TrainingMultiplayer{
    if(req.headers['sec-fetch-site']==='cross-site')return this.reply(res,403,{error:'Cross-site requests are not allowed.'});
    if(req.url.startsWith('/api/fsd/'))return await this.fsd.request(req,res,this.reply.bind(this));
    if(req.method==='GET'&&req.url==='/api/status')return this.reply(res,200,this.snapshot());
+   if(this.readOnly)return this.reply(res,403,{error:'Student access cannot control aircraft. Use the instructor dashboard.'});
    if(req.method!=='POST'||req.url!=='/api/action')return this.reply(res,404,{error:'Not found.'});
    if(!/^application\/json(?:;|$)/i.test(req.headers['content-type']||''))return this.reply(res,415,{error:'JSON required.'});
    let body='';await new Promise((resolve,reject)=>{req.on('data',b=>{body+=b;if(Buffer.byteLength(body)>8192){reject(Error('Request too large.'));req.destroy();}});req.on('end',resolve);req.on('error',reject);req.on('aborted',()=>reject(Error('Request canceled.')));});

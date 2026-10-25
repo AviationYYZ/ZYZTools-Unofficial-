@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ZYZTools</title>
   <style>
+    [data-training-pane][hidden], #instructorControls[hidden], #instructorPair[hidden] { display:none !important; }
+    [data-training-view][aria-pressed="true"], #instructorSlots [aria-pressed="true"] { border-color:var(--accent,#64c9c1); background:var(--panel-alt,#243b50); box-shadow:inset 0 -3px var(--accent,#64c9c1); }
+    .training-heading { margin-bottom:20px; } .training-table { overflow-x:auto; }
+    .instructor-fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; }
+    .instructor-fields label { margin:0; } #instructorAircraft tr { cursor:pointer; }
     * { box-sizing: border-box; }
     body {
       --bg: #111417;
@@ -388,7 +393,7 @@
       <button data-tab="install" class="primary" aria-current="page">Install / Link</button>
       <button data-tab="operations">Operations</button>
       <button data-tab="conflicts">Conflict &amp; Sequencing</button>
-      <button data-tab="training">Local Training</button>
+      <button data-tab="training">Training</button>
       <button data-tab="trainingBuilder">Scenario Builder</button>
       <button data-tab="discord">Discord status</button>
       <button data-tab="hoppie">Hoppie</button>
@@ -549,12 +554,15 @@
         </div>
       </section>
         <section id="training">
-          <div class="card">
+          <div class="training-heading"><h2>Training</h2><p>Choose your role. All training traffic stays separate from VATSIM.</p><div class="buttons" role="group" aria-label="Training role"><button data-training-view="student" aria-pressed="true">Student · join</button><button data-training-view="instructor" aria-pressed="false">Instructor · server PC</button><button data-training-view="local" aria-pressed="false">Local practice · this PC</button></div></div>
+          <div class="card" data-training-pane="local" hidden>
             <div class="caption">Local training — never connects to VATSIM or SweatBox</div>
-            <p>This embedded traffic server binds only to this app's fixed loopback address. It has no outbound connection, online authentication, licence check or forwarding path. Do not run a second simulator engine for these aircraft.</p>
+            <p>Runs aircraft on this PC only. Load a scenario or demo, Start local server, connect EuroScope, then Run. Use Instructor instead to run aircraft on your spare server PC.</p>
+            <details><summary>EuroScope connection instructions and safety</summary>
             <p><strong>Quick start:</strong> 1. Load demo (or create/import aircraft). 2. Start local server and wait for “LISTENING”. 3. Connect EuroScope using the exact server address below. 4. Press Run.</p>
             <p>EuroScope: disconnect any current session; select “Direct to VATSIM” as the connection-mode label, but <strong>leave Connect to VATSIM UNCHECKED</strong>. Enter the exact address below, with no :port suffix. Use dummy ID/password/name, not VATSIM credentials. NOT “Start SweatBox simulator session”: ZYZTools runs the aircraft. Do not select AUTOMATIC or a public server.</p>
             <p>ZYZTools cannot prevent you from manually connecting EuroScope to another server. Never change the server to a VATSIM/SweatBox address. This module sends nothing outside your computer; unrelated app features and third-party plugins are separate.</p>
+            </details>
             <label>Server address to enter in EuroScope (fixed port 6809)<input id="trainingAddress" readonly value="127.0.0.1" /></label>
             <p>Test app: 127.0.0.1. Production app: 127.0.0.2. Both addresses are local to this computer; no custom port is needed.</p>
             <div class="buttons"><button id="trainingDemo">Load two-aircraft demo</button><button id="trainingStart">Start local server</button><button id="trainingRun">Run</button><button id="trainingPause">Pause</button><button id="trainingReset">Reset initial positions</button><button id="trainingStop">Stop / disconnect</button></div>
@@ -562,37 +570,47 @@
             <p id="trainingActivity" role="status">No local connection received yet.</p>
             <p id="trainingNotice" role="alert" aria-live="assertive">No server is started automatically. Use Load demo to try it immediately. For editable flight plans connect with a controller callsign such as TOR_APP, not an OBS position.</p>
           </div>
-          <div class="card">
-            <div class="caption">Aircraft / pilot command centre</div>
+          <div class="card" data-training-pane="local" hidden>
+            <div class="caption">Local aircraft dashboard</div>
             <table><thead><tr><th>Callsign</th><th>Type</th><th>Altitude</th><th>IAS / GS</th><th>Magnetic heading</th><th>Status / route</th><th>Squawk</th></tr></thead><tbody id="trainingAircraft"></tbody></table>
             <label>Aircraft<select id="trainingSelected"></select></label><label>Command<input id="trainingCommand" placeholder="ALT 5000" maxlength="100" /></label><div class="buttons"><button id="trainingSend">Apply command</button><button id="trainingIdent">Squawk IDENT</button><button id="trainingEditLive">Edit live flight plan</button></div>
             <div class="buttons"><button id="trainingPauseAircraft">Pause selected aircraft</button><button id="trainingClearApproach">Cleared for approach</button><button id="trainingCancelApproach">Cancel approach</button><button id="trainingPublished">Resume published speeds</button></div>
             <label>Assigned speed (IAS knots)<input id="trainingAssignedIAS" type="number" value="210" min="80" max="400" /></label><button id="trainingSetIAS">Assign speed</button>
             <p id="trainingAircraftState">Select an active aircraft to see runway, approach and speed mode.</p>
-            <p>APP CLEAR arms a generic sector-centreline/3° simulated ILS for the runway selected in the flight plan. It does not instantly turn or dive onto final: a suitable intercept vector and altitude are needed. IAS is converted to TAS using approximate ISA density, with no wind. This is not a certified approach/performance model.</p>
+            <details><summary>Command reference and simulation limits</summary><p>APP CLEAR arms a generic sector-centreline/3° simulated ILS for the runway selected in the flight plan. It does not instantly turn or dive onto final: a suitable intercept vector and altitude are needed. IAS is converted to TAS using approximate ISA density, with no wind. This is not a certified approach/performance model.</p>
             <p>ALT feet · RATE ft/min · SPD / IAS indicated knots · HDG/LHDG/RHDG degrees magnetic · DCT fix · SQ 1234 · MODE C/STBY · IDENT (18 simulation seconds) · ROUTE RESUME. Scheduled aircraft appear when simulation time reaches their spawn time.</p>
+            </details>
             <p id="trainingStatus" role="status">Create a scenario in Scenario Builder or load the demo.</p>
           </div>
-          <div class="card"><div class="caption">Multiplayer — shared manual aircraft controls</div>
+          <details class="card" data-training-pane="local" hidden><summary>Optional · share this PC's local practice</summary>
+            <p>This is for hosting on this PC, not your spare server. Load a scenario, Start hosting, share its private invite, then Run.</p>
+            <div class="buttons"><button id="trainingHostQuick">Start hosting</button><button id="trainingHostQuickStop">Stop hosting / disconnect everyone</button><button id="trainingInviteCopy">Copy private invite</button></div><p id="trainingQuickStatus" role="status">Load a scenario to host, or paste an invite to join.</p>
+            <label>Connection code or private invite (grants session access)<input id="trainingInvite" type="password" autocomplete="off" spellcheck="false" placeholder="ABCDE-FG234 or complete private invite" /></label><div class="buttons"><button id="trainingInvitePaste">Paste code / invite</button><button id="trainingInviteJoin">Join with EuroScope</button><button id="trainingCopyAddress">Copy EuroScope server address</button></div>
+            <p>Keep invites private: anyone holding one can access the session. Stop hosting to revoke it. The key stays in memory; it is not saved in settings. On the remote computer, use dummy EuroScope credentials and keep Connect to VATSIM UNCHECKED.</p>
             <p>Your computer hosts the scenario and EuroScope connection. Another person uses the shared browser command centre to manually control aircraft and edit flight plans—no AI, voice synthesis or remote desktop needed. You retain Run/Pause/Reset. Coordinate aircraft ownership verbally; simultaneous edits use the last accepted instruction.</p>
             <div class="buttons"><button id="trainingSharedStart">Start shared control</button><button id="trainingSharedStop">Stop shared control / revoke key</button><button id="trainingSharedOpen">Open shared panel</button></div>
             <label>Panel address<input id="trainingSharedAddress" readonly /></label><label>Access key (share privately)<input id="trainingSharedKey" type="password" readonly /></label><button id="trainingSharedReveal">Show / hide key</button>
-            <p id="trainingSharedStatus" role="status">Shared control is off. Start the local training server first; disable the AI pilot bridge.</p>
-            <p>For someone outside your computer, run the tunnel command below with cloudflared installed. Send them the HTTPS URL it prints and the access key separately. Only tunnel this panel port—never EuroScope port 6809. No public tunnel starts automatically. Stopping shared control immediately revokes the key.</p>
-            <label>Optional tunnel command<input id="trainingSharedTunnel" readonly /></label>
-            <p>A tunnel sends simulated scenario/aircraft data through its provider to your invited participant, not VATSIM. Use HTTPS; do not expose the HTTP port directly. Close the tunnel terminal after training. Manual readbacks/voice are outside this panel.</p>
+            <p id="trainingSharedStatus" role="status">Shared control is off. Start the local training server first.</p>
+            <h3>Internet tunnel — built into ZYZTools</h3><p>Start shared control first, then click Start internet tunnel. No separate installation or terminal is required. Share the public HTTPS URL and access key privately. Anyone with the key can control simulated aircraft or join through the EuroScope connector.</p>
+            <div class="buttons"><button id="trainingTunnelStart">Start internet tunnel</button><button id="trainingTunnelStop">Stop internet tunnel</button><button id="trainingTunnelCopy">Copy public URL</button></div>
+            <label>Public connection URL<input id="trainingTunnelUrl" readonly /></label><p id="trainingTunnelStatus" role="status">Internet tunnel off.</p>
+            <p>Uses the bundled cloudflared helper and Cloudflare's temporary tunnel service. Scenario data passes through Cloudflare, not VATSIM. No tunnel starts automatically. Stop shared control or close ZYZTools to stop its managed tunnel; keep ZYZTools running while others are connected. Temporary URLs change when restarted and availability is not guaranteed.</p>
+            <details><summary>Advanced / third-party notices</summary><p>Bundled cloudflared 2026.10.3 by Cloudflare, Apache License 2.0. Source: https://github.com/cloudflare/cloudflared/tree/2026.10.3 . Its license is included with the installed tunnel resources. Manually started tunnels are separate and must be stopped in their own terminals.</p><label>Manual tunnel command (optional)<input id="trainingSharedTunnel" readonly /></label></details>
             <h3>Join as a remote EuroScope controller</h3><p>On the controller's computer, install this ZYZTools version and leave its local training server stopped. Enter the host's HTTPS tunnel URL and access key. Start connector, then connect EuroScope to the local address below with Connect to VATSIM UNCHECKED and dummy credentials. Keep the connector running. Do not enter the public URL in EuroScope.</p>
             <label>Host tunnel URL<input id="trainingJoinUrl" placeholder="https://example.trycloudflare.com" /></label><label>Host access key<input id="trainingJoinKey" type="password" autocomplete="off" /></label><div class="buttons"><button id="trainingJoinStart">Start EuroScope connector</button><button id="trainingJoinStop">Stop connector</button></div><p id="trainingJoinStatus" role="status">Remote connector off.</p>
-          </div>
-          <div class="card"><div class="caption">ChatGPT pilot agent (optional)</div>
-            <label class="check"><input id="trainingAgentEnabled" type="checkbox" />Enable local simulated-pilot bridge</label>
-            <label>Pilot readback<select id="trainingReadbackMode"><option value="windows">Windows robotic voice — automatic check-ins and readbacks</option><option value="chatgpt">ChatGPT voice — optional, slower</option></select></label>
-            <p>ChatGPT mode uses your open voice chat, not Windows speech. The pilot skill is instructed to finish a concise readback before submitting its maneuver. Execution trusts the agent's completion report: this app cannot verify ChatGPT speaker playback or guarantee four-second latency. Windows mode retains its verified local speech-completion gate. No VATSIM connection is made.</p>
-            <label>Local readback voice<select id="trainingVoice"></select></label>
-            <div class="buttons"><button id="trainingInstallPilot">Set up / repair pilot plugin</button><button id="trainingCheckPilot">Check pilot connection</button></div>
-            <p>1. Set up the plugin once. 2. Enable the bridge above. 3. Start the server and Run. 4. In a new local desktop chat, select @ZYZTools Local Pilots test (or the production equivalent). Try a typed clearance first. The connection check below tests the local bridge, not whether a particular chat has loaded its tools.</p>
-            <details><summary>Advanced: portable plugin export</summary><button id="trainingExportPilot">Export ChatGPT pilot plugin</button></details>
-            <p id="trainingAgentStatus" role="status">Bridge disabled. Use Set up / repair to install the matching plugin without copying commands.</p>
+          </details>
+          <div class="card" id="instructorCard" data-training-pane="instructor" hidden><div class="caption">Instructor · manage your server PC</div>
+            <p>Pair once with the server app's instructor code. Manage all three slots from here; aircraft processing stays on the server. Students receive a separate student invite.</p>
+            <div id="instructorPair"><label>Instructor pairing code<input id="instructorPairing" type="password" autocomplete="off" placeholder="Code from server app → Remote instructor access"></label><label class="check"><input id="instructorRemember" type="checkbox"> Remember this connection using Windows-encrypted storage</label><div class="buttons"><button id="instructorConnect">Pair with server PC</button><button id="instructorRestore">Reconnect saved server</button></div></div>
+            <p id="instructorMessage" role="status">Not paired.</p><div class="buttons"><button id="instructorDisconnect">Disconnect</button><button id="instructorForget">Forget saved pairing</button></div>
+            <div id="instructorControls" hidden><h3>1 · Select server</h3><div class="buttons" id="instructorSlots"></div><p id="instructorSlotStatus"></p>
+            <h3>2 · Scenario and session</h3><div class="buttons"><button id="instructorUpload">Load scenario · JSON / SweatBox TXT</button><button id="instructorDemo">Load demo</button><button id="instructorStart">Start paused</button><button id="instructorRun">Run</button><button id="instructorPause">Pause</button><button id="instructorReset">Reset</button><button id="instructorStop">Stop</button><button id="instructorStudentInvite">Copy student invite</button><button id="instructorEuroScope">Connect my EuroScope</button></div>
+            <p>Loading a scenario replaces only this slot and stops its current session. Build/export scenarios in Scenario Builder. Copy student invite after the slot's internet connection is ready.</p>
+            <h3>3 · Aircraft dashboard</h3><div class="training-table"><table><thead><tr><th>Callsign</th><th>Altitude</th><th>IAS / GS</th><th>Heading M</th><th>Route / state</th><th>Squawk</th></tr></thead><tbody id="instructorAircraft"></tbody></table></div>
+            <label>Aircraft<select id="instructorSelected"></select></label><label>Manual instruction<input id="instructorCommand" maxlength="100" placeholder="ALT 5000"></label><div class="buttons"><button id="instructorSend">Apply command</button><button data-instructor-command="PAUSE ON">Pause aircraft</button><button data-instructor-command="PAUSE OFF">Resume aircraft</button><button data-instructor-command="IDENT">IDENT</button><button data-instructor-command="APP CLEAR">Cleared approach</button><button data-instructor-command="APP CANCEL">Cancel approach</button><button data-instructor-command="SPEED PUBLISHED">Published speeds</button></div>
+            <details><summary>Edit selected aircraft's flight plan</summary><button id="instructorEdit">Load selected flight plan</button><div class="instructor-fields" id="instructorFields"></div><button id="instructorSave">Apply flight plan</button></details>
+            <details><summary>Command reference</summary><p>ALT feet · RATE ft/min · SPD/IAS knots · HDG/LHDG/RHDG magnetic · DCT fix · SQ code · MODE C/STBY · IDENT · ROUTE RESUME · APP CLEAR/CANCEL. Manual commands, no AI pilot or readback.</p></details>
+            </div><details><summary>Pairing and privacy</summary><p>The instructor code grants control of all three slots. Never share it with students. Remember is optional and encrypted for this Windows account. Scenario changes do not require pairing again; restarting the server app or recreating its management tunnel can require a new pairing code.</p></details>
           </div>
         </section>
         <section id="trainingBuilder">
@@ -870,7 +888,9 @@
   <script src="custom-theme.js"></script>
   <script src="pdc-templates.js"></script>
   <script src="renderer.js"></script>
+  <script src="training-layout.js"></script>
   <script src="training-ui.js"></script>
   <script src="training-multiplayer-ui.js"></script>
+  <script src="training-instructor-ui.js"></script>
 </body>
 </html>

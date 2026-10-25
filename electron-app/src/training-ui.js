@@ -1,7 +1,7 @@
 (() => {
  const api=window.preferredCyyzPdc,$=id=>document.getElementById(id),ns='http://www.w3.org/2000/svg';
  let current=null,draft={format:'ZYZTools-training',version:1,name:'New scenario',waypoints:[],aircraft:[]},edit=-1,busy=false,liveCallsign=null;
- let sector={fixes:[],lines:[]},centre={lat:43.8,lon:-79.65},span=2.6,sectorLoaded=false,speaking=null,rotation=0;
+ let sector={fixes:[],lines:[]},centre={lat:43.8,lon:-79.65},span=2.6,sectorLoaded=false,rotation=0;
  const fields=['callsign','type','lat','lon','altitude','speed','heading','rate','origin','destination','squawk','spawnTime','squawkMode','flightRules','wake','equipment','departureTime','actualDepartureTime','cruiseAltitude','cruiseSpeed','enrouteHours','enrouteMinutes','fuelHours','fuelMinutes','alternate','remarks','flightPlanRoute','arrivalRunway','category'];
  let routePreview={route:'',waypoints:[]},previewSequence=0,previewTimer=null,editorDirty=false;
  const defaults={flightRules:'I',wake:'M',equipment:'S',departureTime:'0000',actualDepartureTime:'0000',cruiseAltitude:36000,cruiseSpeed:450,enrouteHours:1,enrouteMinutes:0,fuelHours:2,fuelMinutes:0,alternate:'',remarks:'',flightPlanRoute:'',spawnTime:0,squawkMode:'N'};
@@ -57,6 +57,8 @@
  $('trainingDuplicate').onclick=()=>action(async()=>{if(current?.listening)throw Error('Stop the server before duplicating initial aircraft.');const a=aircraftForm();if(!a.callsign)throw Error('Edit an aircraft or fill the form first.');const match=a.callsign.match(/^(.*?)(\d+)$/);let n=match?Number(match[2])+1:1,base=match?match[1]:a.callsign;while(draft.aircraft.some(x=>x.callsign===base+n))n++;a.callsign=base+n;edit=-1;populate(a);nextSquawk();editorDirty=true;message('Copy ready with a new callsign and squawk. Adjust spawn delay/position, then Add aircraft.');});
  $('trainingValidateRoute').onclick=()=>action(async()=>preview());
  $('trainingStart').onclick=()=>action(async()=>{if(busy)return;busy=true;$('trainingStart').disabled=true;$('trainingStart').textContent='Starting…';message('Saving editor and starting local listener…');try{await commitEditor();await api.training('load',readDraft());const state=await api.training('start');draw(state);message('READY: enter '+state.host+' in EuroScope, with Connect to VATSIM UNCHECKED. '+(state.aircraft.length?'Connect, then press Run.':'No aircraft loaded. Stop, then Load demo or use Scenario Builder.'));}finally{busy=false;draw(await api.training('status'));}});
+ $('trainingHostQuick').onclick=()=>action(async()=>{if(busy)return;busy=true;$('trainingHostQuick').disabled=true;try{if(!current?.listening){await commitEditor();await api.training('load',readDraft());}$('trainingQuickStatus').textContent='Preparing local server, shared control and internet tunnel…';const s=await api.trainingMultiplayer('hostStart');draw(s.training);$('trainingQuickStatus').textContent='Hosting prepared. Wait for tunnel ready, Copy private invite, then press Run when participants are connected.';}catch(e){$('trainingQuickStatus').textContent=e.message;throw e;}finally{busy=false;$('trainingHostQuick').disabled=false;}});
+ $('trainingHostQuickStop').onclick=()=>action(async()=>{draw(await api.trainingMultiplayer('hostStop'));$('trainingQuickStatus').textContent='Hosting stopped. Invites revoked and controllers disconnected.';});
  $('trainingDemo').onclick=()=>action(async()=>{const state=await api.training('demo');acceptScenario(state);editorDirty=false;if(state.scenario.aircraft[0])populate(state.scenario.aircraft[0]);message('Two demo aircraft loaded. Start local server next.');});
  for(const [id,verb]of [['trainingRun','run'],['trainingPause','pause'],['trainingReset','reset'],['trainingStop','stop']])$(id).onclick=()=>action(async()=>draw(await api.training(verb)));
  async function command(text){draw(await api.training('command',{callsign:$('trainingSelected').value,command:text}));message('Command applied to local simulation only.');}
@@ -109,29 +111,4 @@
  for(const id of ['training_spawnSeconds','trainingSpawnFix','trainingPublishedDefault'])$(id).addEventListener('input',()=>editorDirty=true);
  async function refresh(){if(!['training','trainingBuilder'].some(id=>$(id).classList.contains('active'))||busy)return;await action(async()=>{const state=await api.training('status');if(!current)acceptScenario(state);draw(state);if(!sectorLoaded)await loadSector();});}
  for(const tab of ['training','trainingBuilder'])document.querySelector('[data-tab="'+tab+'"]').addEventListener('click',refresh);setInterval(refresh,1000);
- // Agent controls are opt-in and never synthesize a maneuver before local readback ends.
- async function configureReadback(){
-  const mode=$('trainingReadbackMode').value;$('trainingVoice').disabled=mode!=='windows';
-  if(mode==='windows'){const voices=await api.trainingPilot('voices');if(!voices.length)throw Error('No enabled English Windows voice installed.');$('trainingVoice').replaceChildren();for(const v of voices){const o=document.createElement('option');o.value=v;o.textContent=v;$('trainingVoice').append(o);}}
-  return api.trainingPilot('readbackMode',{mode});
- }
- $('trainingVoice').disabled=true;
- $('trainingReadbackMode').onchange=()=>action(async()=>{await configureReadback();$('trainingAgentStatus').textContent=$('trainingReadbackMode').value==='chatgpt'?'ChatGPT reads back first, then reports completion to execute. Playback/4-second latency cannot be independently guaranteed.':'Windows speech completion gates maneuvers.';});
- $('trainingAgentEnabled').onchange=()=>action(async()=>{const enabled=$('trainingAgentEnabled').checked;try{if(enabled)await configureReadback();const result=await api.trainingPilot('enable',{enabled});$('trainingAgentStatus').textContent=result.enabled?'Bridge enabled. Run the simulation, then open the matching pilot plugin in ChatGPT voice.':'Bridge disabled; pending commands discarded.';}catch(error){$('trainingAgentEnabled').checked=false;throw error;}});
- $('trainingExportPilot').onclick=()=>action(async()=>{const result=await api.trainingPilot('export');$('trainingAgentStatus').textContent=result.canceled?'Export canceled.':'Plugin exported. Register this marketplace with codex plugin marketplace add "'+result.marketplaceRoot+'", then restart ChatGPT desktop and install ZYZTools Local Pilots from its Plugins Directory. This is local only, not a GitHub publication.';});
- $('trainingInstallPilot').onclick=()=>action(async()=>{const b=$('trainingInstallPilot');b.disabled=true;$('trainingAgentStatus').textContent='Installing/repairing the local pilot plugin…';try{const result=await api.trainingPilot('install');$('trainingAgentStatus').textContent=result.message;}catch(error){$('trainingAgentStatus').textContent='Setup failed: '+error.message;}finally{b.disabled=false;}});
- $('trainingCheckPilot').onclick=()=>action(async()=>{try{const result=await api.trainingPilot('check'),s=result.status;$('trainingAgentStatus').textContent='Local pilot connection OK. '+(s.running?'Simulation running':'Press Start local server, then Run')+'; '+s.aircraft.length+' active aircraft. Now select the plugin in a new local chat. This does not verify chat tool discovery.';}catch(error){$('trainingAgentStatus').textContent='Connection check: '+error.message;}});
- let checkInSession='',checkedIn=new Set();
- setInterval(async()=>{
-  if(!$('trainingAgentEnabled').checked||$('trainingReadbackMode').value!=='windows'||speaking)return;
-  try{const result=await api.trainingPilot('status');
-   if(!result.running)return;
-   if(checkInSession!==result.sessionId){checkInSession=result.sessionId;checkedIn.clear();}
-   const pending=result.pending?.[0];
-   if(!pending){const a=result.aircraft.find(a=>!a.paused&&!checkedIn.has(a.callsign));if(!a)return;speaking='checkin';await api.trainingPilot('checkIn',{sessionId:result.sessionId,callsign:a.callsign,voice:$('trainingVoice').value});checkedIn.add(a.callsign);return;}
-   speaking=pending.id;
-   $('trainingAgentStatus').textContent='Pilot: '+pending.readback;
-   await api.trainingPilot('speak',{id:pending.id,sessionId:pending.sessionId,voice:$('trainingVoice').value});$('trainingAgentStatus').textContent='Readback finished; local maneuver started.';
-  }catch(error){$('trainingAgentStatus').textContent=error.message;}finally{speaking=null;}
- },100);
 })();

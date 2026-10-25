@@ -1,4 +1,6 @@
-# Local-only training — 1.2.29
+# Local practice — 1.2.37
+
+Training now has separate **Student**, **Instructor** and **Local practice** views. This page covers Local practice on this PC. For managing three simulations on a spare PC from an instructor client, see [THREE_SERVER_SETUP.md](THREE_SERVER_SETUP.md). Scenario Builder remains separate. The former AI/ChatGPT pilot and all automatic voice/readback features have been removed.
 
 ZYZTools is an offline aircraft simulator and classic-FSD traffic source. It does not launch EuroScopeFsdServer.exe, authenticate online, contact VATSIM/SweatBox, forward packets or make outbound network calls from the training module. Test listens on 127.0.0.1:6809; production uses 127.0.0.2:6809. No listener starts automatically. Closing ZYZTools disconnects its radar clients. Do not expose/forward the port.
 
@@ -6,10 +8,10 @@ ZYZTools is an offline aircraft simulator and classic-FSD traffic source. It doe
 
 1. Open Scenario Builder and import CZYZ.sct again. The app also reads the adjacent CZYZ.ese and navdata/airway.txt if present. No sector/navdata files are modified or uploaded.
 2. Optionally load an ASR display profile to select map layers, fix symbols/names, window bounds and rotation. It is not a pixel-identical EuroScope renderer: plugin graphics/fonts, regions and free text are not reproduced.
-3. Enter the aircraft callsign/type, initial feet/IAS/true heading, origin/destination and filed route. Select its arrival runway, then place the spawn on the map or use a named fix.
+3. Enter callsign/type, initial feet/IAS/magnetic heading, origin/destination and filed route. Select the arrival runway, then place the spawn on the map or use a named fix. Saved geographic headings remain true internally.
 4. Set minutes plus seconds AFTER Run, never UTC. Zero means immediate. Add/update saves the aircraft. Switching edit selection, Start and Export also commit a dirty aircraft editor so delays are not silently discarded. Changing coordinates manually clears a stale named spawn fix.
 5. Export the initial scenario as a reusable .zyztraining.json file. It includes used fix coordinates, compiled route, runway geometry and chart-speed rules, not moving aircraft positions or credentials.
-6. Start local server in Local Training. Wait for LISTENING, then connect EuroScope as described below. Press Run.
+6. In Training → Local practice start the local server. Wait for LISTENING, then connect EuroScope as described below. Press Run.
 
 Load two-aircraft demo is available for a synthetic first test. Stop the server before editing initial scenario aircraft or importing data. Duplicate creates another aircraft/callsign/squawk; adjust its position and delay. Pending aircraft do not appear on the radar until their simulation-clock delay. Pause stops the whole clock; Reset deletes spawned aircraft and restores the schedule.
 
@@ -47,16 +49,16 @@ The initial squawk is both transmitted and announced as assigned at spawn. Later
 ## Aircraft controls and generic flight model
 
 - ALT 5000: target altitude in feet; RATE 1500 sets vertical-rate magnitude in ft/min.
-- IAS 210: assigned indicated knots, overriding published speeds. SPD remains a legacy TAS command.
+- IAS 210 or SPD 210: assigned indicated knots, overriding published speeds.
 - SPEED PUBLISHED: cancel the assigned-speed override and resume appropriate known chart speeds.
-- HDG/LHDG/RHDG 270: shortest/left/right true-heading vector. DCT FIX / ROUTE RESUME control navigation.
+- HDG/LHDG/RHDG 270: shortest/left/right magnetic-heading vector. DCT FIX / ROUTE RESUME control navigation.
 - APP CLEAR / APP CANCEL: arm or cancel the simulated ILS for the selected runway.
 - PAUSE ON / PAUSE OFF: freeze or resume one aircraft while the others and spawn clock continue.
 - SQ 5636, IDENT and MODE C/STBY control the transponder.
 
 Buttons expose individual pause, approach clear/cancel, assigned IAS and published speeds. Status shows the current runway, IAS/TAS, pause/approach state, speed mode and coverage notices.
 
-New aircraft use IAS; older TAS scenarios retain their initial speed basis. ISA density approximates IAS/TAS conversion, with no wind, compressibility/Mach or aircraft-specific performance. Turn rate is bank-limited up to 3 degrees/s; acceleration/deceleration is 2 knots/s. Simulation updates every 100 ms and emits positions every 200 ms, not once per second.
+New aircraft use IAS; older TAS scenarios retain their initial speed basis. ISA density approximates IAS/TAS conversion, with no wind, compressibility/Mach or aircraft-specific performance. Turn rate is bank-limited up to 3 degrees/s; acceleration/deceleration is 2 knots/s. Motion updates at 10 Hz; radar samples publish at 1 Hz for prediction-plugin compatibility.
 
 ### Simulated ILS
 
@@ -72,29 +74,9 @@ Rules distinguish exact AT from maximum/minimum IAS. Aircraft decelerate in adva
 
 Review/edit the JSON profiles in Scenario Builder; Apply saves them to the scenario. Load supplied-chart defaults fills the editor, then Apply commits it. Changes require a stopped server. The profile is local editable scenario data, not an automatically maintained chart service.
 
-## ChatGPT pilots
-
-No OpenAI API key is needed by this MCP bridge. ChatGPT still requires Internet/account allowance and receives simulated aircraft context; the simulator never connects to VATSIM.
-
-1. Click Set up / repair pilot plugin, then open a new local desktop chat selecting ZYZTools Local Pilots test (or production equivalent). Restart the host once only if it retains an old tool inventory.
-2. Choose ChatGPT voice or Windows voice in Local Training, enable the bridge and Run the session.
-3. Check pilot connection verifies local runtime/bridge connectivity, not whether a particular chat/voice mode has loaded tools.
-4. In a voice chat, ask it to check simulator status, then give an exact supported clearance.
-
-ChatGPT mode uses its own spoken readback first and one bounded maneuver call afterward. The skill avoids preambles, duplicate acknowledgments and unnecessary status round trips. It must finish its readback before submitting readbackCompleted=true. The app trusts this agent report: it CANNOT independently verify ChatGPT speaker playback, guarantee strict audio/maneuver ordering on every host, or guarantee a four-second response. No timer is presented as proof of speech completion. Live voice testing on the user's host remains required. This is prompt/skill optimization, not model-weight fine-tuning.
-
-Windows mode retains verified local System.Speech/SAPI completion before execution. ChatGPT must not duplicate that voice. Typed-only instructions should use Windows mode; the agent must never falsely report having spoken in text chat. Unsupported/ambiguous instructions are clarified first. No second approval is needed after a valid readback.
-
-Both modes validate exact active callsign/session, bounded commands, stale/manual-override/paused state and duplicate request IDs. The ephemeral bridge capability is private channel data, never bundled/exported or printed. Disable discards pending work; app exit closes the pipe and local speech. No shell, arbitrary plugin action, microphone, PTT or VATSIM-audio injection tool is exposed.
-
 ## Verification limits
 
-Automated tests cover delayed/reset/repeated spawns, editor autosaves, separate spawn positions, fly-by/outbound guidance, pause, synthetic localizer/glidepath capture/rejection, IAS conversion, runway-specific speeds, route expansion/cache, real loopback FSD amendments and isolated MCP/readback gates. Native regression and packaged-runtime checks do not establish end-to-end behaviour in every EuroScope/ChatGPT voice build. Validate locally with synthetic aircraft before complex scenarios. No VATSIM login is used during tests.
-# Windows robotic pilots (1.2.30)
-
-Select Windows voice in Local Training, enable the pilot bridge, and Run. Active aircraft check in once per session automatically; delayed aircraft check in after spawning. Keep the app open. Readbacks finish before maneuvers begin. Commands still pass through ChatGPT, so response time is not guaranteed.
-
-Use Install/repair local pilot plugin, then open a fresh local chat with ZYZTools Local Pilots selected. Tell it: “Use Windows readback mode. Send clear commands immediately to pilot_instruction. Do not speak readbacks or acknowledgments; Windows handles these and spawn check-ins. Ask only if unclear.” Voice chat is optional for spoken input; typed commands work too. No cloud speech API is required by Windows synthesis.
+Automated tests cover delayed/reset/repeated spawns, editor autosaves, separate spawn positions, fly-by/outbound guidance, pause, synthetic localizer/glidepath capture/rejection, IAS conversion, runway-specific speeds, route expansion/cache, real loopback FSD amendments and instructor/student authorization. Packaged/runtime checks do not establish behavior in every EuroScope build. Validate with synthetic aircraft before complex scenarios. No VATSIM login is used during tests.
 
 Routes accept both `RAGID6` and `RAGID RAGID6`. Import the matching SCT with its adjacent ESE, set destination CYYZ, and select the arrival runway.
 

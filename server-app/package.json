@@ -1,0 +1,16 @@
+{
+ "name":"zyztools-server-test",
+ "version":"0.2.0",
+ "description":"Three isolated local ZYZTools sweatbox servers",
+ "author":"Charlie Yablon and Elliot Potts",
+ "main":"src/main.cjs",
+ "scripts":{"dist":"node build.cjs","test":"node --test --test-concurrency=1 test/*.test.cjs"},
+ "build":{
+  "appId":"com.zyztools.server.test","productName":"ZYZTools Server test",
+  "artifactName":"ZYZTools-Server-Test-Setup-${version}.exe",
+  "files":["src/**/*","package.json"],
+  "asarUnpack":["src/**/*"],
+  "win":{"target":[{"target":"nsis","arch":["ia32"]}],"signAndEditExecutable":false},
+  "nsis":{"oneClick":false,"perMachine":false,"allowToChangeInstallationDirectory":true,"createDesktopShortcut":true,"shortcutName":"ZYZTools Server test"}
+ }
+}
