@@ -4,8 +4,9 @@ function density(altitude){const h=Math.min(11000,Math.max(0,altitude)*.3048);re
 const iasToTas=(ias,altitude)=>ias/Math.sqrt(density(altitude)),tasToIas=(tas,altitude)=>tas*Math.sqrt(density(altitude));
 const turnRate=speed=>Math.min(3,1091*Math.tan(25*rad)/Math.max(60,speed));
 const turnRadius=speed=>(Math.max(0,speed)/3600)/(turnRate(speed)*rad);
+function turnError(a,target=a.targetHeading){let error=delta(target,a.heading);if(a.turnDirection>0&&error<0)error+=360;if(a.turnDirection<0&&error>0)error-=360;return error;}
 function turnMotion(a,dt){
- let error=delta(a.targetHeading,a.heading);if(a.turnDirection>0&&error<0)error+=360;if(a.turnDirection<0&&error>0)error-=360;
+ const error=turnError(a);
  const v=Math.max(30,a.speed)*.514444,maxRate=turnRate(a.speed),requested=Math.sign(error)*Math.min(maxRate,Math.abs(error)/3);
  const targetBank=Math.atan(requested*rad*v/9.80665)/rad;
  a.bank=(a.bank||0)+Math.sign(targetBank-(a.bank||0))*Math.min(Math.abs(targetBank-(a.bank||0)),5*dt);
@@ -28,6 +29,10 @@ function guideRoute(a,fixes,geometry,move){
  }
 }
 function guideApproach(a,runways,geometry){
+ if(a.approachState==='armed'&&Number.isFinite(a.approachVectorTarget)){
+  if(Math.abs(turnError(a,a.approachVectorTarget))>1){a.targetHeading=a.approachVectorTarget;return;}
+  a.approachVectorTarget=null;
+ }
  const r=runways.find(r=>r.airport===a.destination&&r.name===a.arrivalRunway);if(!r){a.approachState='runway unavailable';return;}
  const course=geometry(r.threshold,r.opposite).bearing,g=geometry(r.threshold,a),outbound=wrap(course+180),angle=delta(g.bearing,outbound),along=g.distance*Math.cos(angle*rad),cross=g.distance*Math.sin(angle*rad);
  a.approachDistance=along;
@@ -53,4 +58,4 @@ function publishedIAS(a,rules,fixes,geometry){
  if(a.navigation==='route')for(const name of remaining){const rule=applicable.find(r=>r.fix===name),fix=fixes.find(w=>w.name===name);if(!rule||!fix)continue;const d=geometry(a,fix).distance,decelDistance=Math.max(0,(a.ias-rule.knots)/2)*(a.speed/3600)+2;if(d<=decelDistance){target=rule.kind==='at'?rule.knots:rule.kind==='max'?Math.min(target,rule.knots):Math.max(target,rule.knots);a.speedNotice=rule.procedure+' '+rule.runway+' '+rule.fix+' '+rule.kind+' '+rule.knots+' IAS';break;}}
  return target;
 }
-module.exports={iasToTas,tasToIas,turnRate,turnRadius,turnMotion,guideRoute,guideApproach,normalizeSpeedRules,publishedIAS};
+module.exports={iasToTas,tasToIas,turnRate,turnRadius,turnError,turnMotion,guideRoute,guideApproach,normalizeSpeedRules,publishedIAS};

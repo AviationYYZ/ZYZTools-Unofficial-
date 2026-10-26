@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.40 / Server test 0.3.1 — Local test, awaiting approval
+
+- EuroScope ASEL selection follows into the instructor dashboard. Added `.sim` command-bar instructions for the selected simulated aircraft with asynchronous applied/error acknowledgement.
+- Require the plugin process's actual loopback training TCP connection, matching connector peer/controller, active instructor pairing, connected slot/session and ephemeral channel-private capability. Student/live/playback/stale requests cannot route through this adapter; no live-aircraft amendment path is added.
+- Approach clearance while turning preserves the last assigned vector until rollout; straight-in/route approaches without a pending vector still capture normally.
+- Both the desktop app and its installed DLL must be updated for EuroScope commands. The new approach behavior also requires server 0.3.1. No cloud deployment or GitHub publication.
+
 ## 1.2.39 / Server test 0.3.0 — Local test, awaiting approval
 
 - Unified physical TAS/turn-radius calculations, gradual bank changes and earlier roll-aware route fly-bys. Generic bank/rate assumptions remain explicit, not claimed aircraft-specific EuroScope performance parity.

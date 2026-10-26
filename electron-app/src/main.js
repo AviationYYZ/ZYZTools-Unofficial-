@@ -42,6 +42,7 @@ function getTrainingSector(){if(!trainingSector){try{trainingSector=JSON.parse(f
 function prepareTraining(value){return require('./training-sector').resolveScenario(value,getTrainingSector());}
 localTraining.planResolver=a=>require('./training-routes').expandRoute(a,getTrainingSector(),localTraining.runtimeWaypoints||localTraining.scenario.waypoints);
 const instructorClient=new (require('./training-instructor').InstructorClient)(app.getPath('userData'),safeStorage);
+const trainingCommandBridge=new (require('./training-command-bridge').TrainingCommandBridge)(path.join(app.getPath('userData'),'TrainingCommands'),channel.test?'test':'production',instructorClient,trainingConnector);
 function getChatGPTPlan(){
   if(!chatGPTPlan){const {ChatGPTPlan}=require('./chatgpt-plan');chatGPTPlan=new ChatGPTPlan(app.getPath('userData'),safeStorage,url=>shell.openExternal(url),app.getName());}
   return chatGPTPlan;
@@ -871,7 +872,7 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-app.on('before-quit', () => { instructorClient.disconnect();trainingTunnel.stop();trainingConnector.stop();trainingMultiplayer.stop();localTraining.stop();chatGPTPlan?.cancel();sequencingAI?.cancel();discordPresence?.stop().catch(() => {}); });
+app.on('before-quit', () => { trainingCommandBridge.close();instructorClient.disconnect();trainingTunnel.stop();trainingConnector.stop();trainingMultiplayer.stop();localTraining.stop();chatGPTPlan?.cancel();sequencingAI?.cancel();discordPresence?.stop().catch(() => {}); });
 ipcMain.handle('discord:load', async (_event, folder) => {
   const service = ensureDiscordPresence(folder);
   return { config: service.config, status: service.status, preview: service.preview };
@@ -948,7 +949,7 @@ ipcMain.handle('training:multiplayer',async(_event,action,value)=>{
  if(action==='tunnelStop')return trainingTunnel.stop();
  if(action==='tunnelCopy'){const s=trainingTunnel.status();if(s.state!=='ready'||!s.url)throw Error('Wait for the tunnel to connect.');require('electron').clipboard.writeText(s.url);return s;}
  if(action==='connectorStatus')return trainingConnector.status();
- if(action==='connectorStop')return trainingConnector.stop();
+ if(action==='connectorStop'){trainingCommandBridge.disable();return trainingConnector.stop();}
  if(action==='connectorStart'){if(localTraining.server)throw Error('Stop your local training server before joining a remote host.');return trainingConnector.start(value);}
  if(action==='status')return trainingMultiplayer.status();
  if(action==='stop'){trainingTunnel.stop();return trainingMultiplayer.stop();}
@@ -963,7 +964,8 @@ ipcMain.handle('training:instructor',async(event,action,value={})=>{
  if(action==='status')return instructorClient.status();
  if(action==='connect')return instructorClient.connect(value.pairing,value.remember===true);
  if(action==='restore')return instructorClient.restore();
- if(action==='disconnect')return instructorClient.disconnect(value.forget===true);
+ if(action==='disconnect'){trainingCommandBridge.disable();return instructorClient.disconnect(value.forget===true);}
+ if(action==='euroScopeSelection')return trainingCommandBridge.selection();
  if(action==='state')return instructorClient.state();
  if(action==='aircraft')return instructorClient.aircraft(value.slot);
  if(action==='upload'){
@@ -973,7 +975,7 @@ ipcMain.handle('training:instructor',async(event,action,value={})=>{
  if(action==='connectEuroScope'){
   if(localTraining.server)throw Error('Stop the local practice server before connecting to your server PC.');
   if(trainingConnector.server||trainingConnector.starting)throw Error('A EuroScope connector is already active. Disconnect it under Student before switching servers.');
-  const result=await instructorClient.action(value.slot,'studentInvite',value.epoch);const s=await trainingConnector.start(require('./training-invite').parseInvite(result.invite));require('electron').clipboard.writeText(s.address);
+  const result=await instructorClient.action(value.slot,'studentInvite',value.epoch);const s=await trainingConnector.start(require('./training-invite').parseInvite(result.invite));try{await trainingCommandBridge.bind(value.slot);}catch(e){trainingConnector.stop();trainingCommandBridge.disable();throw e;}require('electron').clipboard.writeText(s.address);
   await dialog.showMessageBox(mainWindow,{type:'info',title:'Instructor EuroScope view ready',message:'Server address copied: '+s.address,detail:'In EuroScope disconnect any old session, choose the normal direct connection, leave Connect to VATSIM UNCHECKED, use dummy credentials and a unique instructor callsign. Paste '+s.address+' as Server (port 6809). Keep ZYZTools running. This joins the selected server’s traffic; it does not transfer simulation to your PC.'});return s;
  }
  if(action==='studentInvite'){const result=await instructorClient.action(value.slot,'studentInvite',value.epoch);require('electron').clipboard.writeText(result.invite);return {copied:true};}

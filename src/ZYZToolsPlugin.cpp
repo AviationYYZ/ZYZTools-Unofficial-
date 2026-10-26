@@ -1,5 +1,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
+#include <winsock2.h>
+#include <iphlpapi.h>
 #include "BuildChannel.h"
 #include <Windows.h>
 #include <windowsx.h>
@@ -39,6 +41,8 @@
 #pragma comment(lib, "Winmm.lib")
 #pragma comment(lib, "Gdi32.lib")
 #pragma comment(lib, "User32.lib")
+#pragma comment(lib, "Iphlpapi.lib")
+#pragma comment(lib, "Ws2_32.lib")
 
 using namespace EuroScopePlugIn;
 
@@ -1906,6 +1910,8 @@ namespace
 
 } // namespace
 
+#include "TrainingCommandBridge.h"
+
 class CZYZToolsPlugin final : public CPlugIn
 {
 public:
@@ -2230,6 +2236,11 @@ public:
 
     void OnTimer(int Counter) override
     {
+        const auto trainingSelf=ControllerMyself();
+        CFlightPlan trainingFp=FlightPlanSelectASEL(); CRadarTarget trainingRt=RadarTargetSelectASEL();
+        const std::string trainingSelected=trainingFp.IsValid()?trainingFp.GetCallsign():trainingRt.IsValid()?trainingRt.GetCallsign():"";
+        const std::string trainingResult=m_trainingCommands.Tick(trainingSelected,GetConnectionType()==CONNECTION_TYPE_DIRECT&&trainingSelf.IsValid()?trainingSelf.GetCallsign():"");
+        if(!trainingResult.empty()) DisplayUserMessage("ZYZTools","TRAINING",trainingResult.c_str(),true,true,false,false,false);
         if (m_conflict) m_conflict->OnTimer(Counter);
         UpdateStatisticsConnectionState();
         if (Counter % 5 == 0) WriteDiscordPresence();
@@ -2255,6 +2266,14 @@ public:
     bool OnCompileCommand(const char *sCommandLine) override
     {
         if (!sCommandLine) return false;
+        const std::string trainingCommand=Upper(CollapseWhitespace(Trim(sCommandLine)));
+        if(trainingCommand==".SIM" || trainingCommand.rfind(".SIM ",0)==0) {
+            std::string message;
+            if(trainingCommand==".SIM HELP" || trainingCommand==".SIM") message="Select an aircraft, then .sim ALT 5000 | RATE 1500 | SPD 210 | HDG/LHDG/RHDG 240 | DCT FIX | APP CLEAR/CANCEL | PAUSE ON/OFF | IDENT | SQ 4321 | MODE C/STBY | SPEED PUBLISHED | ROUTE RESUME | DELETE. Instructor training only.";
+            else if(GetConnectionType()!=CONNECTION_TYPE_DIRECT)message="Training commands require a direct instructor training connection, not playback or another connection mode.";
+            else {CFlightPlan fp=FlightPlanSelectASEL();CRadarTarget rt=RadarTargetSelectASEL();CController self=ControllerMyself();message=m_trainingCommands.Command(fp.IsValid()?fp.GetCallsign():rt.IsValid()?rt.GetCallsign():"",self.IsValid()?self.GetCallsign():"",trainingCommand.substr(5));}
+            DisplayUserMessage("ZYZTools","TRAINING",message.c_str(),true,true,false,false,false);return true;
+        }
         if (m_conflict && m_conflict->OnCompileCommand(sCommandLine)) return true;
         const std::string command = Upper(CollapseWhitespace(Trim(sCommandLine)));
         if (command == ".UI" || command == "." + ReplaySaveCommandKey())
@@ -2395,6 +2414,7 @@ public:
 
 private:
     friend class CSettingsScreen;
+    CTrainingCommandBridge m_trainingCommands;
 
     enum class SentChannel
     {

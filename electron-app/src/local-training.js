@@ -121,16 +121,16 @@ class LocalTraining{
   else if(['SPD','IAS'].includes(verb)){a.targetIAS=number(arg,80,400,'Speed (knots IAS)');a.speedMode='assigned';a.iasCommand=true;}
   else if(verb==='SPEED'&&arg==='PUBLISHED'){a.speedMode='published';a.targetIAS=flight.publishedIAS(a,this.scenario.speedRules,this.runtimeWaypoints||this.scenario.waypoints,geometry);}
   else if(verb==='PAUSE'&&['ON','OFF'].includes(arg)){a.paused=arg==='ON';}
-  else if(verb==='APP'&&arg==='CLEAR'){if(!a.arrivalRunway||!this.scenario.runways.some(r=>r.airport===a.destination&&r.name===a.arrivalRunway))throw Error('Select a runway with imported sector geometry before clearing the approach.');a.approachState='armed';}
-  else if(verb==='APP'&&arg==='CANCEL'){a.approachState='off';a.navigation='heading';a.flyBy=null;a.targetHeading=a.heading;a.turnDirection=0;a.targetAltitude=a.altitude;}
-  else if(['HDG','LHDG','RHDG'].includes(verb)){a.targetHeading=wrap(number(arg,0,360,'Magnetic heading')-this.scenario.magneticVariationWest);a.navigation='heading';a.flyBy=null;if(a.approachState!=='off')a.approachState='armed';a.turnDirection=verb==='LHDG'?-1:verb==='RHDG'?1:0;}
+  else if(verb==='APP'&&arg==='CLEAR'){if(!a.arrivalRunway||!this.scenario.runways.some(r=>r.airport===a.destination&&r.name===a.arrivalRunway))throw Error('Select a runway with imported sector geometry before clearing the approach.');a.approachVectorTarget=a.navigation==='heading'&&Math.abs(flight.turnError(a))>1?a.targetHeading:null;a.approachState='armed';}
+  else if(verb==='APP'&&arg==='CANCEL'){a.approachState='off';a.approachVectorTarget=null;a.navigation='heading';a.flyBy=null;a.targetHeading=a.heading;a.turnDirection=0;a.targetAltitude=a.altitude;}
+  else if(['HDG','LHDG','RHDG'].includes(verb)){a.targetHeading=wrap(number(arg,0,360,'Magnetic heading')-this.scenario.magneticVariationWest);a.navigation='heading';a.flyBy=null;if(a.approachState!=='off'){a.approachState='armed';a.approachVectorTarget=a.targetHeading;}a.turnDirection=verb==='LHDG'?-1:verb==='RHDG'?1:0;}
   else if(verb==='SQ')a.squawk=token(arg,/^[0-7]{4}$/,'squawk');
   else if(verb==='MODE'){if(!['C','STBY'].includes(arg))throw Error('Use MODE C or MODE STBY.');a.squawkMode=arg==='C'?'N':'S';a.identUntil=0;a.identActive=false;}
   else if(verb==='DCT'){
    if(!(this.runtimeWaypoints?.length?this.runtimeWaypoints:this.scenario.waypoints).some(w=>w.name===arg))throw Error('Waypoint is not defined in this scenario.');
    const i=a.remaining.indexOf(arg),filed=a.route.split(' ').filter(Boolean),j=filed.indexOf(arg);a.remaining=i>=0?a.remaining.slice(i):j>=0?filed.slice(j):[arg];a.navigation='route';a.flyBy=null;a.legStart={lat:a.lat,lon:a.lon};a.approachState='off';a.turnDirection=0;
   }
-  else if(verb==='ROUTE'&&arg==='RESUME'){if(!a.remaining.length)throw Error('No remaining route. Use DCT FIX.');a.navigation='route';}
+  else if(verb==='ROUTE'&&arg==='RESUME'){if(!a.remaining.length)throw Error('No remaining route. Use DCT FIX.');a.approachVectorTarget=null;a.navigation='route';}
   else throw Error('Unknown command. Use ALT, RATE, SPD, HDG, DCT or ROUTE RESUME.');
   a.revision=(a.revision||0)+1;this.broadcastAll();return this.status();
  }

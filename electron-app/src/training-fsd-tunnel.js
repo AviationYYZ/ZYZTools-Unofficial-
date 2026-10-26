@@ -30,9 +30,10 @@ class FsdSessions{
  }
 }
 class FsdConnector{
- constructor(host){this.host=host;this.sockets=new Set();this.activeRequests=new Set();this.generation=0;}
+ constructor(host){this.host=host;this.sockets=new Set();this.peers=new Map();this.activeRequests=new Set();this.generation=0;}
+ peerForPort(port){const p=this.peers.get(port);return this.server&&p&&!p.socket.destroyed&&p.controller?p:null;}
  status(){return {enabled:!!this.server,checking:this.starting===true,remoteName:this.remoteName||'',address:this.host,port:6809,connections:this.sockets.size,error:this.error||''};}
- stop(){this.generation++;for(const req of this.activeRequests)req.destroy();this.activeRequests.clear();for(const s of this.sockets)s.destroy();this.sockets.clear();this.server?.close();this.server=null;return this.status();}
+ stop(){this.generation++;for(const req of this.activeRequests)req.destroy();this.activeRequests.clear();for(const s of this.sockets)s.destroy();this.sockets.clear();this.peers.clear();this.server?.close();this.server=null;return this.status();}
  async start(value){
   if(this.server||this.starting)throw Error('Connector is already started.');const url=new URL(value.url);
   if(url.username||url.password||url.search||url.hash||url.pathname!=='/')throw Error('Enter the tunnel origin only, without credentials/path/query.');
@@ -47,11 +48,11 @@ class FsdConnector{
   this.activeRequests.add(req);req.on('close',()=>this.activeRequests.delete(req));req.on('timeout',()=>req.destroy(Error('Tunnel timed out.')));req.on('error',reject);req.end(data);
  });}
  async accept(socket,generation){
-  if(this.sockets.size>=3){socket.destroy();return;}this.sockets.add(socket);socket.setNoDelay(true);socket.pause();let id,sequence=0,closed=false;
-  socket.on('error',()=>{});socket.on('close',()=>{closed=true;this.sockets.delete(socket);if(id&&generation===this.generation)this.call('/api/fsd/close/'+id,{}).catch(()=>{});});
+  if(this.sockets.size>=3){socket.destroy();return;}this.sockets.add(socket);const peer={socket,controller:'',buffer:''};this.peers.set(socket.remotePort,peer);socket.setNoDelay(true);socket.pause();let id,sequence=0,closed=false;
+  socket.on('error',()=>{});socket.on('close',()=>{closed=true;this.sockets.delete(socket);this.peers.delete(socket.remotePort);if(id&&generation===this.generation)this.call('/api/fsd/close/'+id,{}).catch(()=>{});});
   try{
    ({id}=await this.call('/api/fsd/open',{}));if(closed||generation!==this.generation){this.call('/api/fsd/close/'+id,{}).catch(()=>{});return;}
-   const write=async()=>{try{for await(const chunk of socket){if(chunk.length>32768)throw Error('EuroScope write exceeds limit.');await this.call('/api/fsd/write/'+id,{sequence:++sequence,data:chunk.toString('base64')});}}catch(e){this.error=e.message;socket.destroy();}};write();socket.resume();
+   const write=async()=>{try{for await(const chunk of socket){if(chunk.length>32768)throw Error('EuroScope write exceeds limit.');if(!peer.controller){peer.buffer+=chunk.toString();if(peer.buffer.length>32768)throw Error('Controller login exceeds limit.');let n;while((n=peer.buffer.indexOf('\n'))>=0){const line=peer.buffer.slice(0,n).replace(/\r$/,'');peer.buffer=peer.buffer.slice(n+1);if(line.startsWith('#AA')){const cs=line.slice(3).split(':')[0];if(!/^[A-Z0-9_]{2,16}$/.test(cs))throw Error('Invalid controller login.');peer.controller=cs;peer.buffer='';break;}}}await this.call('/api/fsd/write/'+id,{sequence:++sequence,data:chunk.toString('base64')});}}catch(e){this.error=e.message;socket.destroy();}};write();socket.resume();
    while(!closed&&generation===this.generation){const result=await this.call('/api/fsd/read/'+id);if(result.data){if(socket.writableLength>262144)throw Error('EuroScope is not reading.');socket.write(Buffer.from(result.data,'base64'));}if(result.ended)break;}
   }catch(e){this.error=e.message;}finally{socket.destroy();if(id&&generation===this.generation)this.call('/api/fsd/close/'+id,{}).catch(()=>{});}
  }
