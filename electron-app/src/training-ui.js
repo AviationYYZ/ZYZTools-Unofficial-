@@ -37,6 +37,7 @@
   for(const id of ['trainingAdd','trainingLoad','trainingDemo','trainingImportSector','trainingName','trainingWaypoints'])$(id).disabled=state.listening||busy;
   $('trainingStart').disabled=state.listening||busy;$('trainingStart').textContent=state.listening?'Local server started':busy?'Starting…':'Start local server';
   $('trainingRun').disabled=!state.listening;$('trainingPause').disabled=!state.listening;$('trainingStop').disabled=!state.listening;
+  $('trainingDeleteAircraft').disabled=!state.listening||!$('trainingSelected').value;
   $('trainingSaveLive').disabled=!state.listening||!liveCallsign;$('trainingSetTemp').disabled=!state.listening||!liveCallsign;
   $('trainingSetRFL').disabled=!state.listening||!liveCallsign;
   $('trainingDuplicate').disabled=state.listening;
@@ -63,6 +64,7 @@
  for(const [id,verb]of [['trainingRun','run'],['trainingPause','pause'],['trainingReset','reset'],['trainingStop','stop']])$(id).onclick=()=>action(async()=>draw(await api.training(verb)));
  async function command(text){draw(await api.training('command',{callsign:$('trainingSelected').value,command:text}));message('Command applied to local simulation only.');}
  $('trainingSend').onclick=()=>action(async()=>{const input=$('trainingCommand'),sent=input.value;await command(sent);if(input.value===sent)input.value='';input.focus();});$('trainingIdent').onclick=()=>action(()=>command('IDENT'));
+ $('trainingDeleteAircraft').onclick=()=>action(async()=>{const name=$('trainingSelected').value;if(!name)throw Error('Select an aircraft first.');if(confirm('Delete '+name+' from this session? Reset/reloading the scenario will restore it.'))await command('DELETE AIRCRAFT');});
  $('trainingPauseAircraft').onclick=()=>action(()=>command(current?.aircraft.find(a=>a.callsign===$('trainingSelected').value)?.paused?'PAUSE OFF':'PAUSE ON'));
  $('trainingClearApproach').onclick=()=>action(()=>command('APP CLEAR'));$('trainingCancelApproach').onclick=()=>action(()=>command('APP CANCEL'));$('trainingPublished').onclick=()=>action(()=>command('SPEED PUBLISHED'));$('trainingSetIAS').onclick=()=>action(()=>command('IAS '+$('trainingAssignedIAS').value));
  $('trainingCommand').onkeydown=e=>{if(e.key==='Enter')$('trainingSend').click();};

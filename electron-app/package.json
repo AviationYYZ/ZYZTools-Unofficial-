@@ -1,6 +1,6 @@
 {
   "name": "zyztools-test",
-  "version": "1.2.38",
+  "version": "1.2.39",
   "zyzBuildChannel": "test",
   "displayName": "ZYZTools test",
   "description": "ZYZTools EuroScope controller tools and plugin installer",

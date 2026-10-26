@@ -41,7 +41,7 @@ function parse(text,catalogue={},name='Imported SweatBox'){
  for(const a of planes.values()){
   try{
    if(!a.fp)throw Error('Missing flight plan.');
-   const ground=a.altitude<=elevation+100;const match=a.flightPlanRoute.match(/\/(\d{2}[LRC]?)(?:\s|$)/);a.arrivalRunway=ground?'':match?.[1]||'';
+   const ground=a.altitude<=elevation+100;const matches=[...a.flightPlanRoute.matchAll(/\/(\d{2}[LRC]?)(?=\s|$)/g)];a.arrivalRunway=ground?'':matches.at(-1)?.[1]||'';
    const route=a.override&&!['FP','FPA'].includes(a.override)?a.override:null;
    let expanded;
    if(ground){a.route='';a.speed=0;a.speedBasis='IAS';warnings.add('Ground aircraft imported stationary with no taxi/takeoff simulation or automatic navigation.');}
@@ -52,7 +52,7 @@ function parse(text,catalogue={},name='Imported SweatBox'){
      const runway=ils.get(fix);let w=map.get(fix);if(runway){if((runway.airport||defaultAirport)!==a.destination)throw Error('ILS airport does not match destination.');w={name:fix,...runway.threshold};a.arrivalRunway=runway.name;}
      if(!w)throw Error('Unknown route fix '+fix+'. Import matching SCT/navdata.');if(fixes.at(-1)?.name!==fix)fixes.push(w);
     }expanded={route:fixes.map(w=>w.name).join(' '),waypoints:fixes};
-    }else expanded=require('./training-routes').expandRoute(a,catalogue);
+    }else{expanded=require('./training-routes').expandRoute(a,catalogue);a.arrivalRunway=expanded.arrivalRunway||a.arrivalRunway;}
     a.route=expanded.route;for(const w of expanded.waypoints)used.set(w.name,w);
     // Position records contain no initial speed. Explicit training approximation,
     // not the filed high-altitude TAS or a claim of EuroScope performance parity.

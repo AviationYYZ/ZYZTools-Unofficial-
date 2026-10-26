@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.39 / Server test 0.3.0 — Local test, awaiting approval
+
+- Unified physical TAS/turn-radius calculations, gradual bank changes and earlier roll-aware route fly-bys. Generic bank/rate assumptions remain explicit, not claimed aircraft-specific EuroScope performance parity.
+- Anticipatory localizer capture and damped tracking, including late-clearance recovery. Heading vectors retain armed approach clearance; explicit APP CANCEL cancels. Glideslope capture still requires lateral alignment and a below/near-beam intercept.
+- Native SweatBox import prefers arrival-end runway suffixes. Canonical destination/runway is last in emitted routes; announce position before initial flight plan to prevent runway/plan loss in clients that do not yet know the aircraft.
+- Added confirmed live Delete selected aircraft in local and instructor dashboards; broadcast removal without affecting other aircraft. Reset/reload restores the initial scenario.
+- Both client and hosted engine installers are required. No cloud changes or GitHub publication.
+
 ## 1.2.38 — Local test, awaiting user approval
 
 - Import EuroScope SweatBox TXT in Scenario Builder and instructor uploads, with mandatory compatibility review. Preserve flight plans, explicit navigation, START minutes, squawks and ILS geometry; reject missing fixes and ambiguous/duplicate records. Original scenario files are not modified or redistributed.

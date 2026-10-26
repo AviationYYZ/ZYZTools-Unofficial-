@@ -1,8 +1,8 @@
 # ZYZTools — instructor, student and server PC
 
-Install `ZYZTools-Server-Test-Setup-0.2.0.exe` on the spare Windows PC. Install `ZYZTools-Test-Setup-1.2.38.exe` on instructor/student PCs. They remain separate installed apps. No Node.js, EuroScope, purchased domain, router port forwarding or separate cloudflared installation is needed on the server PC. Training does not connect to VATSIM.
+Install `ZYZTools-Server-Test-Setup-0.3.0.exe` on the spare Windows PC. Install `ZYZTools-Test-Setup-1.2.39.exe` on instructor/student PCs. They remain separate installed apps. No Node.js, EuroScope, purchased domain, router port forwarding or separate cloudflared installation is needed on the server PC. Training does not connect to VATSIM.
 
-Desktop 1.2.38 adds reviewed EuroScope SweatBox `.txt` import and **Connect my EuroScope** under Instructor. Existing server 0.2.0 is compatible. See [SWEATBOX_IMPORT.md](SWEATBOX_IMPORT.md) for conversion limits and setup.
+Reviewed EuroScope SweatBox `.txt` import and **Connect my EuroScope** are under Instructor. The 1.2.39 guidance fixes require server **0.3.0**: the simulation runs on the server, so updating only the client will not fix hosted aircraft motion. Stop sessions and exit the old server app from its tray before updating. See [SWEATBOX_IMPORT.md](SWEATBOX_IMPORT.md) for conversion limits.
 
 ## Pair the instructor once for this server-app run
 

@@ -62,7 +62,7 @@ New aircraft use IAS; older TAS scenarios retain their initial speed basis. ISA 
 
 ### Simulated ILS
 
-APP CLEAR requires an assigned arrival runway with imported geometry. The pilot must be vectored to a suitable intercept and altitude. Clearance alone does not turn directly at the airport or dive down from above the beam. Localizer capture requires an inbound heading near the extended centreline within 25 NM. A generic 3-degree glidepath is captured from below/near the beam, then tracked toward the threshold. A centred arrival reaching the threshold is stopped as simulated touchdown. A new vector/direct cancels approach mode; reissue APP CLEAR after vectoring when appropriate.
+APP CLEAR requires an assigned arrival runway with imported geometry. Vector to a suitable intercept and altitude. Localizer capture anticipates rollout using speed/turn radius within 25 NM; the generic 3-degree glidepath captures only from below/near the beam with lateral alignment. A centred arrival reaching the threshold stops as simulated touchdown. Heading vectors retain armed approach clearance; APP CANCEL explicitly cancels it. A new DCT cancels approach mode. Physically unsuitable intercepts may require corrective vectors or lower speed. Client 1.2.39 and server 0.3.0 use the revised guidance.
 
 This is a sector-centreline/3-degree training approximation, NOT an instrument-approach database: no localizer frequency, displaced-threshold/antenna model, published glide-slope/DA/minima, approach lighting, terrain, missed approach, runway closure, wind or certified landing model. CYYZ aerodrome elevation is 569 feet; other imported runway elevations default to zero unless supplied in scenario data. Never use it for navigation.
 

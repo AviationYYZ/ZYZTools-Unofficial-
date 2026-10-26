@@ -1,6 +1,6 @@
-# EuroScope SweatBox import — desktop test 1.2.38
+# EuroScope SweatBox import — desktop test 1.2.39
 
-Use Load scenario under **Training → Instructor**, or Import in Scenario Builder. Both accept `.txt` EuroScope scenarios and existing ZYZTools JSON. Conversion happens on the instructor/client PC; server 0.2.0 already accepts the converted scenario, so no server update is needed.
+Use Load scenario under **Training → Instructor**, or Import in Scenario Builder. Both accept `.txt` EuroScope scenarios and existing ZYZTools JSON. Conversion happens on the instructor/client PC. Update the server to **0.3.0** for the new turn, approach, runway-transfer and deletion fixes; updating only the client does not replace the hosted simulation engine.
 
 Import the matching SCT/ESE/navdata into Scenario Builder first. Scenario coordinates and ILS geometry come from the chosen file; named route fixes must exist in the imported catalogue. No online fix lookup, chart guessing or source-file modification occurs. The original flight-plan text is retained; an explicit `$ROUTE` supplies the converted navigation path, including old procedures whose current STAR name differs. Routes without overrides require matching local flight-plan navdata.
 
@@ -25,3 +25,13 @@ In Instructor select a running/paused slot whose tunnel is ready, then click **C
 If a local practice server or another connector is already active, the button refuses to replace it. Stop local practice, or Disconnect under Student, before changing servers. The instructor uses one of the slot's existing three remote EuroScope connections. Closing only the instructor connector does not stop the simulation or disconnect the student.
 
 Format reference: https://www.euroscope.hu/wp/scenario-file/
+
+## Guidance fixes in 1.2.39 / server 0.3.0
+
+Motion uses TAS-dependent coordinated-turn geometry with a 25-degree bank limit, 3-degree/second rate cap, and gradual bank changes (5 degrees/second). Route fly-by lead and localizer capture use the same turn-radius model. These are generic training assumptions, not measured aircraft-specific handling: the inspected scenario PERFAC/PERFLINE tables do not define an exact bank/roll model.
+
+Localizer capture anticipates rollout, follows a damped centreline intercept and still rejects reciprocal/behind-threshold capture. APP CLEAR remains armed through heading vectors; APP CANCEL explicitly cancels it. A new DCT still cancels the approach. Glideslope capture remains from below/near the beam and requires lateral alignment; high aircraft are not forced to dive onto it. Late or physically impossible intercepts may still need corrective vectors, less speed or re-sequencing.
+
+Imported runway inference prefers the arrival-end suffix/explicit ILS route, and emitted flight plans end with a canonical destination/runway token. Position is sent before the initial flight plan so the receiving client already knows the aircraft. Test EuroScope with matching sector/ASR data; protocol tests do not establish identical graphics in every third-party plugin.
+
+Delete selected aircraft removes it from the current live session and sends a radar removal to connected controllers. The confirmation explains that Reset/reloading restores the original scenario, including deleted aircraft. Other aircraft and sessions continue. Student keys still cannot issue manual aircraft deletion.
