@@ -23,6 +23,7 @@ std::string JsonEscape(const std::string &s){std::string r;for(char c:s){if(c=='
 #include "../src/TrainingCommandBridge.h"
 int main(int argc,char **argv){
  CTrainingCommandBridge bridge;
+ if(argc>1&&std::string(argv[1])=="parser"){std::string command;for(const auto &line:{".ALT 5000",".HDG 240",".DCT LERAT",".APP CLEAR",".DELETE",".IDENT",".LHDG 090"})if(!CTrainingCommandBridge::Shortcut(line,command)||command!=std::string(line).substr(1))return 7;for(const auto &line:{".UI",".REPLAY SAVE",".HDGX 240","HDG 240",".SIM HDG 240",".HELP"})if(CTrainingCommandBridge::Shortcut(line,command))return 8;std::cout<<"PASS: bounded training shortcuts and unrelated-command rejection."<<std::endl;return 0;}
  if(argc>1&&std::string(argv[1])=="offline"){const auto r=bridge.Command("TEST101","INSTR_APP","HDG 270");std::cout<<r<<std::endl;return r.find("Connect my EuroScope")!=std::string::npos?0:2;}
  WSADATA data{};if(WSAStartup(MAKEWORD(2,2),&data))return 3;SOCKET s=socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);sockaddr_in a{};a.sin_family=AF_INET;a.sin_port=htons(6809);a.sin_addr.s_addr=htonl(0x7f000001);
  if(connect(s,reinterpret_cast<sockaddr*>(&a),sizeof(a)))return 4;

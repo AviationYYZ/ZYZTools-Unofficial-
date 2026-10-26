@@ -63,6 +63,14 @@ class CTrainingCommandBridge
         return "\"callsign\":\""+JsonEscape(cs)+"\",\"controller\":\""+JsonEscape(controller)+"\",\"port\":"+std::to_string(port)+",\"pid\":"+std::to_string(GetCurrentProcessId())+",\"sent_at\":"+std::to_string(std::time(nullptr))+",\"sessionId\":\""+JsonEscape(session)+"\"";
     }
 public:
+    static bool Shortcut(const std::string &line,std::string &command) {
+        if(line.empty() || line[0]!='.')return false;
+        const auto end=line.find(' ');const auto verb=line.substr(1,end==std::string::npos?std::string::npos:end-1);
+        static const std::vector<std::string> allowed={"ALT","RATE","SPD","IAS","HDG","LHDG","RHDG","DCT","APP","PAUSE","IDENT","SQ","MODE","SPEED","ROUTE","DELETE"};
+        if(std::find(allowed.begin(),allowed.end(),verb)==allowed.end())return false;
+        command=line.substr(1);return true;
+    }
+    bool TrainingContext() const {std::string nonce,session;return Binding(nonce,session)&&TrainingSocketPort()!=0;}
     std::string Tick(const std::string &selected,const std::string &controller) {
         std::string nonce,session,message;
         if (!pending.empty()) {
@@ -84,8 +92,8 @@ public:
         if(!pending.empty()) return "Previous training command is still awaiting acknowledgement.";
         std::string nonce,session; const DWORD port=TrainingSocketPort();
         if (!port || controller.empty() || !Binding(nonce,session)) return "Use Connect my EuroScope in Instructor first. Commands require this EuroScope's local training connection.";
-        if(!Callsign(selected))return "Click an aircraft to select it (ASEL), then enter .sim COMMAND.";
-        if(command.empty() || command.size()>100) return "Enter .sim ALT 5000, .sim HDG 240, .sim APP CLEAR, etc. Use .sim help.";
+        if(!Callsign(selected))return "Click an aircraft to select it (ASEL), then enter .ALT 5000, .HDG 240, etc.";
+        if(command.empty() || command.size()>100) return "Enter .ALT 5000, .HDG 240, .APP CLEAR, etc. Use .sim help.";
         const std::string id=std::to_string(GetCurrentProcessId())+"-"+std::to_string(GetTickCount64())+"-"+std::to_string(++sequence);
         const auto response=Request(L"POST",L"/command",nonce,"{"+Payload(selected,controller,port,session)+",\"id\":\""+id+"\",\"command\":\""+JsonEscape(command)+"\"}");
         std::string state,message; if(JsonStringValue(response,"state",state) && state=="pending") {pending=id;pendingNonce=nonce;deadline=GetTickCount64()+30000;return selected+": training command queued.";}

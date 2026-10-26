@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.41 — Local test, awaiting approval
+
+- Added instructor-only shorthand: .ALT, .RATE, .SPD/.IAS, .HDG/.LHDG/.RHDG, .DCT, .APP, .PAUSE, .IDENT, .SQ, .MODE, .SPEED, .ROUTE and .DELETE. The .sim namespace/help remains compatible.
+- Exact verb boundaries and existing ZYZTools/conflict/configured replay priority avoid claiming unrelated commands. Shorthand requires a direct, verified local instructor training socket/context; backend instructor/session/peer checks still apply. External-plugin dispatch order remains host-dependent.
+- Client app plus installed DLL update required; server 0.3.1 unchanged. Nothing published.
+
 ## 1.2.40 / Server test 0.3.1 — Local test, awaiting approval
 
 - EuroScope ASEL selection follows into the instructor dashboard. Added `.sim` command-bar instructions for the selected simulated aircraft with asynchronous applied/error acknowledgement.

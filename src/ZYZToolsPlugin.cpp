@@ -2267,17 +2267,22 @@ public:
     {
         if (!sCommandLine) return false;
         const std::string trainingCommand=Upper(CollapseWhitespace(Trim(sCommandLine)));
-        if(trainingCommand==".SIM" || trainingCommand.rfind(".SIM ",0)==0) {
+        const bool explicitTraining=trainingCommand==".SIM" || trainingCommand.rfind(".SIM ",0)==0;
+        // Existing plugin/configured replay commands retain priority. Generic
+        // shortcuts are claimed only with our verified local training context.
+        if(!explicitTraining){
+            if(m_conflict && m_conflict->OnCompileCommand(sCommandLine))return true;
+            if(trainingCommand==".UI" || trainingCommand=="."+ReplaySaveCommandKey())return HandleUiAction(sCommandLine);
+        }
+        std::string trainingInstruction;
+        const bool shortcut=CTrainingCommandBridge::Shortcut(trainingCommand,trainingInstruction);
+        if(explicitTraining || (shortcut && GetConnectionType()==CONNECTION_TYPE_DIRECT && m_trainingCommands.TrainingContext())) {
             std::string message;
-            if(trainingCommand==".SIM HELP" || trainingCommand==".SIM") message="Select an aircraft, then .sim ALT 5000 | RATE 1500 | SPD 210 | HDG/LHDG/RHDG 240 | DCT FIX | APP CLEAR/CANCEL | PAUSE ON/OFF | IDENT | SQ 4321 | MODE C/STBY | SPEED PUBLISHED | ROUTE RESUME | DELETE. Instructor training only.";
+            if(trainingCommand==".SIM HELP" || trainingCommand==".SIM") message="Select an aircraft, then .ALT 5000 | .RATE 1500 | .SPD 210 | .HDG/.LHDG/.RHDG 240 | .DCT FIX | .APP CLEAR/CANCEL | .PAUSE ON/OFF | .IDENT | .SQ 4321 | .MODE C/STBY | .SPEED PUBLISHED | .ROUTE RESUME | .DELETE. Instructor training only; .sim also works.";
             else if(GetConnectionType()!=CONNECTION_TYPE_DIRECT)message="Training commands require a direct instructor training connection, not playback or another connection mode.";
-            else {CFlightPlan fp=FlightPlanSelectASEL();CRadarTarget rt=RadarTargetSelectASEL();CController self=ControllerMyself();message=m_trainingCommands.Command(fp.IsValid()?fp.GetCallsign():rt.IsValid()?rt.GetCallsign():"",self.IsValid()?self.GetCallsign():"",trainingCommand.substr(5));}
+            else {CFlightPlan fp=FlightPlanSelectASEL();CRadarTarget rt=RadarTargetSelectASEL();CController self=ControllerMyself();message=m_trainingCommands.Command(fp.IsValid()?fp.GetCallsign():rt.IsValid()?rt.GetCallsign():"",self.IsValid()?self.GetCallsign():"",explicitTraining?trainingCommand.substr(5):trainingInstruction);}
             DisplayUserMessage("ZYZTools","TRAINING",message.c_str(),true,true,false,false,false);return true;
         }
-        if (m_conflict && m_conflict->OnCompileCommand(sCommandLine)) return true;
-        const std::string command = Upper(CollapseWhitespace(Trim(sCommandLine)));
-        if (command == ".UI" || command == "." + ReplaySaveCommandKey())
-            return HandleUiAction(sCommandLine);
         return false;
     }
 
