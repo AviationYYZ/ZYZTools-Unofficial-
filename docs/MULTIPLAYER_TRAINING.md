@@ -1,5 +1,7 @@
 # Shared manual sweatbox (1.2.31)
 
+Client 1.2.42 / server 0.3.2: the shared web panel adapts to phones/tablets, with labelled aircraft cards, 44px touch controls and responsive flight-plan fields. Tap an active aircraft to select it and jump to controls. Comma-separated commands work, e.g. `LHDG 330, ALT 3000`. Use the same private invite in the phone browser; no mobile app is required. Phones control only the existing shared-manual role; server-PC student invites remain read-only, not instructor credentials. Keys remain memory-only and are removed from invite fragments/history after joining. Open through the host's HTTPS invite when outside the LAN. Simulator hosting and EuroScope remain on Windows.
+
 Current 1.2.37 navigation: **Training → Student · join** for students; **Training → Local practice → Optional share** for desktop-hosted manual sharing. For the spare-PC instructor/server/student workflow, use [THREE_SERVER_SETUP.md](THREE_SERVER_SETUP.md). The training AI-pilot/readback system is removed. The older instructions below describe optional desktop hosting, not the server-PC instructor workflow.
 
 ## Quick connect (1.2.35)

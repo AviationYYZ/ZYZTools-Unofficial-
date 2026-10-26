@@ -38,7 +38,7 @@ class TrainingMultiplayer{
    const signature=JSON.stringify(value);if(this.requests.has(value.requestId)){const old=this.requests.get(value.requestId);if(old.signature!==signature)throw Error('Request ID already used for a different instruction.');return this.reply(res,200,old.result);}
    if(typeof value.callsign!=='string'||!this.training.aircraft.some(a=>a.callsign===value.callsign&&a.active))throw Error('Select an active simulated aircraft.');
    if(value.action==='command'){
-    if(typeof value.command!=='string'||value.command.length>100)throw Error('Invalid command.');this.training.command(value.callsign,value.command);
+    if(typeof value.command!=='string'||value.command.length>512)throw Error('Invalid command.');this.training.command(value.callsign,value.command);
    }else if(value.action==='amend'){
     const allowed=['flightRules','type','wake','equipment','origin','destination','alternate','cruiseAltitude','cruiseSpeed','departureTime','actualDepartureTime','enrouteHours','enrouteMinutes','fuelHours','fuelMinutes','remarks','flightPlanRoute','arrivalRunway','squawk'];
     if(!value.fields||typeof value.fields!=='object'||Array.isArray(value.fields)||Object.keys(value.fields).some(k=>!allowed.includes(k)))throw Error('Unsupported flight-plan field.');this.training.amend(value.callsign,value.fields);

@@ -1,11 +1,11 @@
-# Instructor commands inside EuroScope — client 1.2.41
+# Instructor commands inside EuroScope — client 1.2.42 / server 0.3.2
 
-The `.sim` prefix is now optional in the instructor training connection: use `.ALT 5000`, `.HDG 240`, `.DCT LERAT`, `.APP CLEAR`, `.IDENT`, `.DELETE`, etc. The same arguments apply to all examples below. `.sim help` and the full `.sim ...` form remain available. Existing ZYZTools/conflict/configured replay commands take priority over shorthand. Outside a verified training connection, shorthand is left to EuroScope/other plugins rather than intercepted. Other installed plugins may have their own commands with these names; their dispatch order cannot be guaranteed, so use the full `.sim` form if a conflict occurs. Update both the client app and its DLL; server 0.3.1 needs no update for this shorthand-only change.
+The `.sim` prefix is optional in the instructor training connection: use `.ALT 5000`, `.HDG 240`, `.DCT LERAT`, `.APP CLEAR`, `.IDENT`, `.DELETE`, etc. You can combine up to eight instructions with commas: `.LHDG 330, ALT 3000, IAS 210`. LHDG/RHDG explicitly choose turn direction; HDG uses the shortest turn. All batch instructions are validated before any is applied. DELETE must be standalone. The same arguments apply to all examples below. `.sim help` and `.sim ...` remain available. Existing ZYZTools/conflict/configured replay commands take priority; outside verified training, shorthand is left to EuroScope/other plugins. External-plugin dispatch order cannot be guaranteed; use `.sim` if a conflict occurs. For batches and the revised speed/turn engine, update client plus DLL and server 0.3.2.
 
 ## Setup
 
-1. Update the instructor desktop app to **ZYZTools test 1.2.41**. With EuroScope closed, use **Install / Link** to install/update its plugin DLL. Updating only the desktop EXE is not enough for shorthand commands or selection tracking.
-2. Update the server PC to **ZYZTools Server test 0.3.1** for the accompanying approach-turn fix. Stop sessions and exit the old server app from the tray before updating.
+1. Update the instructor desktop app to **ZYZTools test 1.2.42**. With EuroScope closed, use **Install / Link** to install/update its plugin DLL. Updating only the desktop EXE is not enough for the updated command bridge.
+2. Update the server PC to **ZYZTools Server test 0.3.2**. Stop sessions and exit the old server app from the tray before updating. Local-only training uses the client engine; remotely hosted training uses the server engine.
 3. Pair the instructor, select the server slot and click **Connect my EuroScope**. In EuroScope connect to the copied local address with Connect to VATSIM unchecked, dummy credentials and a unique instructor callsign. Keep the desktop app running.
 4. Click an aircraft/tag in EuroScope so it is ASEL-selected. The instructor dashboard follows the selection, normally within a few seconds. Command-bar instructions read the current selection directly, without waiting for the dashboard poll. Normal manual selection in the dashboard remains available.
 

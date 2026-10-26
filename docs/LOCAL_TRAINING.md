@@ -50,7 +50,7 @@ The initial squawk is both transmitted and announced as assigned at spawn. Later
 
 - ALT 5000: target altitude in feet; RATE 1500 sets vertical-rate magnitude in ft/min.
 - IAS 210 or SPD 210: assigned indicated knots, overriding published speeds.
-- SPEED PUBLISHED: cancel the assigned-speed override and resume appropriate known chart speeds.
+- SPEED PUBLISHED: cancel the assigned-speed override and resume the automatic training speed profile below.
 - HDG/LHDG/RHDG 270: shortest/left/right magnetic-heading vector. DCT FIX / ROUTE RESUME control navigation.
 - APP CLEAR / APP CANCEL: arm or cancel the simulated ILS for the selected runway.
 - PAUSE ON / PAUSE OFF: freeze or resume one aircraft while the others and spawn clock continue.
@@ -66,13 +66,13 @@ APP CLEAR requires an assigned arrival runway with imported geometry. Vector to 
 
 This is a sector-centreline/3-degree training approximation, NOT an instrument-approach database: no localizer frequency, displaced-threshold/antenna model, published glide-slope/DA/minima, approach lighting, terrain, missed approach, runway closure, wind or certified landing model. CYYZ aerodrome elevation is 569 feet; other imported runway elevations default to zero unless supplied in scenario data. Never use it for navigation.
 
-### Published speeds from the supplied screenshots
+### Automatic training speed profile (client 1.2.42 / server 0.3.2)
 
-The default scenario contains 59 runway/category-specific rules transcribed from the user's 10 Jeppesen simulation-chart screenshots: BOXUM7, IMEBA9, LINNG3, NUBER6 and RAGID6, east 05/06L/06R and west 23/24L/24R. Charts are dated 21 Nov 2025, effective 27 Nov 2025; current validity is NOT independently established. Source text is attached to each rule; no chart artwork is redistributed.
+The controller-requested profile replaces all chart-specific speed enforcement: 270 knots IAS above 10,000 feet, 250 at/below 10,000 feet (including below 5,000 and the previously unspecified 5–10k band), and 210 by a planned turn onto downwind. Assigned IAS overrides automation until SPEED PUBLISHED. Stationary ground aircraft are not accelerated.
 
-Rules distinguish exact AT from maximum/minimum IAS. Aircraft decelerate in advance of an upcoming applicable fix. Assigned IAS overrides the profile until SPEED PUBLISHED. Only sequenced/passed fixes establish prior restrictions; DCT shortcuts do not mark every skipped restriction as flown. The jet rules do not apply to props/unknown aircraft. Holding-only boxes and 15/33-flow restrictions are not inferred. Unsupported/missing coverage visibly retains baseline IAS instead of inventing a limit. STAR altitude restrictions, statutory speed limits, holds and conditional pilot speed clearances are not modelled.
+Downwind uses the assigned runway's imported true course, recognizing reciprocal legs/headings within 30 degrees below/at 10,000 feet. Filed-route deceleration anticipates both slowing distance and turn lead. A downwind vector starts deceleration immediately, but a simultaneous immediate turn cannot guarantee reaching 210 beforehand; assign speed in advance when needed. Once downwind slowing is triggered, 210 remains the automatic arrival target. Above 10,000 resets that arrival latch. Without runway geometry, only the altitude profile applies and status explains that limitation. No wind is simulated; GS equals TAS, not IAS.
 
-Review/edit the JSON profiles in Scenario Builder; Apply saves them to the scenario. Load supplied-chart defaults fills the editor, then Apply commits it. Changes require a stopped server. The profile is local editable scenario data, not an automatically maintained chart service.
+Legacy chart rule data remains readable for file/protocol compatibility but is no longer flown or offered as an editable speed system. This is an offline simulation profile, not actual chart, regulatory or aircraft-performance guidance. Commands accept up to eight comma-separated instructions (512 characters), e.g. `LHDG 330, ALT 3000, IAS 210`. All are checked first; an invalid instruction applies none. DELETE must be sent alone. Use `.LHDG 330, ALT 3000` from EuroScope for an explicitly left turn; HDG alone selects the shortest turn.
 
 ## Verification limits
 

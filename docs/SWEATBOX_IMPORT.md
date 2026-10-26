@@ -1,22 +1,26 @@
-# EuroScope SweatBox import — desktop test 1.2.39
+# EuroScope SweatBox import — desktop test 1.2.42 / server 0.3.2
 
-Use Load scenario under **Training → Instructor**, or Import in Scenario Builder. Both accept `.txt` EuroScope scenarios and existing ZYZTools JSON. Conversion happens on the instructor/client PC. Update the server to **0.3.0** for the new turn, approach, runway-transfer and deletion fixes; updating only the client does not replace the hosted simulation engine.
+Use Load scenario under **Training → Instructor**, or Import in Scenario Builder. Both accept `.txt` EuroScope scenarios and existing ZYZTools JSON. Conversion happens on the instructor/client PC. Update the server to **0.3.2** for the revised turn, automatic speed and multi-command engine; updating only the client does not replace the hosted simulation engine.
 
 Import the matching SCT/ESE/navdata into Scenario Builder first. Scenario coordinates and ILS geometry come from the chosen file; named route fixes must exist in the imported catalogue. No online fix lookup, chart guessing or source-file modification occurs. The original flight-plan text is retained; an explicit `$ROUTE` supplies the converted navigation path, including old procedures whose current STAR name differs. Routes without overrides require matching local flight-plan navdata.
 
 The importer handles aircraft positions, transponder mode/code, flight plans, initial heading, reusable routes, runway/ILS geometry and START delays in **minutes after simulation start**. Flight-level-style cruise altitude values are converted to feet. Files may be UTF-8, UTF-16LE or Windows-1252. It never executes directives or loads referenced scripts.
 
-Every text import displays a compatibility review before loading/uploading. Cancel is the default. Review the imported count, rejected aircraft and unsupported features; accepting a partial import explicitly omits listed rejected aircraft. Duplicate aircraft/ambiguous records block import. An unmatched flight-plan callsign is reported, never guessed or silently renamed. Invalid ILS definitions are omitted with a warning. Current airport identifiers are limited to four letters.
+Every text import displays a compatibility review before loading/uploading. Cancel is the default. Review imported count, repairs, rejected aircraft and unsupported features; accepting a partial import explicitly omits listed rejected aircraft. Duplicate aircraft/ambiguous records block import. Invalid or duplicated squawks get unique valid octal codes in both actual and assigned state, with each change reported. A flight-plan callsign missing exactly the first character of its immediately preceding unmatched position is repaired and reported; other unmatched plans are not guessed. Invalid ILS definitions are omitted with a warning. Current airport identifiers are limited to four letters.
 
 This is conversion into the existing ZYZTools simulator, **not the complete EuroScope simulation engine**:
 
-- Airborne aircraft use a visible training speed approximation: 210 IAS below 10,000 feet, otherwise 250 IAS. Scenario position records normally have no initial speed. Review/edit speeds before Run.
+- Airborne aircraft start at 270 IAS above 10,000 feet, otherwise 250. Automatic profile is enabled for converted airborne aircraft, including slowing to 210 before a detected downwind. Assigned IAS overrides it. Position records normally have no initial speed; this is a training approximation, not EuroScope's original performance engine.
 - Ground aircraft are stationary: no automatic taxi, takeoff or ground-collision simulation. Their filed plans are retained but ground navigation is disabled.
 - REQALT, route altitude restrictions, INSTRUCTION, DELAY, IASVARIATION, predefined route menus, holdings, controller/pseudo-pilot assignments, METAR and PERFAC/PERFLINE are not executed. Warnings identify these. Use instructor commands for altitude, speed, approach and aircraft motion.
-- Published-speed automation defaults off for converted scenarios; old scenario procedures must not silently inherit new chart constraints.
+- Old chart-specific speed rules are not flown. Downwind slowing needs the assigned runway's imported geometry; immediate vector commands start slowing immediately rather than instantly changing speed.
 - ILS is the existing generic centreline/3-degree model; a suitable vector/altitude and APP CLEAR are still required. Importing geometry does not automatically clear the aircraft for approach.
 
-The 17 files in the user's `Documents/sweatbox/ES` folder were checked against the installed CZYZ sector without modifying them. Sixteen offered at least some compatible aircraft: 361 convertible and 23 explicitly rejected among those files. `GND - 23 Pri Sec.txt` was blocked for duplicate aircraft records. Ground/departure file counts include stationary aircraft, not working taxi/takeoff simulation. Results depend on matching local navdata; this is not universal compatibility or AIRAC validation. No source scenarios are redistributed in the installer.
+The 17 files in the user's `Documents/sweatbox/ES` folder were checked against the installed CZYZ sector without modifying them. Sixteen offered at least some compatible aircraft: 370 convertible and 14 explicitly rejected among those files. `ARR - 06 Hard` imports 44/44 (previously 35/44); `GND - 23 Pri Sec.txt` remains blocked for duplicate callsigns. Ground/departure counts include stationary aircraft, not taxi/takeoff simulation. Results depend on matching local navdata; this is not universal compatibility or AIRAC validation. No source scenarios are redistributed in the installer.
+
+### Leader lines but invisible targets
+
+Import success and radar visibility are separate. The installed VATCANSitu `Arrival06.asr` has `altFilterHigh:245` (24,500 feet), while ARR - 06 Hard includes 28,000-foot spawns. Increase the display's altitude range to include the scenario (and check EuroScope's own filters). Hidden aircraft can still have leader lines or conflict overlays. Scheduled aircraft intentionally have no target until their START delay. No original ASR or aircraft altitude is silently changed to bypass your radar settings.
 
 ## Instructor EuroScope view
 

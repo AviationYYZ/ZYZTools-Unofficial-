@@ -1,7 +1,7 @@
 // Instructor-only local command adapter. It never sends instructions to FSD or
 // live networks: actions go solely to the paired simulator instructor API.
 const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
-function normalizeCommand(value){const s=String(value||'').trim().toUpperCase().replace(/\s+/g,' ');if(s==='DELETE')return 'DELETE AIRCRAFT';if(s==='APP')return 'APP CLEAR';if(s==='IDENT'||/^(ALT|RATE|SPD|IAS|HDG|LHDG|RHDG) \d+(?:\.\d+)?$/.test(s)||/^DCT [A-Z0-9_-]{1,16}$/.test(s)||/^(APP (CLEAR|CANCEL)|PAUSE (ON|OFF)|SPEED PUBLISHED|ROUTE RESUME|MODE (C|STBY)|SQ [0-7]{4}|DELETE AIRCRAFT)$/.test(s))return s;throw Error('Use ALT, RATE, SPD, HDG/LHDG/RHDG, DCT, SQ, IDENT, MODE, APP CLEAR/CANCEL, PAUSE ON/OFF, SPEED PUBLISHED, ROUTE RESUME or DELETE.');}
+const {normalizeCommand}=require('./training-commands');
 class TrainingCommandBridge{
  constructor(folder,channel,client,connector,options={}){this.folder=folder;this.channel=channel;this.client=client;this.connector=connector;this.port=options.port??(channel==='test'?6815:6816);this.file=path.join(folder,'Binding.json');this.requests=new Map();this.revision=0;this.selected='';this.lastChanged=0;}
  fingerprint(){return this.client.pair?crypto.createHash('sha256').update(this.client.pair.url+'|'+this.client.pair.token).digest('hex'):'';}

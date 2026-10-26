@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.2.42 / Server test 0.3.2 — Local test, awaiting approval
+
+- Replaced chart-based automatic speeds with a training-only IAS profile: 270 above 10,000 ft, 250 at/below (including the unspecified 5–10k band), 210 before a planned downwind turn. Assigned IAS still overrides it; SPEED PUBLISHED resumes it. Runway geometry identifies reciprocal downwind legs/vectors. Immediate vectors initiate deceleration, not instant speed changes. Stationary aircraft remain stationary.
+- Faster roll-aware turn rollout removes the old long widening tail. Physical TAS/bank limits and directed turns remain; regression coverage includes outbound overshoot and localizer capture.
+- Sharp route corners now predict the same rolling turn model used by aircraft, rather than clipping all turn angles to 150 degrees. Actual LINNG scenario regression includes its approximately 172-degree near-reversal at YZDW06 as well as the downwind-entry turn; insufficient leg space is reported rather than claiming an impossible turn will fit.
+- Legacy import reports repairs for invalid/duplicate squawks and an exact missing-first-character flight-plan callsign typo. ARR - 06 Hard now imports 44/44 instead of 35/44. Originals are not modified. Other unsupported/ambiguous records still require review, not silent invention.
+- Directed flight-plan replies and missing assigned-squawk query responses improve correlation. No periodic flight-plan spam. Added altitude-filter warning: installed Arrival06 hides above 24,500 ft while this scenario includes 28,000-ft spawns; this is independent of importer success.
+- Corrected delete-pilot disconnect packets: the second field is now a numeric local certificate ID, not SERVER. Delete removes the runtime aircraft before broadcasting; reset/stop use the same encoding. Verified delivery across real TCP + authenticated HTTP transport and no later position updates; actual EuroScope renderer removal still requires user validation.
+- Up to eight comma-separated commands in one message, e.g. .LHDG 330, ALT 3000. Full batch validation is atomic; a bad instruction applies none. DELETE remains standalone. Applies to local, remote panel and native instructor bridge, with existing role/session safeguards.
+- Mobile shared web panel: aircraft cards on small screens, touch-sized controls, responsive flight-plan fields, tap/keyboard selection, jump-to-controls and compact expandable fixes/log. Student read-only role and memory-only credentials remain unchanged.
+- Update desktop app plus DLL and hosted server engine. No GitHub publication or cloud deployment.
+
 ## 1.2.41 — Local test, awaiting approval
 
 - Added instructor-only shorthand: .ALT, .RATE, .SPD/.IAS, .HDG/.LHDG/.RHDG, .DCT, .APP, .PAUSE, .IDENT, .SQ, .MODE, .SPEED, .ROUTE and .DELETE. The .sim namespace/help remains compatible.

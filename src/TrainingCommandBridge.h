@@ -65,7 +65,7 @@ class CTrainingCommandBridge
 public:
     static bool Shortcut(const std::string &line,std::string &command) {
         if(line.empty() || line[0]!='.')return false;
-        const auto end=line.find(' ');const auto verb=line.substr(1,end==std::string::npos?std::string::npos:end-1);
+        const auto end=line.find_first_of(" ,");const auto verb=line.substr(1,end==std::string::npos?std::string::npos:end-1);
         static const std::vector<std::string> allowed={"ALT","RATE","SPD","IAS","HDG","LHDG","RHDG","DCT","APP","PAUSE","IDENT","SQ","MODE","SPEED","ROUTE","DELETE"};
         if(std::find(allowed.begin(),allowed.end(),verb)==allowed.end())return false;
         command=line.substr(1);return true;
@@ -93,7 +93,7 @@ public:
         std::string nonce,session; const DWORD port=TrainingSocketPort();
         if (!port || controller.empty() || !Binding(nonce,session)) return "Use Connect my EuroScope in Instructor first. Commands require this EuroScope's local training connection.";
         if(!Callsign(selected))return "Click an aircraft to select it (ASEL), then enter .ALT 5000, .HDG 240, etc.";
-        if(command.empty() || command.size()>100) return "Enter .ALT 5000, .HDG 240, .APP CLEAR, etc. Use .sim help.";
+        if(command.empty() || command.size()>512) return "Enter up to 8 commands: .HDG 330, ALT 3000. Use .sim help.";
         const std::string id=std::to_string(GetCurrentProcessId())+"-"+std::to_string(GetTickCount64())+"-"+std::to_string(++sequence);
         const auto response=Request(L"POST",L"/command",nonce,"{"+Payload(selected,controller,port,session)+",\"id\":\""+id+"\",\"command\":\""+JsonEscape(command)+"\"}");
         std::string state,message; if(JsonStringValue(response,"state",state) && state=="pending") {pending=id;pendingNonce=nonce;deadline=GetTickCount64()+30000;return selected+": training command queued.";}

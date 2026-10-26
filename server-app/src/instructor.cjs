@@ -59,7 +59,7 @@ class InstructorHub{
  async apply(v){const id=v.slot,p=v.payload||{};
   if(v.action==='studentInvite')return {invite:await this.manager.call(id,'invite')};
   if(['command','amend'].includes(v.action)){
-   if(typeof p.callsign!=='string'||typeof p.sessionId!=='string'||v.action==='command'&&(typeof p.command!=='string'||p.command.length>100))throw Error('Invalid aircraft instruction.');
+   if(typeof p.callsign!=='string'||typeof p.sessionId!=='string'||v.action==='command'&&(typeof p.command!=='string'||p.command.length>512))throw Error('Invalid aircraft instruction.');
    return this.manager.call(id,'instructor',{operation:v.action,sessionId:p.sessionId,callsign:p.callsign,command:p.command,fields:p.fields});
   }
   if(v.action==='import'||v.action==='demo'){

@@ -15,7 +15,11 @@ function parse(text,catalogue={},name='Imported SweatBox'){
     const callsign=p[0];if(planes.has(callsign))throw Error('Duplicate aircraft '+callsign+'.');
     current={callsign,squawk:p[1],squawkMode:key.slice(1),...point(p[3],p[4]),altitude:num(p[5],0,60000,'initial altitude'),heading:(((num(p[7],0,4294967295,'packed heading')>>>2)&1023)/2.88)%360,spawnTime:0};planes.set(callsign,current);if(planes.size>100)throw Error('Scenario exceeds 100 aircraft.');
    }else if(key.startsWith('$FP')){
-    const a=planes.get(key.slice(3));if(!a){warnings.add('Line '+(index+1)+': flight plan '+key.slice(3)+' has no matching position and is not imported.');continue;}if(a.fp)throw Error('Duplicate flight plan for '+a.callsign+'.');
+    const fpCallsign=key.slice(3);let a=planes.get(fpCallsign);
+    // Some legacy files omit the first character of the immediately preceding
+    // callsign. Repair only that exact, unambiguous case and report it.
+    if(!a&&current&&!current.fp&&current.callsign.slice(1)===fpCallsign){a=current;warnings.add('Line '+(index+1)+': repaired flight-plan callsign '+fpCallsign+' to preceding position '+a.callsign+'.');}
+    if(!a){warnings.add('Line '+(index+1)+': flight plan '+fpCallsign+' has no matching position and is not imported.');continue;}if(a.fp)throw Error('Duplicate flight plan for '+a.callsign+'.');
     if(p.length!==16)throw Error('Flight plan must contain 16 fields after callsign.');
     const type=p[2].split('/');a.type=type[0];a.wake='M';if(/^[HJ]$/.test(type[0])){a.wake=type.shift();a.type=type[0];}a.equipment=type.slice(1).join('/')||'S';
     let cruise=num(p[7],0,60000,'cruise altitude');if(cruise>0&&cruise<=600){cruise*=100;warnings.add('Cruise altitudes of 600 or less interpreted as flight levels.');}
@@ -38,6 +42,13 @@ function parse(text,catalogue={},name='Imported SweatBox'){
  if(!planes.size)throw Error('No EuroScope aircraft position records found.');if(errors.length)throw Error(errors.slice(0,8).join('\n'));
  const airports=new Map();for(const a of planes.values())for(const airport of [a.destination,a.origin])if(airport)airports.set(airport,(airports.get(airport)||0)+1);const defaultAirport=[...airports].sort((a,b)=>b[1]-a[1])[0]?.[0];
  const map=new Map((catalogue.fixes||[]).map(w=>[w.name,w])),used=new Map(),aircraft=[],rejected=[],runways=[];
+ const reserved=new Set([...planes.values()].map(a=>a.squawk).filter(s=>/^[0-7]{4}$/.test(s))),assigned=new Set();let spare=0o1000;
+ for(const a of planes.values()){
+  if(/^[0-7]{4}$/.test(a.squawk)&&!assigned.has(a.squawk)){assigned.add(a.squawk);continue;}
+  while(reserved.has(spare.toString(8).padStart(4,'0'))||['1200','7500','7600','7700'].includes(spare.toString(8)))spare++;
+  const previous=a.squawk;a.squawk=(spare++).toString(8).padStart(4,'0');assigned.add(a.squawk);reserved.add(a.squawk);
+  warnings.add(a.callsign+': replaced invalid/duplicate legacy squawk '+previous+' with unique '+a.squawk+' (actual and flight-plan assignment).');
+ }
  for(const a of planes.values()){
   try{
    if(!a.fp)throw Error('Missing flight plan.');
@@ -56,15 +67,17 @@ function parse(text,catalogue={},name='Imported SweatBox'){
     a.route=expanded.route;for(const w of expanded.waypoints)used.set(w.name,w);
     // Position records contain no initial speed. Explicit training approximation,
     // not the filed high-altitude TAS or a claim of EuroScope performance parity.
-    a.speed=Number(a.altitude)<10000?210:250;a.speedBasis='IAS';warnings.add('Airborne initial speed uses a training default: 210 IAS below 10,000 ft, otherwise 250 IAS. Review before Run.');
+    a.speed=Number(a.altitude)>10000?270:250;a.speedBasis='IAS';warnings.add('Airborne speeds use the automatic training profile: 270 IAS above 10,000 ft, 250 at/below, 210 by a detected downwind; manual IAS overrides it.');
    }
-   a.publishedSpeeds=false;a.compiledPlan=a.flightPlanRoute;a.compiledRunway=a.arrivalRunway;
+   a.publishedSpeeds=!ground;a.compiledPlan=a.flightPlanRoute;a.compiledRunway=a.arrivalRunway;
    for(const r of ils.values()){const airport=r.airport||defaultAirport;if(!/^[A-Z]{4}$/.test(airport)){warnings.add('Runway airport '+airport+' is not supported by the current four-letter airport model.');continue;}if(!runways.some(x=>x.airport===airport&&x.name===r.name))runways.push({...r,airport,elevation});}
    // Validate each aircraft before offering a partial-import review.
    normalize({format:'ZYZTools-training',version:1,name,waypoints:[...used.values()],aircraft:[a],runways});aircraft.push(a);
   }catch(e){rejected.push(a.callsign+': '+e.message);}
  }
  if(!aircraft.length)throw Error('No compatible aircraft.\n'+rejected.slice(0,8).join('\n'));
+ const maxAltitude=Math.max(...aircraft.map(a=>a.altitude));
+ warnings.add('EuroScope/VATCANSitu altitude filters must include the scenario range (up to '+maxAltitude+' ft). Filtered targets may retain leader lines/conflict alerts; they are not missing aircraft. Scheduled aircraft remain inactive until their START delay.');
  const scenario=normalize({format:'ZYZTools-training',version:1,name,magneticVariationWest:catalogue.magneticVariationWest??10.37,waypoints:[...used.values()],aircraft,runways,speedRules:[]});
  return {scenario,report:{total:planes.size,imported:aircraft.length,rejected,warnings:[...warnings]}};
 }
