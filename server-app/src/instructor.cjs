@@ -42,7 +42,7 @@ class InstructorHub{
    let value;try{value=JSON.parse(raw);}catch{throw Error('Invalid JSON.');}
    if(!value||Array.isArray(value)||typeof value!=='object'||Object.keys(value).some(k=>!['requestId','slot','action','epoch','payload'].includes(k))||!/^[a-zA-Z0-9_-]{8,100}$/.test(value.requestId||''))throw Error('Invalid instructor request.');
    this.manager.slot(value.slot);
-   const allowed=['import','demo','start','stop','run','pause','reset','restart','command','amend','studentInvite'];if(!allowed.includes(value.action))throw Error('Unsupported instructor action.');
+   const allowed=['import','demo','start','stop','run','pause','reset','restart','command','amend','studentInvite','instructorInvite','engine','nativeSetup','launchNative'];if(!allowed.includes(value.action))throw Error('Unsupported instructor action.');
    for(const [id,r]of this.requests)if(r.at<Date.now()-300000)this.requests.delete(id);
    const signature=crypto.createHash('sha256').update(raw).digest('hex'),old=this.requests.get(value.requestId);
    if(old){if(old.signature!==signature)throw Error('Request ID already used.');return this.reply(res,200,await old.result);}
@@ -58,6 +58,10 @@ class InstructorHub{
  }
  async apply(v){const id=v.slot,p=v.payload||{};
   if(v.action==='studentInvite')return {invite:await this.manager.call(id,'invite')};
+  if(v.action==='instructorInvite')return {invite:await this.manager.call(id,'instructorInvite')};
+  if(v.action==='engine'){if(Object.keys(p).some(k=>k!=='engineMode')||!['zyztools','euroscope'].includes(p.engineMode))throw Error('Choose only ZYZTools or native EuroScope.');return this.manager.configure(id,{engineMode:p.engineMode});}
+  if(v.action==='nativeSetup')return this.manager.nativeSetup(id);
+  if(v.action==='launchNative')return this.manager.launchNative(id);
   if(['command','amend'].includes(v.action)){
    if(typeof p.callsign!=='string'||typeof p.sessionId!=='string'||v.action==='command'&&(typeof p.command!=='string'||p.command.length>512))throw Error('Invalid aircraft instruction.');
    return this.manager.call(id,'instructor',{operation:v.action,sessionId:p.sessionId,callsign:p.callsign,command:p.command,fields:p.fields});

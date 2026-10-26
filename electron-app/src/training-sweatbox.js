@@ -26,15 +26,17 @@ function parse(text,catalogue={},name='Imported SweatBox'){
     Object.assign(a,{fp:true,flightRules:p[1],cruiseSpeed:num(p[3],0,600,'filed TAS'),origin:p[4],departureTime:p[5]||'0000',actualDepartureTime:p[6]||'0000',cruiseAltitude:cruise,destination:p[8],enrouteHours:Number(p[9]||0),enrouteMinutes:Number(p[10]||0),fuelHours:Number(p[11]||0),fuelMinutes:Number(p[12]||0),alternate:p[13],remarks:p[14],flightPlanRoute:p[15]});
    }else if(key==='$ROUTE'){
     const {a,p:parts}=target(p);if(a.override!==undefined)throw Error('Duplicate navigation route for '+a.callsign+'.');a.override=parts[0];if(parts[1]!==undefined)a.spawnTime=num(parts[1],0,1440,'START minutes')*60;
-    if(parts.length>2)warnings.add('Legacy route response delays/altitude targets are not executed.');
+    if(parts.length>2)warnings.add('Legacy route response delays are not executed.');
+    if(parts[4]&&parts[5]!==undefined)a.initialDescent={fix:parts[4].toUpperCase(),altitude:num(parts[5],0,60000,'initial descent altitude')};
    }else if(key==='START'){const {a,p:parts}=target(p);a.spawnTime=num(parts[0],0,1440,'START minutes')*60;}
+   else if(key==='REQALT'){const {a,p:parts}=target(p);if(parts.length!==2)throw Error('REQALT needs a fix and altitude in feet.');const altitude=num(parts[1],0,60000,'REQALT altitude');if(parts[0]){a.initialDescent={fix:parts[0].toUpperCase(),altitude};warnings.add('REQALT initial descent targets are imported; manual ALT overrides them. Route slash-altitude constraints remain unsupported.');}else warnings.add('REQALT without a fix (typically a takeoff altitude) remains unsupported; no automatic taxi/takeoff/climb is invented.');}
    else if(key==='AIRPORT_ALT')elevation=num(p[0],-1000,15000,'airport altitude');
    else if(key.startsWith('ILS')){
     const match=key.match(/^ILS(\d{2}[LRC]?)(?:\s+([A-Z0-9]{4}))?$/);if(!match)throw Error('Invalid ILS name.');const threshold=point(p[0],p[1]);
     const opposite=p.length===4?point(p[2],p[3]):p.length===3?move(threshold,1,num(p[2],0,360,'runway heading')):null;if(!opposite)throw Error('Invalid ILS geometry.');
     if(ils.has(key))throw Error('Duplicate ILS definition.');ils.set(key,{name:match[1],airport:match[2]||'',threshold,opposite});
    }else if(['PSEUDOPILOT','INITIALPSEUDOPILOT','CONTROLLER'].includes(key))warnings.add('Pseudo-pilot/controller assignments are not recreated; use instructor/student connections.');
-   else if(['DELAY','REQALT','INSTRUCTION','IASVARIATION','HOLDING','ROUTE','METAR','PERFAC','PERFLINE'].includes(key))warnings.add(key+' definitions are not executed; instructor commands and the ZYZTools flight model apply.');
+   else if(['DELAY','INSTRUCTION','IASVARIATION','HOLDING','ROUTE','METAR','PERFAC','PERFLINE'].includes(key))warnings.add(key+' definitions are not executed; instructor commands and the ZYZTools flight model apply.');
    else if(key==='SIMDATA')warnings.add('SIMDATA tower models, taxi and ground-collision behaviour are not simulated.');
    else warnings.add('Unsupported directive '+key.slice(0,50)+' is not executed.');
   }catch(e){if(line.startsWith('ILS'))warnings.add('Line '+(index+1)+': ILS definition not imported: '+e.message);else errors.push('Line '+(index+1)+': '+e.message);}
@@ -55,7 +57,7 @@ function parse(text,catalogue={},name='Imported SweatBox'){
    const ground=a.altitude<=elevation+100;const matches=[...a.flightPlanRoute.matchAll(/\/(\d{2}[LRC]?)(?=\s|$)/g)];a.arrivalRunway=ground?'':matches.at(-1)?.[1]||'';
    const route=a.override&&!['FP','FPA'].includes(a.override)?a.override:null;
    let expanded;
-   if(ground){a.route='';a.speed=0;a.speedBasis='IAS';warnings.add('Ground aircraft imported stationary with no taxi/takeoff simulation or automatic navigation.');}
+   if(ground){a.route='';a.speed=0;a.speedBasis='IAS';delete a.initialDescent;warnings.add('Ground aircraft imported stationary with no taxi/takeoff simulation or automatic navigation.');}
    else{
     if(route){const fixes=[];for(const part of route.trim().toUpperCase().split(/\s+/).filter(Boolean)){
      const [fix,alt]=part.split('/');if(alt!==undefined)warnings.add('Route altitude constraints are not flown automatically.');
@@ -69,7 +71,8 @@ function parse(text,catalogue={},name='Imported SweatBox'){
     // not the filed high-altitude TAS or a claim of EuroScope performance parity.
     a.speed=Number(a.altitude)>10000?270:250;a.speedBasis='IAS';warnings.add('Airborne speeds use the automatic training profile: 270 IAS above 10,000 ft, 250 at/below, 210 by a detected downwind; manual IAS overrides it.');
    }
-   a.publishedSpeeds=!ground;a.compiledPlan=a.flightPlanRoute;a.compiledRunway=a.arrivalRunway;
+   if(a.initialDescent&&!a.route.split(' ').includes(a.initialDescent.fix)){warnings.add(a.callsign+': REQALT fix '+a.initialDescent.fix+' is not in its navigation route; initial descent omitted for review.');delete a.initialDescent;}
+   a.automaticSpeeds=!ground;a.publishedSpeeds=!ground;a.compiledPlan=a.flightPlanRoute;a.compiledRunway=a.arrivalRunway;
    for(const r of ils.values()){const airport=r.airport||defaultAirport;if(!/^[A-Z]{4}$/.test(airport)){warnings.add('Runway airport '+airport+' is not supported by the current four-letter airport model.');continue;}if(!runways.some(x=>x.airport===airport&&x.name===r.name))runways.push({...r,airport,elevation});}
    // Validate each aircraft before offering a partial-import review.
    normalize({format:'ZYZTools-training',version:1,name,waypoints:[...used.values()],aircraft:[a],runways});aircraft.push(a);

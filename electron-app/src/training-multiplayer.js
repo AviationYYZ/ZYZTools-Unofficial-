@@ -1,18 +1,18 @@
 // Optional manual control panel. Never exposes the EuroScope/FSD socket.
 const http=require('node:http'),crypto=require('node:crypto'),fs=require('node:fs'),path=require('node:path');
 class TrainingMultiplayer{
- constructor(training,port,options={}){this.training=training;this.port=port;this.readOnly=options.readOnly===true;this.requests=new Map();this.log=[];this.generation=0;this.fsd=new (require('./training-fsd-tunnel').FsdSessions)(training);}
+ constructor(training,port,options={}){this.training=training;this.port=port;this.readOnly=options.readOnly===true;this.instructorTransport=options.instructorTransport===true;this.requests=new Map();this.log=[];this.generation=0;this.fsd=new (require('./training-fsd-tunnel').FsdSessions)(training,'student');this.instructorFsd=new (require('./training-fsd-tunnel').FsdSessions)(training,'instructor');}
  status(){return {enabled:!!this.server,port:this.port,url:'http://127.0.0.1:'+this.port,token:this.server?this.token:'',lastAction:this.log.at(-1)||null};}
- snapshot(){const s=this.training.status();return {role:this.readOnly?'student':'shared',readOnly:this.readOnly,sessionId:s.sessionId,name:s.scenario.name,running:s.running,listening:s.listening,elapsed:s.elapsed,aircraft:s.aircraft.map(a=>({...a})),fixes:(this.training.runtimeWaypoints||s.scenario.waypoints).map(w=>({name:w.name,lat:w.lat,lon:w.lon})),log:this.log.filter(x=>x.sessionId===s.sessionId).slice(-30)};}
+ snapshot(){const s=this.training.status();return {role:this.readOnly?'student':'shared',readOnly:this.readOnly,engineMode:s.engineMode||'zyztools',nativeHostConnected:s.nativeHostConnected===true,sessionId:s.sessionId,name:s.scenario.name,running:s.running,listening:s.listening,elapsed:s.elapsed,aircraft:s.aircraft.map(a=>({...a,packet:undefined})),fixes:(this.training.runtimeWaypoints||s.scenario.waypoints).map(w=>({name:w.name,lat:w.lat,lon:w.lon})),log:this.log.filter(x=>x.sessionId===s.sessionId).slice(-30)};}
  async start(){
   if(this.server)return this.status();if(this.starting)throw Error('Shared control is starting.');
   if(!this.training.server)throw Error('Start the local training server first.');
-  this.starting=true;this.token=crypto.randomBytes(32).toString('hex');this.requests.clear();this.log=[];this.generation++;this.count=0;this.window=Date.now();
+  this.starting=true;this.token=crypto.randomBytes(32).toString('hex');this.instructorToken=this.instructorTransport?crypto.randomBytes(32).toString('hex'):'';this.requests.clear();this.log=[];this.generation++;this.count=0;this.window=Date.now();
   const generation=this.generation,server=http.createServer((req,res)=>this.handle(req,res));server.requestTimeout=10000;server.headersTimeout=10000;server.maxHeadersCount=30;server.maxConnections=32;
   try{await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(this.port,'127.0.0.1',resolve);});if(generation!==this.generation){server.close();throw Error('Start canceled.');}this.port=server.address().port;this.server=server;server.on('error',()=>this.stop());return this.status();}
   catch{server.close();throw Error('Cannot start shared control port '+this.port+'. Another instance may be using it.');}finally{this.starting=false;}
  }
- stop(){this.generation++;this.fsd.stop();this.server?.closeAllConnections();this.server?.close();this.server=null;this.token='';this.requests.clear();return this.status();}
+ stop(){this.generation++;this.fsd.stop();this.instructorFsd.stop();this.server?.closeAllConnections();this.server?.close();this.server=null;this.token='';this.instructorToken='';this.requests.clear();return this.status();}
  reply(res,status,data,type='application/json'){res.writeHead(status,{'Content-Type':type+'; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; form-action 'none'; base-uri 'none'",'X-Frame-Options':'DENY'});res.end(type==='application/json'?JSON.stringify(data):data);}
  async handle(req,res){
   const generation=this.generation;
@@ -20,11 +20,11 @@ class TrainingMultiplayer{
    if(Date.now()-this.window>60000){this.window=Date.now();this.count=0;}if(++this.count>2400)return this.reply(res,429,{error:'Too many requests. Wait a minute.'});
    const files={'/':'training-multiplayer.html','/panel.js':'training-multiplayer-client.js','/panel.css':'training-multiplayer.css'},file=Object.hasOwn(files,req.url)?files[req.url]:null;
    if(req.method==='GET'&&file)return this.reply(res,200,fs.readFileSync(path.join(__dirname,file),'utf8'),file.endsWith('.html')?'text/html':file.endsWith('.css')?'text/css':'application/javascript');
-   const supplied=req.headers.authorization||'',expected='Bearer '+this.token;
-   if(!this.token||Buffer.byteLength(supplied)!==Buffer.byteLength(expected)||!crypto.timingSafeEqual(Buffer.from(supplied),Buffer.from(expected)))return this.reply(res,401,{error:'Enter the current host access key.'});
+   const supplied=req.headers.authorization||'',equal=token=>{const expected='Bearer '+token;return !!token&&Buffer.byteLength(supplied)===Buffer.byteLength(expected)&&crypto.timingSafeEqual(Buffer.from(supplied),Buffer.from(expected));},instructor=equal(this.instructorToken);
+   if(!instructor&&!equal(this.token))return this.reply(res,401,{error:'Enter the current host access key.'});
    // No CORS or cookie auth. The browser's same-origin policy protects the key.
    if(req.headers['sec-fetch-site']==='cross-site')return this.reply(res,403,{error:'Cross-site requests are not allowed.'});
-   if(req.url.startsWith('/api/fsd/'))return await this.fsd.request(req,res,this.reply.bind(this));
+   if(req.url.startsWith('/api/fsd/')){if(req.url==='/api/fsd/open'&&this.fsd.sessions.size+this.instructorFsd.sessions.size>=3)throw Error('Remote connection limit reached.');return await (instructor?this.instructorFsd:this.fsd).request(req,res,this.reply.bind(this));}
    if(req.method==='GET'&&req.url==='/api/status')return this.reply(res,200,this.snapshot());
    if(this.readOnly)return this.reply(res,403,{error:'Student access cannot control aircraft. Use the instructor dashboard.'});
    if(req.method!=='POST'||req.url!=='/api/action')return this.reply(res,404,{error:'Not found.'});

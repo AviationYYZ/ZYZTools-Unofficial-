@@ -63,6 +63,7 @@ function resolveScenario(raw,catalogue){
   const copy={...a},expanded=require('./training-routes').expandRoute(a,{...catalogue,fixes:[...map.values()]},raw.waypoints);copy.route=expanded.route;copy.flightPlanRoute=a.flightPlanRoute??a.route??'';copy.arrivalRunway=expanded.arrivalRunway;copy.procedures=expanded.procedures;for(const w of expanded.waypoints){map.set(w.name,w);required.add(w.name);}
   if(a.spawnFix){const name=String(a.spawnFix).trim().toUpperCase(),fix=map.get(name);if(!fix)throw Error('Unknown spawn fix '+name+'. Import the correct sector file.');copy.lat=fix.lat;copy.lon=fix.lon;copy.spawnFix=name;required.add(name);}return copy;
  });
+ for(const a of aircraft)if(a.initialDescent&&!a.route.split(' ').includes(a.initialDescent.fix))delete a.initialDescent;
  const waypoints=[...required].map(name=>{const fix=map.get(name);if(!fix)throw Error('Unknown route fix '+name+'. Import the correct sector file or define it manually.');return fix;});return {...raw,magneticVariationWest:raw.magneticVariationWest??catalogue?.magneticVariationWest,waypoints,aircraft,runways:raw.runways?.length?raw.runways:catalogue?.runways||[],speedRules:raw.speedRules??require('./training-speed-data').rules};
 }
 module.exports={coordinate,parseSector,importSectors,resolveScenario,parseAsr,visible,sectionKinds};

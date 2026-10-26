@@ -2,7 +2,7 @@
 // No configurable upstream: host side can connect only to its own simulator.
 const net=require('node:net'),crypto=require('node:crypto'),http=require('node:http'),https=require('node:https');
 class FsdSessions{
- constructor(training){this.training=training;this.sessions=new Map();}
+ constructor(training,role='student'){this.training=training;this.role=role;this.sessions=new Map();}
  close(id){const s=this.sessions.get(id);if(s){s.socket.destroy();s.wait?.();this.sessions.delete(id);}}
  stop(){for(const id of this.sessions.keys())this.close(id);}
  async request(req,res,reply){
@@ -12,7 +12,7 @@ class FsdSessions{
    const id=crypto.randomBytes(24).toString('hex'),socket=net.connect({host:this.training.host,port:this.training.port}),s={socket,buffer:Buffer.alloc(0),sequence:0,ended:false,last:Date.now()};this.sessions.set(id,s);
    socket.on('data',b=>{s.buffer=Buffer.concat([s.buffer,b]);if(s.buffer.length>262144){s.ended=true;socket.destroy();}s.wait?.();});socket.on('error',()=>{s.ended=true;s.wait?.();});socket.on('close',()=>{s.ended=true;s.wait?.();});
    s.timer=setInterval(()=>{if(Date.now()-s.last>30000){clearInterval(s.timer);this.close(id);}},10000);socket.on('close',()=>clearInterval(s.timer));
-   await new Promise((resolve,reject)=>{socket.once('connect',resolve);socket.once('error',reject);});return reply(res,200,{id});
+   await new Promise((resolve,reject)=>{socket.once('connect',resolve);socket.once('error',reject);});const peerPort=socket.localPort;this.training.registerTransportPort?.(peerPort,this.role);socket.once('close',()=>this.training.unregisterTransportPort?.(peerPort));return reply(res,200,{id});
   }
   const s=this.sessions.get(id);if(!s)throw Error('Remote session expired. Reconnect.');s.last=Date.now();
   if(verb==='close'&&req.method==='POST'){this.close(id);return reply(res,200,{ok:true});}

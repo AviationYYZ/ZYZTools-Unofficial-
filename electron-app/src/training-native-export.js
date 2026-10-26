@@ -1,0 +1,30 @@
+// Native EuroScope files generated from the SAME editor scenario, not a second
+// aircraft engine. No user profiles, credentials, plugins or startup connection.
+const path=require('node:path'),{normalize,geometry,flightPlan}=require('./local-training');
+function coordinate(value,latitude){const millis=Math.round(Math.abs(value)*3600000),d=Math.floor(millis/3600000),m=Math.floor(millis%3600000/60000),s=millis%60000/1000;return (latitude?(value<0?'S':'N'):(value<0?'W':'E'))+String(d).padStart(3,'0')+'.'+String(m).padStart(2,'0')+'.'+s.toFixed(3).padStart(6,'0');}
+function bundle(raw,slot,folder){
+ if(![1,2,3].includes(slot)||!path.isAbsolute(folder))throw Error('Invalid native slot folder.');
+ const scenario=normalize(raw);if(!scenario.aircraft.length)throw Error('Add aircraft before preparing native EuroScope.');
+ const wanted=new Set(scenario.aircraft.filter(a=>a.arrivalRunway).map(a=>a.destination+'/'+a.arrivalRunway));
+ const runways=scenario.runways.filter(r=>wanted.has(r.airport+'/'+r.name));
+ if(new Set(runways.map(r=>r.airport)).size>1||runways.length>4)throw Error('Native export supports one approach airport and up to four approach runways per slot.');
+ const warnings=['EuroScope, not ZYZTools, flies the aircraft in this mode. Native performance/speed/approach behavior replaces ZYZTools automatic profiles.','Open the prepared profile and connect the SERVER-PC EuroScope manually to its loopback address. No automatic connection is made.'];
+ for(const a of scenario.aircraft)if(a.spawnTime%60!==0)throw Error(a.callsign+': native export currently requires whole-minute spawn delays. Adjust the editor delay; seconds are not silently rounded.');
+ for(const key of wanted)if(!runways.some(r=>r.airport+'/'+r.name===key))throw Error('Import runway geometry for '+key+' before native export.');
+ const fixes=new Map(scenario.waypoints.map(w=>[w.name,w])),airport=runways[0]?.airport||scenario.aircraft[0].destination,centre=runways[0]?.threshold||scenario.aircraft[0];
+ const lines=['; ZYZTools LOCAL PRIVATE TRAINING ONLY','AIRPORT_ALT:'+(runways[0]?.elevation||0)];
+ for(const r of runways){lines.push('ILS'+r.name+':'+r.threshold.lat+':'+r.threshold.lon+':'+r.opposite.lat+':'+r.opposite.lon);fixes.set('ILS'+r.name,{name:'ILS'+r.name,...r.threshold});}
+ for(const a of scenario.aircraft){
+  const heading=(Math.round(a.heading*2.88)<<2),route=a.route.split(' ').filter(Boolean),r=runways.find(r=>r.airport===a.destination&&r.name===a.arrivalRunway),last=fixes.get(route.at(-1));
+  if(r&&last&&geometry(last,r.threshold).distance<.1)route[route.length-1]='ILS'+r.name;
+  lines.push('@'+a.squawkMode+':'+a.callsign+':'+a.squawk+':1:'+a.lat+':'+a.lon+':'+a.altitude+':0:'+heading+':0',flightPlan(a),'$ROUTE:'+route.join(' '),'START:'+a.spawnTime/60);
+  if(a.initialDescent)lines.push('REQALT:'+a.initialDescent.fix+':'+a.initialDescent.altitude);
+  if(!a.automaticSpeeds)warnings.push(a.callsign+': native mode does not convert a ZYZTools initial-speed opt-out into a pilot speed order; set native speed after taking simulation.');
+ }
+ const sector=['[INFO]','ZYZTools private native slot '+slot,'ZYHOST'+slot,airport,coordinate(centre.lat,true),coordinate(centre.lon,false),'60','60',String(scenario.magneticVariationWest),'1','','[FIXES]',...[...fixes.values()].map(w=>w.name+' '+coordinate(w.lat,true)+' '+coordinate(w.lon,false)),'','[AIRPORT]',airport+' 000.000 '+coordinate(centre.lat,true)+' '+coordinate(centre.lon,false)+' D'];
+ const address='127.0.0.'+(10+slot),scenarioPath=path.join(folder,'scenario.txt'),sectorPath=path.join(folder,'native.sct');
+ const profile=[['Settings','sector',sectorPath],['Settings','Settingsfile',path.join(folder,'native-settings.txt')],['Settings','SettingsfilePLUGINS',path.join(folder,'native-plugins.txt')],['LastSession','connecttype','2'],['LastSession','callsign','ZYHOST'+slot],['LastSession','facility','5'],['LastSession','server',address],['LastSession','tovatsim','0'],['LastSession','range','300'],['LastSession','simdatapublish','2'],['LastSession','realname','ZYZTools LOCAL engine'],['LastSession','certificate','0000000'],['LastSession','password','dummy'],['LastSession','rating','5']].map(p=>p.join('\t'));
+ const guide=['PRIVATE LOCAL SESSION ONLY — NEVER VATSIM OR PUBLIC SWEATBOX',...warnings,'','SERVER PC:','1. Open host.prf with the installed EuroScope. Load native.sct if prompted.','2. CONNECT: Start simulator session; server '+address+'; Connect to VATSIM UNCHECKED.','3. Dummy local credentials only. Scenario: '+scenarioPath,'4. Publish simulation data: To everyone. Connect manually. Use native pause/run.','','INSTRUCTOR PC:','Connect via ZYZTools Instructor → Connect my EuroScope. Select Start simulator session, leave Scenario EMPTY, Connect to VATSIM UNCHECKED.','Use a unique instructor callsign and dummy local credentials. Never load the scenario on the instructor PC.','Select native simulation tag {} → Get simulation, then use the simulator ribbon/tag controls. Native free/exact/maximum/minimum speed modes remain EuroScope-owned.','','STUDENT PC:','Use only a student invite, normal direct connection, Connect to VATSIM UNCHECKED. Student transport cannot send native simulator commands.','','SCENARIO CHANGES:','Edit on your own PC in ZYZTools Scenario Builder → Export JSON → Instructor Upload. Stop this slot first. The server regenerates these files.','Disconnect/reload the SERVER-PC EuroScope scenario after replacing it. This version does not automate connection dialogs, native pause/reset or hot reload.','Stop closes the relay; reconnect the server-PC engine after restarting. Native slots need a logged-in Windows desktop with EuroScope running.'];
+ return {scenario,hostAddress:address,hostCallsign:'ZYHOST'+slot,scenarioFile:scenarioPath,warnings,files:{'scenario.txt':lines.join('\r\n')+'\r\n','native.sct':sector.join('\r\n')+'\r\n','host.prf':profile.join('\r\n')+'\r\n','native-settings.txt':'','native-plugins.txt':'','SETUP.txt':guide.join('\r\n')+'\r\n'}};
+}
+module.exports={bundle,coordinate};

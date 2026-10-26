@@ -1,6 +1,6 @@
-# EuroScope SweatBox import — desktop test 1.2.42 / server 0.3.2
+# EuroScope SweatBox import — desktop test 1.2.43 / server 0.3.3
 
-Use Load scenario under **Training → Instructor**, or Import in Scenario Builder. Both accept `.txt` EuroScope scenarios and existing ZYZTools JSON. Conversion happens on the instructor/client PC. Update the server to **0.3.2** for the revised turn, automatic speed and multi-command engine; updating only the client does not replace the hosted simulation engine.
+Use Load scenario under **Training → Instructor**, or Import in Scenario Builder. Both accept `.txt` EuroScope scenarios and existing ZYZTools JSON. Conversion happens on the instructor/client PC. Update the server to **0.3.3** for aircraft-specific automatic speeds, approach/final slowing and initial scenario descents; updating only the client does not replace the hosted simulation engine.
 
 Import the matching SCT/ESE/navdata into Scenario Builder first. Scenario coordinates and ILS geometry come from the chosen file; named route fixes must exist in the imported catalogue. No online fix lookup, chart guessing or source-file modification occurs. The original flight-plan text is retained; an explicit `$ROUTE` supplies the converted navigation path, including old procedures whose current STAR name differs. Routes without overrides require matching local flight-plan navdata.
 
@@ -10,9 +10,9 @@ Every text import displays a compatibility review before loading/uploading. Canc
 
 This is conversion into the existing ZYZTools simulator, **not the complete EuroScope simulation engine**:
 
-- Airborne aircraft start at 270 IAS above 10,000 feet, otherwise 250. Automatic profile is enabled for converted airborne aircraft, including slowing to 210 before a detected downwind. Assigned IAS overrides it. Position records normally have no initial speed; this is a training approximation, not EuroScope's original performance engine.
+- Airborne aircraft initialize at their automatic aircraft-type/phase/altitude profile, capped at 270 IAS above 10,000 feet and 250 below; slower aircraft retain lower speeds. Downwind/approach/final scheduling reduces this further when applicable. Assigned IAS overrides it. Position records normally have no initial speed; this is a training model using EuroScope performance data, not EuroScope's original engine.
 - Ground aircraft are stationary: no automatic taxi, takeoff or ground-collision simulation. Their filed plans are retained but ground navigation is disabled.
-- REQALT, route altitude restrictions, INSTRUCTION, DELAY, IASVARIATION, predefined route menus, holdings, controller/pseudo-pilot assignments, METAR and PERFAC/PERFLINE are not executed. Warnings identify these. Use instructor commands for altitude, speed, approach and aircraft motion.
+- Named REQALT initial descent targets now apply with bounded rates; manual ALT replaces them. Off-route targets are omitted with warnings, not by dropping the aircraft. Empty-fix takeoff/climb targets, general route altitude restrictions, INSTRUCTION, DELAY, IASVARIATION, predefined route menus, holdings, controller/pseudo-pilot assignments, METAR and per-scenario PERFAC/PERFLINE overrides remain unsupported. Warnings identify these. See [TRAINING_SPEED_PROFILES.md](TRAINING_SPEED_PROFILES.md).
 - Old chart-specific speed rules are not flown. Downwind slowing needs the assigned runway's imported geometry; immediate vector commands start slowing immediately rather than instantly changing speed.
 - ILS is the existing generic centreline/3-degree model; a suitable vector/altitude and APP CLEAR are still required. Importing geometry does not automatically clear the aircraft for approach.
 

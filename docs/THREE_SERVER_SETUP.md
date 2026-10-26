@@ -1,6 +1,6 @@
 # ZYZTools — instructor, student and server PC
 
-Install `ZYZTools-Server-Test-Setup-0.3.2.exe` on the spare Windows PC. Install `ZYZTools-Test-Setup-1.2.42.exe` on instructor/student PCs. They remain separate installed apps. No Node.js, EuroScope, purchased domain, router port forwarding or separate cloudflared installation is needed on the server PC. Training does not connect to VATSIM.
+Install `ZYZTools-Server-Test-Setup-0.3.3.exe` on the spare Windows PC. Install `ZYZTools-Test-Setup-1.2.43.exe` on instructor/student PCs. They remain separate installed apps. These versions include automatic aircraft speed profiles, approach/final slowing and named REQALT initial descents; update both client and server and reload the scenario. No Node.js, EuroScope, purchased domain, router port forwarding or separate cloudflared installation is needed on the server PC. Training does not connect to VATSIM.
 
 For EuroScope click-to-select and instructor commands, also update the client plugin through Install / Link with EuroScope closed. See [EUROSCOPE_TRAINING_COMMANDS.md](EUROSCOPE_TRAINING_COMMANDS.md). Server 0.3.2 adds revised turn rollout, the automatic training speed profile, comma-separated commands and corrected pilot-removal messages. `.sim` is optional: `.LHDG 330, ALT 3000` works in the verified instructor connection.
 

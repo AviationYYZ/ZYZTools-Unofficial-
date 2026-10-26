@@ -25,6 +25,9 @@ else{
    if(action==='instructorCopy'){const s=hub.status();if(!s.code)throw Error('Wait for the instructor pairing code.');clipboard.writeText(s.code);return {...manager.status(),instructor:s};}
    if(action==='startup'){if(typeof value!=='boolean')throw Error('Invalid startup setting.');app.setLoginItemSettings({openAtLogin:value});manager.config.startup=value;manager.save();return manager.status();}
    if(action==='configure')return manager.configure(id,value||{});
+   if(action==='chooseEuroScope'){const r=await dialog.showOpenDialog(window,{title:'Choose installed EuroScope.exe (server PC)',filters:[{name:'EuroScope executable',extensions:['exe']}],properties:['openFile']});if(!r.canceled)manager.setEuroScope(r.filePaths[0]);return manager.status();}
+   if(action==='nativeSetup'){await shell.openPath(manager.nativeSetup(id).folder);return manager.status();}
+   if(action==='launchNative'){const setup=await manager.launchNative(id);await dialog.showMessageBox(window,{type:'info',title:'Native EuroScope — local setup only',message:'EuroScope opened; it has NOT been connected automatically.',detail:'On this server PC choose Start simulator session, server '+setup.hostAddress+', Connect to VATSIM UNCHECKED. Use dummy credentials. Browse to '+setup.scenarioFile+'. Publish simulation data: To everyone. Connect manually. Instructor PCs leave Scenario empty.'});return manager.status();}
    if(action==='import'){
     const result=await dialog.showOpenDialog(window,{title:'Import compiled ZYZTools scenario',filters:[{name:'ZYZTools scenario',extensions:['json']}],properties:['openFile']});
     if(!result.canceled){const file=result.filePaths[0];if(fs.statSync(file).size>4*1024*1024)throw Error('Scenario exceeds 4 MB.');manager.import(id,JSON.parse(fs.readFileSync(file,'utf8')));}return manager.status();

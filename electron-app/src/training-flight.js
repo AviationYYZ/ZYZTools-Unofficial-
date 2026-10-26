@@ -1,5 +1,6 @@
 // Generic offline training guidance; not a certified FMS or published ILS database.
 const rad=Math.PI/180,wrap=n=>(n%360+360)%360,delta=(a,b)=>(a-b+540)%360-180;
+const performance=require('./training-performance');
 function density(altitude){const h=Math.min(11000,Math.max(0,altitude)*.3048);return Math.pow(1-2.25577e-5*h,4.25588);}
 const iasToTas=(ias,altitude)=>ias/Math.sqrt(density(altitude)),tasToIas=(tas,altitude)=>tas*Math.sqrt(density(altitude));
 const turnRate=speed=>Math.min(3,1091*Math.tan(25*rad)/Math.max(60,speed));
@@ -77,7 +78,7 @@ function guideApproach(a,runways,geometry){
  const r=runways.find(r=>r.airport===a.destination&&r.name===a.arrivalRunway);if(!r){a.approachState='runway unavailable';return;}
  const course=geometry(r.threshold,r.opposite).bearing,g=geometry(r.threshold,a),outbound=wrap(course+180),angle=delta(g.bearing,outbound),along=g.distance*Math.cos(angle*rad),cross=g.distance*Math.sin(angle*rad);
  a.approachDistance=along;
- if(along<0){if(a.approachState==='glideslope captured'&&Math.abs(cross)<.15){a.altitude=r.elevation;a.targetAltitude=r.elevation;a.speed=0;a.targetSpeed=0;a.landed=true;a.paused=true;a.approachState='touchdown';}return;}
+ if(along<0){if(a.approachState==='glideslope captured'&&Math.abs(cross)<.15){a.altitude=r.elevation;a.targetAltitude=r.elevation;a.speed=0;a.targetSpeed=0;a.ias=0;a.targetIAS=0;a.landed=true;a.paused=true;a.approachState='touchdown';}return;}
  const intercept=delta(a.heading,course),closing=cross*Math.sin(intercept*rad)>0,lead=turnRadius(a.speed)*(1-Math.cos(intercept*rad))+a.speed/3600*2.5*Math.abs(Math.sin(intercept*rad));
  if(a.approachState==='armed'&&along<=25&&along>.15&&Math.abs(intercept)<=80&&((closing&&Math.abs(cross)<=lead+.06)||Math.abs(cross)<.06))a.approachState='localizer captured';
  if(['localizer captured','glideslope captured'].includes(a.approachState)){
@@ -91,13 +92,34 @@ function guideApproach(a,runways,geometry){
  }
 }
 function normalizeSpeedRules(rows){if(!Array.isArray(rows)||rows.length>2000)throw Error('Limit: 2,000 speed rules.');return rows.map(r=>{if(!/^[A-Z]{4}$/.test(r.airport)||!(/^[A-Z0-9]+$/).test(r.procedure)||!/^\d{2}[LRC]?$/.test(r.runway)||!(/^[A-Z0-9_-]{1,16}$/).test(r.fix)||!['at','max','min'].includes(r.kind)||!Number.isFinite(Number(r.knots))||r.knots<80||r.knots>400||typeof r.source!=='string'||!r.source.trim()||r.source.length>300)throw Error('Invalid published-speed rule; airport/procedure/runway/fix/kind/IAS/source required.');return {...r,knots:Number(r.knots)};});}
+function initialVerticalGuidance(a,fixes,geometry){
+ if(!a.initialDescentActive||a.approachState==='glideslope captured')return;
+ const constraint=a.initialDescent;if(!constraint)return;
+ a.targetAltitude=constraint.altitude;
+ if(a.altitude<=constraint.altitude+.1){a.initialDescentActive=false;return;}
+ if(a.manualRate||a.navigation!=='route')return;
+ const index=a.remaining.indexOf(constraint.fix);if(index<0)return;
+ let distance=0,start=a;
+ for(const name of a.remaining.slice(0,index+1)){const fix=fixes.find(w=>w.name===name);if(!fix)return;distance+=geometry(start,fix).distance;start=fix;}
+ const previous=index?fixes.find(w=>w.name===a.remaining[index-1]):a.legStart||a,next=fixes.find(w=>w.name===a.remaining[index+1]);
+ if(next&&previous){const angle=Math.abs(delta(geometry(start,next).bearing,geometry(previous,start).bearing));distance-=Math.min(turnLead(a.speed,angle),distance*.8);}
+ const model=performance.profile(a,'descent',tasToIas),needed=(a.altitude-constraint.altitude)*Math.max(30,a.speed)/(60*Math.max(.1,distance));
+ const limit=Math.max(500,Math.min(6000,model.rod*1.5));a.rate=Math.max(200,Math.min(limit,needed));
+ a.verticalNotice='Initial scenario descent: '+constraint.fix+' at '+constraint.altitude+' ft'+(needed>limit?' — too late to meet within training performance limits':'');
+ a.performanceDescentRate=model.rod;
+}
 function publishedIAS(a,rules,fixes,geometry,runways=[]){
  // Kept under the existing command/protocol name for old scenario compatibility.
  // This is a controller-requested training profile, NOT chart restrictions.
  if(a.landed||a.baseIAS===0&&a.speed===0){a.speedNotice='Stationary aircraft';return 0;}
- if(a.altitude>10000){a.downwindSpeed=false;a.speedNotice='Training profile: 270 IAS above 10,000 ft';return 270;}
+ const phase=a.targetAltitude>a.altitude+100?'climb':a.targetAltitude<a.altitude-100||a.initialDescent||a.arrivalRunway?'descent':'cruise';
+ const model=performance.profile(a,phase,tasToIas);
+ let target=Math.min(a.altitude>10000?270:250,model.ias);a.speedPhase=phase;a.performanceSource=model.source;a.trainingFinalIAS=model.finalIAS;
+ // Begin reducing before crossing 10,000, not after the crossing.
+ if(a.altitude>10000&&a.targetAltitude<10000&&(a.altitude-10000)/Math.max(1,a.rate/60)<Math.max(0,a.ias-250)/2)target=Math.min(target,250);
+ if(a.altitude>12000)a.downwindSpeed=false;
  const runway=runways.find(r=>r.airport===a.destination&&r.name===a.arrivalRunway);
- if(runway){
+ if(runway&&a.altitude<=12000&&geometry(a,runway.threshold).distance<=60){
   const downwind=wrap(geometry(runway.threshold,runway.opposite).bearing+180);
   const aligned=heading=>Math.abs(delta(heading,downwind))<=30;
   // On vectors, slow as soon as a downwind heading is assigned. On a filed
@@ -110,7 +132,7 @@ function publishedIAS(a,rules,fixes,geometry,runways=[]){
     const fix=fixes.find(w=>w.name===names[i]);if(!fix)break;
     distance+=geometry(start,fix).distance;
     const next=fixes.find(w=>w.name===names[i+1]);
-    if(next&&aligned(geometry(fix,next).bearing)){
+    if(next&&aligned(geometry(fix,next).bearing)&&geometry(fix,runway.threshold).distance<=40){
      const leg=geometry(a.legStart||a,fix),angle=Math.min(179,Math.abs(delta(geometry(fix,next).bearing,leg.bearing)));
      const lead=turnLead(a.speed,angle)+a.speed/3600*2;
      const slowing=Math.max(0,a.ias-210)/2*Math.max(a.speed,iasToTas(210,a.altitude))/3600;
@@ -122,8 +144,19 @@ function publishedIAS(a,rules,fixes,geometry,runways=[]){
    if(aligned(a.targetHeading)&&a.passedFixes?.length)a.downwindSpeed=true;
   }
  }
- const target=a.downwindSpeed?210:250;
- a.speedNotice='Training profile: '+target+' IAS'+(a.downwindSpeed?' — downwind/arrival':!runway?' — downwind needs runway geometry':' — at/below 10,000 ft');
+ if(a.downwindSpeed){target=Math.min(target,210);a.speedPhase='downwind';}
+ if(runway&&a.approachState!=='off'&&a.approachState){
+  const course=geometry(runway.threshold,runway.opposite).bearing,g=geometry(runway.threshold,a),along=g.distance*Math.cos(delta(g.bearing,wrap(course+180))*rad);
+  if(g.distance<=25&&along>=0){
+   target=Math.min(target,210);a.speedPhase='approach';
+   if(['localizer captured','glideslope captured'].includes(a.approachState))for(const [distance,ias]of [[12,180],[7,160],[4,model.finalIAS]]){
+    const slowing=Math.max(0,a.ias-ias)/2*Math.max(30,a.speed)/3600;
+    if(along<=distance+slowing+.15){target=Math.min(target,ias);a.speedPhase=ias===model.finalIAS?'final':'approach';}
+   }
+  }
+ }
+ target=Math.max(50,Math.round(target));
+ a.speedNotice=model.source+' | '+a.speedPhase+' | '+target+' IAS'+(a.speedPhase==='final'?' (training final target)':'')+(!runway?' | no runway geometry: approach schedule unavailable':'');
  return target;
 }
-module.exports={iasToTas,tasToIas,turnRate,turnRadius,turnError,turnMotion,turnLead,guideRoute,guideApproach,normalizeSpeedRules,publishedIAS};
+module.exports={iasToTas,tasToIas,turnRate,turnRadius,turnError,turnMotion,turnLead,guideRoute,guideApproach,initialVerticalGuidance,normalizeSpeedRules,publishedIAS};

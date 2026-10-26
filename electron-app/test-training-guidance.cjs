@@ -1,7 +1,7 @@
 const assert=require('node:assert/strict'),{LocalTraining,geometry,move,flightPlan}=require('./src/local-training'),f=require('./src/training-flight');
 const runway={airport:'CYYZ',name:'09',threshold:{lat:0,lon:0},opposite:{lat:0,lon:.02},elevation:0};
 const base={format:'ZYZTools-training',version:1,name:'Guidance',magneticVariationWest:0,waypoints:[],runways:[runway],aircraft:[]};
-function sim(a){const s=new LocalTraining();s.load({...base,aircraft:[{callsign:'TEST101',type:'A320',origin:'CYUL',destination:'CYYZ',squawk:'2001',altitude:3000,speed:210,speedBasis:'IAS',publishedSpeeds:false,heading:90,lat:0,lon:-.2,route:'',flightPlanRoute:'CYYZ/09',arrivalRunway:'09',...a}]});return s;}
+function sim(a){const s=new LocalTraining();s.load({...base,aircraft:[{callsign:'TEST101',type:'A320',origin:'CYUL',destination:'CYYZ',squawk:'2001',altitude:3000,speed:210,speedBasis:'IAS',automaticSpeeds:false,heading:90,lat:0,lon:-.2,route:'',flightPlanRoute:'CYYZ/09',arrivalRunway:'09',...a}]});return s;}
 for(const speed of [140,180,210,250])for(const side of [-1,1])for(const angle of [20,30,45,60]){
  const s=sim({speed,lat:side*.025,heading:90+side*angle});s.command('TEST101','APP CLEAR');s.command('TEST101','HDG '+(90+side*angle));assert.equal(s.aircraft[0].approachState,'armed');let captured=false,last;
  for(let i=0;i<2400;i++){s.tick(.1);const a=s.aircraft[0];if(a.approachState.includes('captured'))captured=true;if(captured&&a.lon>-.08&&a.lon<-.035)last={cross:Math.abs(a.lat)*60,heading:Math.abs(a.heading-90)};}

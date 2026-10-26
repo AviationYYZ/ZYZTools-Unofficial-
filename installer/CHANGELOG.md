@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.2.44 / Server test 0.4.0 — Experimental local test
+
+- Keep the graphical scenario editor and client scenario uploads. Add an independent native EuroScope or ZYZTools engine choice for each private server slot.
+- Native mode generates dedicated local profiles and resolved scenario files, launches installed EuroScope without connecting, and separates instructor control transport from read-only student transport. No VATSIM/public SweatBox connection.
+- Native controls require manual private server-PC setup and end-to-end user verification. See docs/NATIVE_EUROSCOPE_TRAINING.md for limits. No publication authorized.
+
+## 1.2.43 / Server test 0.3.3 — Local test, awaiting approval
+
+- Automatic speed profiles are the default even for old scenarios containing legacy publishedSpeeds:false. New explicit automaticSpeeds:false remains available through the aircraft editor. Live IAS commands still override automation until SPEED PUBLISHED; reset returns to the saved scenario policy.
+- Bundled 447-type MIT EuroScope performance database from VATSIM, pinned at 6dcc431a07e41a83450ac72a0f141b8a8f29b9e1 (SHA256 4dbc5583ea2110a0b7ecf1a8131282a3f72cd2bb183198483fccce8737e01d41). Type/phase/altitude speed interpolation and Mach conversion sit below the requested 270/250 IAS ceilings. Unknown types have an explicit generic fallback. Automatic spawns initialize at their computed target, not obsolete filed/initial cruise speeds.
+- Downwind slowing can apply at terminal altitudes up to 12,000 ft. On captured approach, anticipatory 180/160/final gates at 12/7/4 NM replace the old permanent 210 target. Final IAS defaults are training assumptions (not real Vref), configurable in scenario finalApproachIAS. Ground/touchdown never accelerates automatically. Manual IAS minimum now 50 for light-aircraft training.
+- Imported named REQALT and legacy $ROUTE initial descent targets. The initial descent attempts to meet the fix using remaining route distance and bounded generic rates; impossible targets are reported. Manual ALT replaces the initial target; RATE stays authoritative. Empty-fix takeoff/climb targets, full slash-altitude/STAR vertical profiles and custom PERFAC/PERFLINE overrides remain unsupported and reported, not guessed. Off-route REQALT is omitted with a review warning rather than dropping the aircraft; malformed fields are rejected explicitly.
+- Update both desktop and hosted server engine. No GitHub push, release upload or cloud deployment authorized for this new change.
+
 ## 1.2.42 / Server test 0.3.2 — Local test, awaiting approval
 
 - Replaced chart-based automatic speeds with a training-only IAS profile: 270 above 10,000 ft, 250 at/below (including the unspecified 5–10k band), 210 before a planned downwind turn. Assigned IAS still overrides it; SPEED PUBLISHED resumes it. Runway geometry identifies reciprocal downwind legs/vectors. Immediate vectors initiate deceleration, not instant speed changes. Stationary aircraft remain stationary.
