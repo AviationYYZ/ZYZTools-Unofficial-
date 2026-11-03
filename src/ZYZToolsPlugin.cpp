@@ -10,6 +10,7 @@
 #include <TlHelp32.h>
 
 #include "../SDK/EuroScopePlugIn.h"
+#include "TrainingPilotTagDraw.h"
 #include "DepartureAssignment.h"
 #include "ArrivalAssignment.h"
 #include "PdcTemplate.h"
@@ -2082,12 +2083,12 @@ public:
 
     void OnFunctionCall(int FunctionId, const char *sItemString, POINT, RECT) override
     {
-        if(FunctionId>=FUNC_PILOT_EDIT&&FunctionId<FUNC_PILOT_EDIT+6){
-            const auto cs=m_pilotEditCallsign,context=m_pilotEditContext;const auto index=FunctionId-FUNC_PILOT_EDIT;
-            m_pilotEditCallsign.clear();m_pilotEditContext.clear();
-            if(cs.empty()||context.empty()||m_trainingCommands.PilotContext(cs)!=context)return;
-            static const char* verbs[]={"ALT","HDG","IAS","RATE","DCT","SQ"};const auto value=Upper(Trim(sItemString?sItemString:""));if(value.empty())return;
-            SendPilotAction(cs,std::string(verbs[index])+" "+value);return;
+        if(FunctionId>=FUNC_PILOT_EDIT&&FunctionId<=FUNC_PILOT_EDIT+2){
+            const auto cs=m_pilotEditCallsign,context=m_pilotEditContext;if(cs.empty()||context.empty()||m_trainingCommands.PilotContext(cs)!=context)return;
+            if(FunctionId==FUNC_PILOT_EDIT+1){if(m_pilotMenuPage>0)--m_pilotMenuPage;ShowPilotMenu();return;}
+            if(FunctionId==FUNC_PILOT_EDIT+2){if((m_pilotMenuPage+1)*16<m_pilotMenuValues.size())++m_pilotMenuPage;ShowPilotMenu();return;}
+            const auto value=Upper(Trim(sItemString?sItemString:""));const size_t first=m_pilotMenuPage*16,last=std::min(first+16,m_pilotMenuValues.size());if(std::find(m_pilotMenuValues.begin()+first,m_pilotMenuValues.begin()+last,value)==m_pilotMenuValues.begin()+last)return;
+            const auto command=m_pilotMenuField+" "+value;m_pilotEditCallsign.clear();m_pilotEditContext.clear();SendPilotAction(cs,command);return;
         }
         if (HandleSettingsEdit(FunctionId, sItemString))
             return;
@@ -2430,6 +2431,11 @@ public:
 private:
     friend class CSettingsScreen;
     std::string m_pilotEditCallsign,m_pilotEditContext,m_pilotFeedback;
+    std::string m_pilotMenuField,m_pilotSelected;
+    std::vector<std::string> m_pilotMenuValues;
+    size_t m_pilotMenuPage=0;
+    RECT m_pilotMenuArea{};
+    void ShowPilotMenu(){if(m_trainingCommands.PilotContext(m_pilotEditCallsign)!=m_pilotEditContext||m_pilotMenuValues.empty())return;const auto title=m_pilotEditCallsign+" PILOT "+m_pilotMenuField+"  "+std::to_string(m_pilotMenuPage+1)+"/"+std::to_string((m_pilotMenuValues.size()+15)/16);OpenPopupList(m_pilotMenuArea,title.c_str(),2);if(m_pilotMenuPage)AddPopupListElement("< Previous",nullptr,FUNC_PILOT_EDIT+1);const size_t first=m_pilotMenuPage*16,last=std::min(first+16,m_pilotMenuValues.size());for(size_t i=first;i<last;++i)AddPopupListElement(m_pilotMenuValues[i].c_str(),m_pilotMenuField.c_str(),FUNC_PILOT_EDIT,m_pilotMenuValues[i]==m_pilotSelected);if(last<m_pilotMenuValues.size())AddPopupListElement("Next >",nullptr,FUNC_PILOT_EDIT+2);}
     ULONGLONG m_pilotFeedbackUntil=0;
     void SendPilotAction(const std::string &cs,const std::string &command){const auto self=ControllerMyself();if(GetConnectionType()!=CONNECTION_TYPE_DIRECT||!self.IsValid()||m_trainingCommands.PilotContext(cs).empty())return;const auto message=m_trainingCommands.Command(cs,self.GetCallsign(),command);m_pilotFeedback=cs+": "+command;m_pilotFeedbackUntil=GetTickCount64()+3000;if(!message.empty())DisplayUserMessage("ZYZTools","PILOT",message.c_str(),true,true,false,false,false);}
     CTrainingCommandBridge m_trainingCommands;
@@ -5727,16 +5733,23 @@ public:
     void DrawPilotControls(HDC dc)
     {
         if(m_plugin->GetConnectionType()!=CONNECTION_TYPE_DIRECT||m_plugin->m_settingsVisible)return;
-        const auto fp=m_plugin->FlightPlanSelectASEL();if(!fp.IsValid()||!m_plugin->m_trainingCommands.PilotAircraft(fp.GetCallsign()))return;
-        const RECT radar=GetRadarArea();const int width=std::min(620,static_cast<int>(radar.right-radar.left)-16);if(width<420)return;
-        RECT panel{radar.left+8,radar.bottom-76,radar.left+8+width,radar.bottom-8};const int saved=SaveDC(dc);HBRUSH bg=CreateSolidBrush(RGB(12,29,39));FillRect(dc,&panel,bg);DeleteObject(bg);SetBkMode(dc,TRANSPARENT);SetTextColor(dc,RGB(125,224,238));
-        const std::string owner=fp.GetTrackingControllerCallsign()?fp.GetTrackingControllerCallsign():"";
-        std::string title=std::string("PILOT ")+fp.GetCallsign()+" | Owner: "+(owner.empty()?"unowned":owner)+" | MIDDLE-click controls";RECT text=panel;text.left+=7;text.top+=3;DrawTextA(dc,title.c_str(),-1,&text,DT_SINGLELINE);
-        SelectObject(dc,GetStockObject(DC_BRUSH));SetDCBrushColor(dc,RGB(22,45,57));SelectObject(dc,GetStockObject(DC_PEN));SetDCPenColor(dc,RGB(78,131,149));
-        static const char* names[]={"ALT ft","HDG M","IAS kt","RATE fpm","DCT","SQUAWK","APP CLR"};const int cell=(width-14)/7;
-        for(int i=0;i<7;++i){RECT r{panel.left+7+i*cell,panel.top+22,panel.left+5+(i+1)*cell,panel.top+43};Rectangle(dc,r.left,r.top,r.right,r.bottom);DrawTextA(dc,names[i],-1,&r,DT_CENTER|DT_VCENTER|DT_SINGLELINE);const std::string id=std::string(fp.GetCallsign())+"|"+std::to_string(i);AddScreenObject(SCREEN_OBJECT_PILOT,id.c_str(),r,false,"Middle-click: instructor pilot command, separate from Situ annotations");}
-        if(GetTickCount64()<m_plugin->m_pilotFeedbackUntil){RECT r=panel;r.left+=7;r.top+=46;DrawTextA(dc,m_plugin->m_pilotFeedback.c_str(),-1,&r,DT_SINGLELINE);}
-        RestoreDC(dc,saved);
+        const auto &tags=m_plugin->m_trainingCommands.PilotTags();if(tags.empty())return;
+        const auto layoutContext=m_plugin->m_trainingCommands.PilotLayoutContext();if(m_pilotLayoutContext!=layoutContext){m_pilotTagOffsets.clear();m_pilotLayoutContext=layoutContext;}
+        const RECT radar=GetRadarArea();const int saved=SaveDC(dc);IntersectClipRect(dc,radar.left,radar.top,radar.right,radar.bottom);SetBkMode(dc,TRANSPARENT);
+        HFONT font=CreateFontA(-14,0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,FIXED_PITCH,"Consolas");if(font)SelectObject(dc,font);
+        SelectObject(dc,GetStockObject(DC_PEN));SelectObject(dc,GetStockObject(HOLLOW_BRUSH));SetDCPenColor(dc,RGB(65,145,255));
+        static const char* names[]={"ALT","IAS","HDG","RATE","DCT","SQ","APP"};
+        for(const auto &tag:tags){
+            if(!m_plugin->m_trainingCommands.PilotAircraft(tag.callsign))continue;const auto rt=m_plugin->RadarTargetSelect(tag.callsign.c_str());if(!rt.IsValid()||!rt.GetPosition().IsValid())continue;
+            const POINT plane=ConvertCoordFromPositionToPixel(rt.GetPosition().GetPosition());if(plane.x<radar.left||plane.x>radar.right||plane.y<radar.top||plane.y>radar.bottom)continue;
+            POINT offset{42,42};const auto found=m_pilotTagOffsets.find(tag.callsign);if(found!=m_pilotTagOffsets.end())offset=found->second;
+            const int left=std::max(static_cast<int>(radar.left)+4,std::min(static_cast<int>(radar.right)-352,static_cast<int>(plane.x+offset.x))),top=std::max(static_cast<int>(radar.top)+4,std::min(static_cast<int>(radar.bottom)-72,static_cast<int>(plane.y+offset.y)));
+            RECT box{left,top,left+348,top+66};SetDCPenColor(dc,RGB(65,145,255));MoveToEx(dc,plane.x,plane.y,nullptr);LineTo(dc,left,top+8);
+            TrainingPilotTagDraw::Draw(dc,left,top,tag);RECT header{left,top,left+348,top+20};
+            AddScreenObject(SCREEN_OBJECT_PILOT,(tag.callsign+"|MOVE").c_str(),header,true,"Drag independent ZYZTools pilot tag");
+            for(int i=0;i<7;++i){RECT r=TrainingPilotTagDraw::Cell(left,top,i);const auto tip=tag.callsign+" "+names[i]+" "+tag.values[i]+" - choose pilot order; green check means student annotation matches";AddScreenObject(SCREEN_OBJECT_PILOT,(tag.callsign+"|"+std::to_string(i)).c_str(),r,false,tip.c_str());}
+        }
+        RestoreDC(dc,saved);if(font)DeleteObject(font);
     }
 
     void DrawTrainingPrediction(HDC hDC)
@@ -5778,8 +5791,9 @@ public:
             m_plugin->HandleSettingsEdit(FunctionId, sItemString);
     }
 
-    void OnButtonDownScreenObject(int ObjectType, const char *sObjectId, POINT Pt, RECT, int Button) override
+    void OnButtonDownScreenObject(int ObjectType, const char *sObjectId, POINT Pt, RECT Area, int Button) override
     {
+        if(m_plugin&&ObjectType==SCREEN_OBJECT_PILOT&&sObjectId&&Button==BUTTON_LEFT){const std::string id=sObjectId;const auto split=id.find('|');if(split!=std::string::npos&&id.substr(split+1)=="MOVE"&&!m_plugin->m_trainingCommands.PilotContext(id.substr(0,split)).empty()){m_pilotDragCS=id.substr(0,split);m_pilotDragOffset={Pt.x-Area.left,Pt.y-Area.top};}return;}
         if (!m_plugin || m_plugin->m_sendConfirmation.active ||
             ObjectType != SCREEN_OBJECT_SETTINGS || Button != BUTTON_LEFT || !sObjectId)
             return;
@@ -5798,6 +5812,7 @@ public:
 
     void OnMoveScreenObject(int ObjectType, const char *sObjectId, POINT Pt, RECT, bool Released) override
     {
+        if(m_plugin&&ObjectType==SCREEN_OBJECT_PILOT&&sObjectId){const auto rt=m_plugin->RadarTargetSelect(m_pilotDragCS.c_str());if(rt.IsValid()&&rt.GetPosition().IsValid()){const auto origin=ConvertCoordFromPositionToPixel(rt.GetPosition().GetPosition());m_pilotTagOffsets[m_pilotDragCS]={Pt.x-m_pilotDragOffset.x-origin.x,Pt.y-m_pilotDragOffset.y-origin.y};RequestRefresh();}if(Released)m_pilotDragCS.clear();return;}
         if (!m_plugin || m_plugin->m_sendConfirmation.active ||
             ObjectType != SCREEN_OBJECT_SETTINGS || !sObjectId)
             return;
@@ -5855,10 +5870,10 @@ public:
     void OnClickScreenObject(int ObjectType, const char *sObjectId, POINT, RECT Area, int Button) override
     {
         if(m_plugin&&ObjectType==SCREEN_OBJECT_PILOT&&sObjectId){
-            if(Button!=BUTTON_MIDDLE||m_plugin->m_sendConfirmation.active)return;const std::string id=sObjectId;const auto split=id.find('|');if(split==std::string::npos)return;
+            if((Button!=BUTTON_LEFT&&Button!=BUTTON_MIDDLE)||m_plugin->m_sendConfirmation.active)return;const std::string id=sObjectId;const auto split=id.find('|');if(split==std::string::npos||id.substr(split+1)=="MOVE")return;
             const auto cs=id.substr(0,split),context=m_plugin->m_trainingCommands.PilotContext(cs);if(context.empty())return;const int index=atoi(id.substr(split+1).c_str());
-            if(index==6){m_plugin->SendPilotAction(cs,"APP CLEAR");RequestRefresh();return;}if(index<0||index>5)return;
-            m_plugin->m_pilotEditCallsign=cs;m_plugin->m_pilotEditContext=context;m_plugin->OpenPopupEdit(Area,FUNC_PILOT_EDIT+index,"");return;
+            if(index<0||index>6)return;static const char* fields[]={"ALT","IAS","HDG","RATE","DCT","SQ","APP"};const auto choices=m_plugin->m_trainingCommands.PilotMenu(cs,fields[index]);if(choices.empty()){m_plugin->DisplayUserMessage("ZYZTools","PILOT","No dropdown choices available. Check the instructor connection and retry.",true,true,false,false,false);return;}
+            m_plugin->m_pilotEditCallsign=cs;m_plugin->m_pilotEditContext=context;m_plugin->m_pilotMenuField=fields[index];m_plugin->m_pilotMenuValues=choices;m_plugin->m_pilotMenuPage=0;m_plugin->m_pilotMenuArea=Area;m_plugin->m_pilotSelected="";for(const auto &tag:m_plugin->m_trainingCommands.PilotTags())if(tag.callsign==cs)m_plugin->m_pilotSelected=tag.values[index];m_plugin->ShowPilotMenu();return;
         }
         if (!m_plugin || ObjectType != SCREEN_OBJECT_SETTINGS || Button != BUTTON_LEFT || !sObjectId)
             return;
@@ -6043,6 +6058,9 @@ public:
 
 private:
     CZYZToolsPlugin *m_plugin = nullptr;
+    std::unordered_map<std::string,POINT> m_pilotTagOffsets;
+    std::string m_pilotLayoutContext,m_pilotDragCS;
+    POINT m_pilotDragOffset{};
     POINT m_dragOffset{0, 0};
     POINT m_resizeOffset{0, 0};
     bool m_loggedVisibleDraw = false;

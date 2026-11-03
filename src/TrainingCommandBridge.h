@@ -3,6 +3,12 @@
 // contact an external host; the desktop app performs authenticated sim actions.
 class CTrainingCommandBridge
 {
+public:
+    struct PilotTag {std::string callsign,type,owner;std::string values[7],states[7];bool matches[7]{};};
+private:
+    std::vector<PilotTag> pilotTags;
+    ULONGLONG pilotTagsVerified=0;
+    std::string pilotTagsContext;
     std::string pending, pendingNonce, lastSelection, lastController;
     ULONGLONG deadline = 0, changed = 0;
     DWORD lastPort = 0;
@@ -61,7 +67,7 @@ class CTrainingCommandBridge
         HINTERNET request=connect?WinHttpOpenRequest(connect,method,route.c_str(),nullptr,WINHTTP_NO_REFERER,WINHTTP_DEFAULT_ACCEPT_TYPES,0):nullptr;
         std::string result; const std::wstring headers=L"Content-Type: application/json\r\nAuthorization: Bearer "+std::wstring(nonce.begin(),nonce.end())+L"\r\n";
         if (request && WinHttpSendRequest(request,headers.c_str(),static_cast<DWORD>(headers.size()),body.empty()?WINHTTP_NO_REQUEST_DATA:const_cast<char*>(body.data()),static_cast<DWORD>(body.size()),static_cast<DWORD>(body.size()),0) && WinHttpReceiveResponse(request,nullptr)) {
-            char buffer[2048]; DWORD read=0; while (WinHttpReadData(request,buffer,sizeof(buffer),&read) && read) { result.append(buffer,read); if (result.size()>4096) {result.clear();break;} }
+            char buffer[2048]; DWORD read=0; while (WinHttpReadData(request,buffer,sizeof(buffer),&read) && read) { result.append(buffer,read); if (result.size()>262144) {result.clear();break;} }
         }
         if (request) WinHttpCloseHandle(request); if (connect) WinHttpCloseHandle(connect); WinHttpCloseHandle(session); return result;
     }
@@ -102,6 +108,9 @@ public:
     bool TrainingContext() const {std::string nonce,session;return Binding(nonce,session)&&TrainingSocketPort()!=0;}
     bool PilotAircraft(const std::string &cs) const {return pilotControls&&GetTickCount64()-predictionVerified<2500&&predictionCallsigns.find(","+cs+",")!=std::string::npos;}
     std::string PilotContext(const std::string &cs) const {std::string nonce,session;return Callsign(cs)&&PilotAircraft(cs)&&Binding(nonce,session)&&TrainingSocketPort()?nonce+"|"+session:"";}
+    const std::vector<PilotTag>& PilotTags() const {static const std::vector<PilotTag> empty;return GetTickCount64()-pilotTagsVerified<2500?pilotTags:empty;}
+    std::string PilotLayoutContext() const {return GetTickCount64()-pilotTagsVerified<2500?pilotTagsContext:"";}
+    std::vector<std::string> PilotMenu(const std::string &cs,const std::string &field){std::vector<std::string> result;std::string nonce,session;if(PilotContext(cs).empty()||!Binding(nonce,session))return result;const auto route=L"/pilot-menu?port="+std::to_wstring(TrainingSocketPort())+L"&callsign="+std::wstring(cs.begin(),cs.end())+L"&field="+std::wstring(field.begin(),field.end());const auto response=Request(L"GET",route,nonce);std::string received;if(JsonStringValue(response,"sessionId",received)&&received==session)JsonStringArrayValue(response,"choices",result);return result;}
     int PredictionMinutes(const std::string &callsign) const {return GetTickCount64()-predictionVerified<2500&&predictionCallsigns.find(","+callsign+",")!=std::string::npos?predictionMinutes:0;}
     std::string Tick(const std::string &selected,const std::string &controller) {
         std::string nonce,session,message;
@@ -115,6 +124,8 @@ public:
         int minutes=0;std::string callsigns;const DWORD port=!controller.empty() && Binding(nonce,session,&minutes,&callsigns)?TrainingSocketPort():0;
         predictionMinutes=port?minutes:0;predictionCallsigns=port?callsigns:"";predictionVerified=port?GetTickCount64():0;
         pilotControls=false;if(port){std::ifstream f(BindingFile(),std::ios::binary);const std::string json((std::istreambuf_iterator<char>(f)),std::istreambuf_iterator<char>());int enabled=0;pilotControls=json.size()<=4096&&JsonIntValue(json,"pilot_controls",enabled)&&enabled==1;}
+        pilotTags.clear();pilotTagsVerified=0;
+        if(port&&pilotControls){const auto response=Request(L"GET",L"/pilot-state?port="+std::to_wstring(port),nonce);std::vector<std::string> rows;std::string received;if(JsonStringValue(response,"sessionId",received)&&received==session&&JsonStringArrayValue(response,"tags",rows)&&rows.size()<=100){for(const auto &row:rows){std::vector<std::string> parts;std::istringstream stream(row);std::string part;while(std::getline(stream,part,'|'))parts.push_back(part);if(parts.size()!=24||!Callsign(parts[0]))continue;PilotTag tag;tag.callsign=parts[0];tag.type=parts[1];tag.owner=parts[2];for(int i=0;i<7;++i){tag.values[i]=parts[3+i*3];tag.matches[i]=parts[4+i*3]=="1";tag.states[i]=parts[5+i*3];}pilotTags.push_back(tag);}pilotTagsContext=nonce+"|"+session;pilotTagsVerified=GetTickCount64();}}
         if (port) {
             const std::string cs=Callsign(selected)?selected:"";
             if(cs!=lastSelection || controller!=lastController || port!=lastPort){changed=GetTickCount64();lastSelection=cs;lastController=controller;lastPort=port;}

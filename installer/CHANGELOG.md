@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.51 / Server test 0.4.7 — Local test, awaiting approval
+
+- Replace the selected-aircraft pilot strip with independent, draggable, Situ-inspired instructor tags beside all visible active training aircraft. Blue pilot orders persist in the data block; all seven fields use paginated dropdowns. Regular Situ drawing, annotations and ownership remain untouched.
+- Add student-authored annotation provenance. Green checks indicate matching ALT/IAS/HDG/RATE/DCT/SQ/APP annotations, never maneuver completion. Checks clear on mismatch, failed/pending orders, session reset or annotation-author disconnect. Instructor-authored annotations do not confirm their own orders; when another controller owns the track, their annotation is required.
+- Scope pilot orders and menus to the authenticated instructor socket/session. Add native shared drawing harness and synthetic two-client matching/menu tests. Fixed 5-second aircraft updates and 2,250 FPM default remain. Update desktop, instructor DLL and private server; real EuroScope dropdown/drag testing remains for user verification. Nothing published.
+
 ## 1.2.50 / Server test 0.4.6 — Local test, awaiting approval
 
 - Replace coupled regular-tag pilot controls with a separate, selected-aircraft ZYZTools PILOT strip. Middle-click ALT/HDG/IAS/RATE/DCT/SQUAWK to enter a value, or APP CLR to arm the approach. Pilot requests use independent authenticated command data, including identical values already annotated by the student.
