@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.52 — Local test, awaiting approval
+
+- Reduce instructor tags from 348×66 to 204×48 pixels and font height from 14 to 11. Compact the header and approach label, shrink confirmation markers, and use shared dimensions for drawing, dropdown hitboxes, dragging and radar-edge clamping. Blue orders and green student-match checks remain unchanged. Server 0.4.7 remains compatible; no server update required. Nothing published.
+
 ## 1.2.51 / Server test 0.4.7 — Local test, awaiting approval
 
 - Replace the selected-aircraft pilot strip with independent, draggable, Situ-inspired instructor tags beside all visible active training aircraft. Blue pilot orders persist in the data block; all seven fields use paginated dropdowns. Regular Situ drawing, annotations and ownership remain untouched.

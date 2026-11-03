@@ -5736,16 +5736,16 @@ public:
         const auto &tags=m_plugin->m_trainingCommands.PilotTags();if(tags.empty())return;
         const auto layoutContext=m_plugin->m_trainingCommands.PilotLayoutContext();if(m_pilotLayoutContext!=layoutContext){m_pilotTagOffsets.clear();m_pilotLayoutContext=layoutContext;}
         const RECT radar=GetRadarArea();const int saved=SaveDC(dc);IntersectClipRect(dc,radar.left,radar.top,radar.right,radar.bottom);SetBkMode(dc,TRANSPARENT);
-        HFONT font=CreateFontA(-14,0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,FIXED_PITCH,"Consolas");if(font)SelectObject(dc,font);
+        HFONT font=CreateFontA(-TrainingPilotTagDraw::FontHeight,0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,FIXED_PITCH,"Consolas");if(font)SelectObject(dc,font);
         SelectObject(dc,GetStockObject(DC_PEN));SelectObject(dc,GetStockObject(HOLLOW_BRUSH));SetDCPenColor(dc,RGB(65,145,255));
         static const char* names[]={"ALT","IAS","HDG","RATE","DCT","SQ","APP"};
         for(const auto &tag:tags){
             if(!m_plugin->m_trainingCommands.PilotAircraft(tag.callsign))continue;const auto rt=m_plugin->RadarTargetSelect(tag.callsign.c_str());if(!rt.IsValid()||!rt.GetPosition().IsValid())continue;
             const POINT plane=ConvertCoordFromPositionToPixel(rt.GetPosition().GetPosition());if(plane.x<radar.left||plane.x>radar.right||plane.y<radar.top||plane.y>radar.bottom)continue;
-            POINT offset{42,42};const auto found=m_pilotTagOffsets.find(tag.callsign);if(found!=m_pilotTagOffsets.end())offset=found->second;
-            const int left=std::max(static_cast<int>(radar.left)+4,std::min(static_cast<int>(radar.right)-352,static_cast<int>(plane.x+offset.x))),top=std::max(static_cast<int>(radar.top)+4,std::min(static_cast<int>(radar.bottom)-72,static_cast<int>(plane.y+offset.y)));
-            RECT box{left,top,left+348,top+66};SetDCPenColor(dc,RGB(65,145,255));MoveToEx(dc,plane.x,plane.y,nullptr);LineTo(dc,left,top+8);
-            TrainingPilotTagDraw::Draw(dc,left,top,tag);RECT header{left,top,left+348,top+20};
+            POINT offset{28,24};const auto found=m_pilotTagOffsets.find(tag.callsign);if(found!=m_pilotTagOffsets.end())offset=found->second;
+            const int left=std::max(static_cast<int>(radar.left)+4,std::min(static_cast<int>(radar.right)-TrainingPilotTagDraw::Width-4,static_cast<int>(plane.x+offset.x))),top=std::max(static_cast<int>(radar.top)+4,std::min(static_cast<int>(radar.bottom)-TrainingPilotTagDraw::Height-4,static_cast<int>(plane.y+offset.y)));
+            RECT box{left,top,left+TrainingPilotTagDraw::Width,top+TrainingPilotTagDraw::Height};SetDCPenColor(dc,RGB(65,145,255));MoveToEx(dc,plane.x,plane.y,nullptr);LineTo(dc,left,top+8);
+            TrainingPilotTagDraw::Draw(dc,left,top,tag);RECT header{left,top,left+TrainingPilotTagDraw::Width,top+TrainingPilotTagDraw::HeaderHeight};
             AddScreenObject(SCREEN_OBJECT_PILOT,(tag.callsign+"|MOVE").c_str(),header,true,"Drag independent ZYZTools pilot tag");
             for(int i=0;i<7;++i){RECT r=TrainingPilotTagDraw::Cell(left,top,i);const auto tip=tag.callsign+" "+names[i]+" "+tag.values[i]+" - choose pilot order; green check means student annotation matches";AddScreenObject(SCREEN_OBJECT_PILOT,(tag.callsign+"|"+std::to_string(i)).c_str(),r,false,tip.c_str());}
         }
