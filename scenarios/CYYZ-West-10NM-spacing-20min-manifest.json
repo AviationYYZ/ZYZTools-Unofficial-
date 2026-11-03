@@ -1,0 +1,49 @@
+{
+  "synthetic": true,
+  "source": "User installed CZYZ SCT/ESE/navdata; offline training, not current navigation certification",
+  "duration": "Eleven aircraft per stream, about 20 minutes of injection",
+  "streams": [
+    {
+      "star": "LINNG3",
+      "runway": "24R",
+      "count": 11,
+      "ratePerHour": "10 NM at stream entry (rate varies)",
+      "bedpost": "LINNG",
+      "bedpostAltitude": 11000
+    },
+    {
+      "star": "NUBER6",
+      "runway": "24R",
+      "count": 11,
+      "ratePerHour": "10 NM at stream entry (rate varies)",
+      "bedpost": "NUBER",
+      "bedpostAltitude": 11000
+    },
+    {
+      "star": "BOXUM7",
+      "runway": "23",
+      "count": 11,
+      "ratePerHour": "10 NM at stream entry (rate varies)",
+      "bedpost": "BOXUM",
+      "bedpostAltitude": 11000
+    },
+    {
+      "star": "IMEBA9",
+      "runway": "23",
+      "count": 11,
+      "ratePerHour": "10 NM at stream entry (rate varies)",
+      "bedpost": "IMEBA",
+      "bedpostAltitude": 8000
+    },
+    {
+      "star": "RAGID6",
+      "runway": "24R",
+      "count": 11,
+      "ratePerHour": "10 NM at stream entry (rate varies)",
+      "bedpost": "RAGID",
+      "bedpostAltitude": 8000
+    }
+  ],
+  "departures": 0,
+  "spacingNote": "Each successor spawns when the same-stream predecessor is 10 NM from its entry, under the default flight model. Not separation assurance."
+}

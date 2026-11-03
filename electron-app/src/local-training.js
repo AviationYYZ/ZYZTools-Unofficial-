@@ -5,6 +5,7 @@ const flight=require('./training-flight');
 const nm=3440.065,rad=Math.PI/180,wrap=n=>(n%360+360)%360;
 function number(v,min,max,label){if(v===''||v===null||!Number.isFinite(Number(v))||Number(v)<min||Number(v)>max)throw Error(label+' must be '+min+' to '+max+'.');return Number(v);}
 function token(v,re,label){if(typeof v!=='string'||!re.test(v))throw Error('Invalid '+label+'.');return v;}
+function positionRate(value){if(![1,2,5].includes(value))throw Error('Position update rate must be 1, 2 or 5 updates per second.');return value;}
 function fpText(value,max,label){const s=String(value||'');if(s.length>max||/[\x00-\x1f:]/.test(s))throw Error('Invalid '+label+'.');return s;}
 function assignedRunway(route,destination){const tokens=String(route||'').trim().toUpperCase().split(/\s+/);const airport=tokens.filter(t=>t.startsWith(destination+'/')).at(-1),last=airport||tokens.at(-1)||'';return last.match(/\/(\d{2}[LRC]?)$/)?.[1]||'';}
 function flightFields(a){return {flightRules:token(a.flightRules||'I',/^[IV]$/,'flight rules'),wake:token(a.wake||'M',/^[LMHJ]$/,'wake category'),equipment:token(a.equipment||'S',/^[A-Z0-9/]{1,40}$/,'equipment'),departureTime:token(a.departureTime||'0000',/^(?:[01]\d|2[0-3])[0-5]\d$/,'departure time'),actualDepartureTime:token(a.actualDepartureTime||'0000',/^(?:[01]\d|2[0-3])[0-5]\d$/,'actual departure time'),cruiseAltitude:number(a.cruiseAltitude??a.altitude,0,60000,'Cruise altitude'),cruiseSpeed:number(a.cruiseSpeed??a.speed,0,600,'Cruise speed'),enrouteHours:number(a.enrouteHours??1,0,99,'Enroute hours'),enrouteMinutes:number(a.enrouteMinutes??0,0,59,'Enroute minutes'),fuelHours:number(a.fuelHours??2,0,99,'Fuel hours'),fuelMinutes:number(a.fuelMinutes??0,0,59,'Fuel minutes'),alternate:token(a.alternate||'',/^(?:[A-Z]{4})?$/,'alternate'),remarks:fpText(a.remarks,512,'remarks'),flightPlanRoute:fpText(a.flightPlanRoute??a.route,2000,'filed route')};}
@@ -16,7 +17,7 @@ function normalize(raw){
  const aircraft=raw.aircraft.map(a=>{
   const route=String(a.route||'').trim().toUpperCase().split(/\s+/).filter(Boolean);
   if(route.length>100||route.some(f=>!waypoints.some(w=>w.name===f)))throw Error('Every route fix must be defined in the waypoint list. Expand STARs into fixes first.');
-  const result={callsign:token(String(a.callsign||'').toUpperCase(),/^[A-Z][A-Z0-9]{1,11}$/,'callsign'),type:token(String(a.type||'').toUpperCase(),/^[A-Z0-9]{2,4}$/,'aircraft type'),lat:number(a.lat,-89,89,'Latitude'),lon:number(a.lon,-180,180,'Longitude'),altitude:number(a.altitude,0,60000,'Altitude (feet)'),speed:number(a.speed,0,600,'Speed (knots)'),heading:number(a.heading,0,359.99,'True heading'),rate:number(a.rate??1500,100,6000,'Vertical rate (feet/min)'),route:route.join(' '),origin:token(String(a.origin||'CYYZ').toUpperCase(),/^[A-Z]{4}$/,'origin'),destination:token(String(a.destination||'CYYZ').toUpperCase(),/^[A-Z]{4}$/,'destination'),squawk:token(String(a.squawk||'2000'),/^[0-7]{4}$/,'squawk'),spawnTime:number(a.spawnTime??0,0,86400,'Spawn time (simulation seconds)'),spawnFix:token(a.spawnFix||'',/^[A-Z0-9_-]{0,16}$/,'spawn fix'),squawkMode:token(a.squawkMode||'N',/^[NS]$/,'transponder mode'),arrivalRunway:token(a.arrivalRunway||'',/^(?:\d{2}[LRC]?)?$/,'arrival runway'),speedBasis:token(a.speedBasis||'TAS',/^(IAS|TAS)$/,'initial speed basis'),publishedSpeeds:a.publishedSpeeds!==false,procedures:Array.isArray(a.procedures)?a.procedures.map(p=>token(p,/^[A-Z0-9]{1,20}$/,'procedure')):[],...flightFields(a)};
+  const result={callsign:token(String(a.callsign||'').toUpperCase(),/^[A-Z][A-Z0-9]{1,11}$/,'callsign'),type:token(String(a.type||'').toUpperCase(),/^[A-Z0-9]{2,4}$/,'aircraft type'),lat:number(a.lat,-89,89,'Latitude'),lon:number(a.lon,-180,180,'Longitude'),altitude:number(a.altitude,0,60000,'Altitude (feet)'),speed:number(a.speed,0,600,'Speed (knots)'),heading:number(a.heading,0,359.99,'True heading'),rate:number(a.rate??2250,100,6000,'Vertical rate (feet/min)'),route:route.join(' '),origin:token(String(a.origin||'CYYZ').toUpperCase(),/^[A-Z]{4}$/,'origin'),destination:token(String(a.destination||'CYYZ').toUpperCase(),/^[A-Z]{4}$/,'destination'),squawk:token(String(a.squawk||'2000'),/^[0-7]{4}$/,'squawk'),spawnTime:number(a.spawnTime??0,0,86400,'Spawn time (simulation seconds)'),spawnFix:token(a.spawnFix||'',/^[A-Z0-9_-]{0,16}$/,'spawn fix'),squawkMode:token(a.squawkMode||'N',/^[NS]$/,'transponder mode'),arrivalRunway:token(a.arrivalRunway||'',/^(?:\d{2}[LRC]?)?$/,'arrival runway'),speedBasis:token(a.speedBasis||'TAS',/^(IAS|TAS)$/,'initial speed basis'),publishedSpeeds:a.publishedSpeeds!==false,procedures:Array.isArray(a.procedures)?a.procedures.map(p=>token(p,/^[A-Z0-9]{1,20}$/,'procedure')):[],...flightFields(a)};
   result.category=token(a.category||(/^(?:A[23]|B7|B3[89]M|E[179]|CRJ|C[567]|GLF|CL[36])/.test(result.type)?'jet':'unknown'),/^(jet|prop|unknown)$/,'aircraft category');
   // Legacy publishedSpeeds:false must not silently disable the repaired default.
   // A NEW, explicit opt-out can still be saved through the aircraft editor.
@@ -29,7 +30,7 @@ function normalize(raw){
  if(new Set(aircraft.map(a=>a.callsign)).size!==aircraft.length)throw Error('Aircraft callsigns must be unique.');
  if(raw.runways&&!Array.isArray(raw.runways)||raw.runways?.length>2000)throw Error('Invalid runway catalogue.');
  const runways=(raw.runways||[]).map(r=>({airport:token(r.airport,/^[A-Z]{4}$/,'runway airport'),name:token(r.name,/^\d{2}[LRC]?$/,'runway'),threshold:{lat:number(r.threshold?.lat,-89,89,'Threshold latitude'),lon:number(r.threshold?.lon,-180,180,'Threshold longitude')},opposite:{lat:number(r.opposite?.lat,-89,89,'Runway latitude'),lon:number(r.opposite?.lon,-180,180,'Runway longitude')},elevation:number(r.elevation??0,-1000,15000,'Runway elevation'),simulated:true}));
- return {magneticVariationWest:number(raw.magneticVariationWest??((aircraft.some(a=>a.destination==='CYYZ')||!aircraft.length)?10.37:0),-180,180,'Magnetic variation west'),format:'ZYZTools-training',version:1,name:String(raw.name||'Local scenario').replace(/[\x00-\x1f]/g,'').slice(0,100),waypoints,aircraft,runways,speedRules:flight.normalizeSpeedRules(raw.speedRules??require('./training-speed-data').rules)};
+ return {positionUpdateHz:positionRate(raw.positionUpdateHz??2),magneticVariationWest:number(raw.magneticVariationWest??((aircraft.some(a=>a.destination==='CYYZ')||!aircraft.length)?10.37:0),-180,180,'Magnetic variation west'),format:'ZYZTools-training',version:1,name:String(raw.name||'Local scenario').replace(/[\x00-\x1f]/g,'').slice(0,100),waypoints,aircraft,runways,speedRules:flight.normalizeSpeedRules(raw.speedRules??require('./training-speed-data').rules)};
 }
 function geometry(a,b){const p=a.lat*rad,q=b.lat*rad,d=(b.lon-a.lon)*rad;const h=Math.sin((q-p)/2)**2+Math.cos(p)*Math.cos(q)*Math.sin(d/2)**2;return {distance:2*nm*Math.asin(Math.sqrt(Math.min(1,h))),bearing:wrap(Math.atan2(Math.sin(d)*Math.cos(q),Math.cos(p)*Math.sin(q)-Math.sin(p)*Math.cos(q)*Math.cos(d))/rad)};}
 function move(a,distance,heading){const p=a.lat*rad,l=a.lon*rad,t=heading*rad,d=distance/nm;const q=Math.asin(Math.sin(p)*Math.cos(d)+Math.cos(p)*Math.sin(d)*Math.cos(t));return {lat:q/rad,lon:((l+Math.atan2(Math.sin(t)*Math.sin(d)*Math.cos(p),Math.cos(d)-Math.sin(p)*Math.sin(q)))/rad+540)%360-180};}
@@ -52,19 +53,21 @@ class LocalTraining{
    if(a.active)this.announce(a);
   }return this.status();
  }
- status(){return {magneticVariationWest:this.scenario.magneticVariationWest,sessionId:this.sessionId,listening:!!this.server,host:this.host,port:this.port||6809,running:this.running,elapsed:this.elapsed,scale:this.scale,sockets:this.clients.size,clients:[...this.clients].filter(c=>c.callsign).length,lastEvent:this.lastEvent||'No local connection received yet.',scenario:this.scenario,aircraft:this.aircraft.map(a=>({...a,magneticHeading:wrap(a.heading+this.scenario.magneticVariationWest),targetMagneticHeading:wrap(a.targetHeading+this.scenario.magneticVariationWest)})),error:this.error||''};}
+ status(){return {positionUpdateHz:this.scenario.positionUpdateHz,magneticVariationWest:this.scenario.magneticVariationWest,sessionId:this.sessionId,listening:!!this.server,host:this.host,port:this.port||6809,running:this.running,elapsed:this.elapsed,scale:this.scale,sockets:this.clients.size,clients:[...this.clients].filter(c=>c.callsign).length,lastEvent:this.lastEvent||'No local connection received yet.',scenario:this.scenario,aircraft:this.aircraft.map(a=>({...a,magneticHeading:wrap(a.heading+this.scenario.magneticVariationWest),targetMagneticHeading:wrap(a.targetHeading+this.scenario.magneticVariationWest)})),error:this.error||''};}
  write(c,line){if(!c.socket.destroyed){if(c.socket.writableLength>1024*1024){c.socket.destroy();return;}c.socket.write(line+'\r\n');}}
  broadcast(line){for(const c of this.clients)if(c.callsign)this.write(c,line);}
  broadcastAll(){for(const a of this.aircraft)if(a.active){a.identActive=this.elapsed<a.identUntil;this.broadcast(position(a));}}
- announce(a,c){const send=line=>c?this.write(c,line):this.broadcast(line);send(position(a));send(flightPlan(a,c?.callsign||'*A'));for(const peer of c?[c]:this.clients)if(peer.callsign)this.write(peer,'$CQSERVER:'+peer.callsign+':BC:'+a.callsign+':'+a.assignedSquawk);}
+ announce(a,c){const send=line=>c?this.write(c,line):this.broadcast(line);send(position(a));send(flightPlan(a,c?.callsign||'*A'));for(const peer of c?[c]:this.clients)if(peer.callsign){this.write(peer,'$CQSERVER:'+peer.callsign+':BC:'+a.callsign+':'+a.assignedSquawk);if(a.clearedAltitude!==undefined)this.write(peer,'$CQSERVER:'+peer.callsign+':TA:'+a.callsign+':'+a.clearedAltitude);if(a.scratchpad)this.write(peer,'$CQSERVER:'+peer.callsign+':SC:'+a.callsign+':'+a.scratchpad);if(a.trackingController)this.write(peer,'$CQ'+a.trackingController+':'+peer.callsign+':IT:'+a.callsign);if(a.handoffPacket)this.write(peer,a.handoffPacket);}}
  receive(c,line){
   // Passwords/login lines are never retained or logged. No authentication service is called.
   if(line.startsWith('#AA')){
-   const callsign=line.slice(3).split(':')[0];if(!/^[A-Z0-9_]{2,16}$/.test(callsign)){c.socket.destroy();return;}
+   const callsign=line.slice(3).split(':')[0];if(!/^[A-Z0-9_]{2,16}$/.test(callsign)||c.callsign||[...this.clients].some(peer=>peer!==c&&peer.callsign===callsign)){c.socket.destroy();return;}
    c.callsign=callsign;this.lastEvent='Local controller login accepted (dummy credentials; no online authentication).';this.write(c,'#TMSERVER:'+callsign+':ZYZTools LOCAL TRAINING ONLY - no VATSIM connection.');
-   for(const a of this.aircraft)if(a.active)this.announce(a,c);return;
+   for(const peer of this.clients)if(peer!==c&&peer.controllerPacket)this.write(c,peer.controllerPacket);for(const a of this.aircraft)if(a.active)this.announce(a,c);return;
   }
   if(!c.callsign)return;
+  if(line.startsWith('%')){if(line.slice(1).split(':')[0]!==c.callsign)return;c.controllerPacket=line;for(const peer of this.clients)if(peer!==c&&peer.callsign)this.write(peer,line);return;}
+  if(line.startsWith('$CR')||line.startsWith('$CQ')){const f=line.slice(3).split(':');if(f[0]===c.callsign&&['CAPS','RN','RV','ATIS'].includes(f[2])){for(const peer of this.clients)if(peer!==c&&peer.callsign===f[1])this.write(peer,line);return;}}
   if(line.startsWith('$PI')){const f=line.slice(3).split(':');this.write(c,'$POSERVER:'+c.callsign+':'+(f.slice(2).join(':')||'0'));}
   try{
    if(line.startsWith('$AM')){
@@ -78,9 +81,20 @@ class LocalTraining{
     if(kind==='FP'){this.announce(a,c);return;}
     if(kind==='BC'&&(value===undefined||value==='')){this.write(c,'$CQSERVER:'+c.callsign+':BC:'+a.callsign+':'+a.assignedSquawk);return;}
     if(kind==='BC'){a.assignedSquawk=token(value,/^[0-7]{4}$/,'assigned squawk');}
-    else if(kind==='IT'||kind==='HT')a.trackingController=c.callsign;
-    else if(kind==='IC'){if(a.trackingController===c.callsign)a.trackingController='';}
-    else if(kind==='SC')a.scratchpad=fpText(value,64,'scratchpad');
+    else if(kind==='IT'){
+     if(a.handoffTarget&&a.handoffTarget!==c.callsign&&a.trackingController!==c.callsign)throw Error('That aircraft is offered to another controller.');
+     if(a.trackingController&&a.trackingController!==c.callsign&&a.handoffTarget!==c.callsign)throw Error('Accept the handoff before taking this aircraft.');
+     a.trackingController=c.callsign;a.handoffTarget='';a.handoffPacket='';
+    }
+    else if(kind==='HT'){
+     const target=value||f[1];if(target===c.callsign||![...this.clients].some(peer=>peer.callsign===target))throw Error('Choose a different connected private controller for the handoff.');
+     if(a.trackingController&&a.trackingController!==c.callsign)throw Error('Only the tracking controller can offer this handoff.');
+     if(!a.trackingController){a.trackingController=c.callsign;this.broadcast('$CQ'+c.callsign+':*A:IT:'+a.callsign);}
+     a.handoffTarget=target;a.handoffPacket=line;
+    }
+    else if(kind==='HC'){if(a.trackingController!==c.callsign)throw Error('Only the tracking controller can recall a handoff.');a.handoffTarget='';a.handoffPacket='';}
+    else if(kind==='IC'){if(a.trackingController!==c.callsign)return;a.trackingController='';a.handoffTarget='';a.handoffPacket='';}
+    else if(kind==='SC'){a.scratchpad=fpText(value,64,'scratchpad');const text=a.scratchpad.toUpperCase();let match;if((match=text.match(/^H(\d{1,3})$/)))a.assignedHeading=Number(match[1])%360;else if((match=text.match(/^S(\d{2,3})$/)))a.assignedSpeed=Number(match[1]);else if((match=text.match(/^R(-?\d{1,4})$/)))a.assignedRate=Math.abs(Number(match[1]));else if((this.runtimeWaypoints||this.scenario.waypoints).some(w=>w.name===text))a.directTo=text;else if(!text){a.assignedHeading=0;a.assignedSpeed=0;a.assignedRate=0;a.directTo='';}}
     else if(kind==='TA')a.clearedAltitude=number(value,0,60000,'Cleared altitude');
     else return;
     // Controller assignments are metadata, not pilot instructions. Never turn/descend/change actual squawk here.
@@ -95,17 +109,20 @@ class LocalTraining{
   this.error='';const server=net.createServer(socket=>{
    if(!/^127\.\d+\.\d+\.\d+$/.test(socket.remoteAddress||'')||this.clients.size>=4){socket.destroy();return;}
    const c={socket,buffer:'',callsign:null};this.clients.add(c);this.lastEvent='Local TCP connection received; waiting for controller login.';socket.setNoDelay(true);socket.setTimeout(120000,()=>socket.destroy());
-   socket.on('error',()=>{});socket.on('close',()=>{this.clients.delete(c);this.lastEvent=c.callsign?'Local controller disconnected.':'Local connection closed before controller login. Verify the non-VATSIM connection settings.';});
+   socket.on('error',()=>{});socket.on('close',()=>{this.clients.delete(c);if(c.callsign){this.broadcast('#DA'+c.callsign+':SERVER');for(const a of this.aircraft){if(a.trackingController===c.callsign){a.trackingController='';a.handoffTarget='';a.handoffPacket='';this.broadcast('$CQ'+c.callsign+':*A:IC:'+a.callsign);}else if(a.handoffTarget===c.callsign){a.handoffTarget='';a.handoffPacket='';this.broadcast('$CQ'+a.trackingController+':*A:HC:'+a.callsign);}}}this.lastEvent=c.callsign?'Local controller disconnected.':'Local connection closed before controller login. Verify the non-VATSIM connection settings.';});
    socket.on('data',bytes=>{c.buffer+=bytes.toString('utf8');if(c.buffer.length>32768){socket.destroy();return;}let end;while((end=c.buffer.indexOf('\n'))>=0){const line=c.buffer.slice(0,end).replace(/\r$/,'');c.buffer=c.buffer.slice(end+1);this.receive(c,line);}});
   });
   this.starting=true;
   try{await new Promise((resolve,reject)=>{server.once('error',()=>reject(Error('Cannot start '+this.host+':'+this.port+'. Another local server may be using it. Stop that server; do not change Connect to VATSIM.')));server.listen({host:this.host,port:this.port},resolve);});}
   finally{this.starting=false;}
   this.server=server;server.on('error',()=>{this.error='Local server stopped unexpectedly.';this.stop();});
-  // Integrate at 10 Hz, but publish radar samples at 1 Hz: consumers that
-  // timestamp samples in whole seconds must not receive five samples/second.
-  this.last=performance.now();let ticks=0;this.timer=setInterval(()=>{const now=performance.now(),dt=Math.min(1,(now-this.last)/1000);this.last=now;if(this.running)this.tick(dt*this.scale);if(++ticks%10===0)this.broadcastAll();},100);return this.status();
+  // Physics stays at 10 Hz. Publication uses wall time, independent of scale.
+  // One batch per frame at most: a delayed timer never creates catch-up bursts.
+  // 1 Hz remains available for plugins that timestamp samples in whole seconds.
+  this.last=performance.now();this.publishElapsed=0;this.timer=setInterval(()=>{const now=performance.now(),dt=Math.max(0,(now-this.last)/1000);this.last=now;this.frame(dt);},100);return this.status();
  }
+ updateRate(value){const hz=positionRate(value);this.scenario={...this.scenario,positionUpdateHz:hz};this.publishElapsed=0;return this.status();}
+ frame(seconds){if(this.running)this.tick(Math.min(1,seconds)*this.scale);const interval=1/this.scenario.positionUpdateHz;this.publishElapsed=(this.publishElapsed||0)+seconds;if(this.publishElapsed+1e-9>=interval){this.publishElapsed=Math.max(0,this.publishElapsed-Math.floor((this.publishElapsed+1e-9)/interval)*interval);this.broadcastAll();}}
  stop(){this.running=false;clearInterval(this.timer);for(const c of this.clients){for(const a of this.aircraft)this.write(c,deletion(a));c.socket.destroy();}this.clients.clear();this.server?.close();this.server=null;return this.status();}
  run(){if(!this.server)throw Error('Start the local server first.');this.running=true;this.last=performance.now();return this.status();}
  pause(){this.running=false;return this.status();}

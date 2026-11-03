@@ -104,8 +104,9 @@ function initialVerticalGuidance(a,fixes,geometry){
  const previous=index?fixes.find(w=>w.name===a.remaining[index-1]):a.legStart||a,next=fixes.find(w=>w.name===a.remaining[index+1]);
  if(next&&previous){const angle=Math.abs(delta(geometry(start,next).bearing,geometry(previous,start).bearing));distance-=Math.min(turnLead(a.speed,angle),distance*.8);}
  const model=performance.profile(a,'descent',tasToIas),needed=(a.altitude-constraint.altitude)*Math.max(30,a.speed)/(60*Math.max(.1,distance));
- const limit=Math.max(500,Math.min(6000,model.rod*1.5));a.rate=Math.max(200,Math.min(limit,needed));
- a.verticalNotice='Initial scenario descent: '+constraint.fix+' at '+constraint.altitude+' ft'+(needed>limit?' — too late to meet within training performance limits':'');
+ // REQALT is a by-fix target, not a request to continuously invent a new
+ // vertical rate. Retain the scenario/default rate (2250), or manual RATE.
+ a.verticalNotice='Initial scenario descent: '+constraint.fix+' at '+constraint.altitude+' ft'+(needed>a.rate?' — too late to meet at the selected vertical rate':'');
  a.performanceDescentRate=model.rod;
 }
 function publishedIAS(a,rules,fixes,geometry,runways=[]){

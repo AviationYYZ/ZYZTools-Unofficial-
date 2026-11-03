@@ -2,7 +2,7 @@
 // No configurable upstream: host side can connect only to its own simulator.
 const net=require('node:net'),crypto=require('node:crypto'),http=require('node:http'),https=require('node:https');
 class FsdSessions{
- constructor(training,role='student'){this.training=training;this.role=role;this.sessions=new Map();}
+ constructor(training){this.training=training;this.sessions=new Map();}
  close(id){const s=this.sessions.get(id);if(s){s.socket.destroy();s.wait?.();this.sessions.delete(id);}}
  stop(){for(const id of this.sessions.keys())this.close(id);}
  async request(req,res,reply){
@@ -12,7 +12,7 @@ class FsdSessions{
    const id=crypto.randomBytes(24).toString('hex'),socket=net.connect({host:this.training.host,port:this.training.port}),s={socket,buffer:Buffer.alloc(0),sequence:0,ended:false,last:Date.now()};this.sessions.set(id,s);
    socket.on('data',b=>{s.buffer=Buffer.concat([s.buffer,b]);if(s.buffer.length>262144){s.ended=true;socket.destroy();}s.wait?.();});socket.on('error',()=>{s.ended=true;s.wait?.();});socket.on('close',()=>{s.ended=true;s.wait?.();});
    s.timer=setInterval(()=>{if(Date.now()-s.last>30000){clearInterval(s.timer);this.close(id);}},10000);socket.on('close',()=>clearInterval(s.timer));
-   await new Promise((resolve,reject)=>{socket.once('connect',resolve);socket.once('error',reject);});const peerPort=socket.localPort;this.training.registerTransportPort?.(peerPort,this.role);socket.once('close',()=>this.training.unregisterTransportPort?.(peerPort));return reply(res,200,{id});
+   await new Promise((resolve,reject)=>{socket.once('connect',resolve);socket.once('error',reject);});return reply(res,200,{id});
   }
   const s=this.sessions.get(id);if(!s)throw Error('Remote session expired. Reconnect.');s.last=Date.now();
   if(verb==='close'&&req.method==='POST'){this.close(id);return reply(res,200,{ok:true});}
@@ -30,10 +30,10 @@ class FsdSessions{
  }
 }
 class FsdConnector{
- constructor(host){this.host=host;this.sockets=new Set();this.peers=new Map();this.activeRequests=new Set();this.generation=0;}
+ constructor(host,options={}){this.host=host;this.port=options.port??6809;this.sockets=new Set();this.peers=new Map();this.activeRequests=new Set();this.generation=0;}
  peerForPort(port){const p=this.peers.get(port);return this.server&&p&&!p.socket.destroyed&&p.controller?p:null;}
- status(){return {enabled:!!this.server,checking:this.starting===true,remoteName:this.remoteName||'',address:this.host,port:6809,connections:this.sockets.size,error:this.error||''};}
- stop(){this.generation++;for(const req of this.activeRequests)req.destroy();this.activeRequests.clear();for(const s of this.sockets)s.destroy();this.sockets.clear();this.peers.clear();this.server?.close();this.server=null;return this.status();}
+ status(){return {enabled:!!this.server,checking:this.starting===true,remoteName:this.remoteName||'',address:this.host,port:this.server?.address()?.port??this.port,connections:this.sockets.size,error:this.error||''};}
+ stop(){this.generation++;this.tagLayer?.close();this.tagLayer=null;for(const req of this.activeRequests)req.destroy();this.activeRequests.clear();for(const s of this.sockets)s.destroy();this.sockets.clear();this.peers.clear();this.server?.close();this.server=null;return this.status();}
  async start(value){
   if(this.server||this.starting)throw Error('Connector is already started.');const url=new URL(value.url);
   if(url.username||url.password||url.search||url.hash||url.pathname!=='/')throw Error('Enter the tunnel origin only, without credentials/path/query.');
@@ -41,19 +41,19 @@ class FsdConnector{
   if(!/^[a-f0-9]{64}$/.test(value.token||''))throw Error('Enter the host access key.');
   this.url=url;this.token=value.token;this.error='';this.starting=true;const generation=++this.generation;
   const server=net.createServer(socket=>this.accept(socket,generation));
-  try{const remote=await this.call('/api/status');if(generation!==this.generation)throw Error('Join canceled.');if(!remote.listening||typeof remote.sessionId!=='string')throw Error('The host training server is not ready.');this.remoteName=String(remote.name||'Training session');await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(6809,this.host,resolve);});if(generation!==this.generation){server.close();throw Error('Start canceled.');}this.server=server;server.on('error',e=>{this.error=e.message;this.stop();});return this.status();}catch(e){if(generation===this.generation)this.error=e.code==='EADDRINUSE'?'EuroScope connector address is busy. Stop the other local server/connector.':e.message;throw Error(this.error||'Join canceled.');}finally{this.starting=false;}
+  try{const remote=await this.call('/api/status');if(generation!==this.generation)throw Error('Join canceled.');if(!remote.listening||typeof remote.sessionId!=='string')throw Error('The host training server is not ready.');this.remoteName=String(remote.name||'Training session');await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(this.port,this.host,resolve);});if(generation!==this.generation){server.close();throw Error('Start canceled.');}this.server=server;server.on('error',e=>{this.error=e.message;this.stop();});return this.status();}catch(e){if(generation===this.generation)this.error=e.code==='EADDRINUSE'?'EuroScope connector address is busy. Stop the other local server/connector.':e.message;throw Error(this.error||'Join canceled.');}finally{this.starting=false;}
  }
  call(route,value){return new Promise((resolve,reject)=>{const data=value===undefined?null:JSON.stringify(value),client=this.url.protocol==='https:'?https:http;
   const req=client.request(new URL(route,this.url),{method:data?'POST':'GET',headers:{Authorization:'Bearer '+this.token,...(data?{'Content-Type':'application/json','Content-Length':Buffer.byteLength(data)}:{})},timeout:12000},res=>{let raw='';res.on('data',b=>{raw+=b;if(raw.length>500000)req.destroy(Error('Tunnel response too large.'));});res.on('end',()=>{try{if(res.statusCode===401)throw Error('Invite/access key expired or incorrect. Ask the host to Copy private invite again.');if(res.statusCode===502||res.statusCode===503)throw Error('Tunnel cannot reach the host. Ask them to check hosting and internet tunnel status.');let result;try{result=JSON.parse(raw);}catch{throw Error('The address did not respond as a ZYZTools host. Check the invite or retry when the tunnel is ready.');}if(res.statusCode!==200)throw Error(result.error||'Tunnel rejected the connection.');resolve(result);}catch(e){reject(e);}});res.on('error',reject);});
   this.activeRequests.add(req);req.on('close',()=>this.activeRequests.delete(req));req.on('timeout',()=>req.destroy(Error('Tunnel timed out.')));req.on('error',reject);req.end(data);
  });}
  async accept(socket,generation){
-  if(this.sockets.size>=3){socket.destroy();return;}this.sockets.add(socket);const peer={socket,controller:'',buffer:''};this.peers.set(socket.remotePort,peer);socket.setNoDelay(true);socket.pause();let id,sequence=0,closed=false;
-  socket.on('error',()=>{});socket.on('close',()=>{closed=true;this.sockets.delete(socket);this.peers.delete(socket.remotePort);if(id&&generation===this.generation)this.call('/api/fsd/close/'+id,{}).catch(()=>{});});
+  if(this.sockets.size>=3){socket.destroy();return;}this.sockets.add(socket);const peer={socket,controller:'',outBuffer:'',inBuffer:''};this.peers.set(socket.remotePort,peer);socket.setNoDelay(true);socket.pause();let id,sequence=0,closed=false;
+  socket.on('error',()=>{});socket.on('close',()=>{closed=true;this.tagLayer?.drop(peer);this.sockets.delete(socket);this.peers.delete(socket.remotePort);if(id&&generation===this.generation)this.call('/api/fsd/close/'+id,{}).catch(()=>{});});
   try{
    ({id}=await this.call('/api/fsd/open',{}));if(closed||generation!==this.generation){this.call('/api/fsd/close/'+id,{}).catch(()=>{});return;}
-   const write=async()=>{try{for await(const chunk of socket){if(chunk.length>32768)throw Error('EuroScope write exceeds limit.');if(!peer.controller){peer.buffer+=chunk.toString();if(peer.buffer.length>32768)throw Error('Controller login exceeds limit.');let n;while((n=peer.buffer.indexOf('\n'))>=0){const line=peer.buffer.slice(0,n).replace(/\r$/,'');peer.buffer=peer.buffer.slice(n+1);if(line.startsWith('#AA')){const cs=line.slice(3).split(':')[0];if(!/^[A-Z0-9_]{2,16}$/.test(cs))throw Error('Invalid controller login.');peer.controller=cs;peer.buffer='';break;}}}await this.call('/api/fsd/write/'+id,{sequence:++sequence,data:chunk.toString('base64')});}}catch(e){this.error=e.message;socket.destroy();}};write();socket.resume();
-   while(!closed&&generation===this.generation){const result=await this.call('/api/fsd/read/'+id);if(result.data){if(socket.writableLength>262144)throw Error('EuroScope is not reading.');socket.write(Buffer.from(result.data,'base64'));}if(result.ended)break;}
+   const write=async()=>{try{for await(const chunk of socket){if(chunk.length>32768)throw Error('EuroScope write exceeds limit.');peer.outBuffer+=chunk.toString('latin1');if(peer.outBuffer.length>65536)throw Error('EuroScope line exceeds limit.');let n;const forward=[];while((n=peer.outBuffer.indexOf('\n'))>=0){const line=peer.outBuffer.slice(0,n).replace(/\r$/,'');peer.outBuffer=peer.outBuffer.slice(n+1);if(line.startsWith('#AA')){const cs=line.slice(3).split(':')[0];if(!/^[A-Z0-9_]{2,16}$/.test(cs)||peer.controller)throw Error('Invalid controller login.');peer.controller=cs;}const filtered=this.tagLayer?.outgoing(peer,line)??line;if(filtered)forward.push(filtered);}if(forward.length)await this.call('/api/fsd/write/'+id,{sequence:++sequence,data:Buffer.from(forward.join('\r\n')+'\r\n','latin1').toString('base64')});}}catch(e){this.error=e.message;socket.destroy();}};write();socket.resume();
+   while(!closed&&generation===this.generation){const result=await this.call('/api/fsd/read/'+id);if(result.data){if(socket.writableLength>262144)throw Error('EuroScope is not reading.');peer.inBuffer+=Buffer.from(result.data,'base64').toString('latin1');if(peer.inBuffer.length>524288)throw Error('Host line exceeds limit.');const output=[];let n;while((n=peer.inBuffer.indexOf('\n'))>=0){const line=peer.inBuffer.slice(0,n).replace(/\r$/,'');peer.inBuffer=peer.inBuffer.slice(n+1);output.push(...(this.tagLayer?.incoming(peer,line)??[line]));}if(output.length)socket.write(output.join('\r\n')+'\r\n','latin1');}if(result.ended)break;}
   }catch(e){this.error=e.message;}finally{socket.destroy();if(id&&generation===this.generation)this.call('/api/fsd/close/'+id,{}).catch(()=>{});}
  }
 }

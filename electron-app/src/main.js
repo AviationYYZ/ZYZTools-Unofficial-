@@ -889,6 +889,7 @@ ipcMain.handle('discord:save', async (_event, folder, value) => {
 ipcMain.handle("app:initialState", async () => getInitialState());
 ipcMain.handle('training:action',async(_event,action,value)=>{
   if(action==='status')return localTraining.status();
+  if(action==='updateRate')return localTraining.updateRate(value);
   if(action==='load')return localTraining.load(prepareTraining(value));
   if(action==='start')return localTraining.start(6809);
   if(action==='demo')return localTraining.load(require('./training-demo.json'));
@@ -929,7 +930,7 @@ ipcMain.handle('training:sector',async(_event,choose=false)=>{
     const result=await dialog.showOpenDialog(mainWindow,{title:'Import sector fixes and map geometry',defaultPath:path.join(process.env.APPDATA||app.getPath('documents'),'EuroScope'),properties:['openFile','multiSelections'],filters:[{name:'EuroScope sector',extensions:['sct','sct2']}]});
     if(!result.canceled){const data=require('./training-sector').importSectors(result.filePaths);fs.mkdirSync(app.getPath('userData'),{recursive:true});fs.writeFileSync(sectorFile(),JSON.stringify(data),'utf8');trainingSector=data;}
   }
-  const data=getTrainingSector();return {...data,airwayCount:data.airways?.length||0,procedureCount:data.procedures?.length||0,airways:undefined,procedures:undefined};
+  const data=getTrainingSector();return {...data,navPointCount:data.navPoints?.length||0,airwayCount:data.airways?.length||0,procedureCount:data.procedures?.length||0,navPoints:undefined,airways:undefined,procedures:undefined};
 });
 ipcMain.handle('training:multiplayer',async(_event,action,value)=>{
  if(action==='inviteCopy'){const t=trainingTunnel.status();if(t.state!=='ready'||!trainingMultiplayer.server)throw Error('Wait for the internet tunnel to be ready.');require('electron').clipboard.writeText(require('./training-invite').makeInvite(t.url,trainingMultiplayer.token));return {copied:true};}
@@ -966,6 +967,7 @@ ipcMain.handle('training:instructor',async(event,action,value={})=>{
  if(action==='restore')return instructorClient.restore();
  if(action==='disconnect'){trainingCommandBridge.disable();return instructorClient.disconnect(value.forget===true);}
  if(action==='euroScopeSelection')return trainingCommandBridge.selection();
+ if(action==='prediction'){const result=trainingCommandBridge.prediction(value.minutes);await trainingCommandBridge.refresh();return result;}
  if(action==='state')return instructorClient.state();
  if(action==='aircraft')return instructorClient.aircraft(value.slot);
  if(action==='upload'){
@@ -975,10 +977,10 @@ ipcMain.handle('training:instructor',async(event,action,value={})=>{
  if(action==='connectEuroScope'){
   if(localTraining.server)throw Error('Stop the local practice server before connecting to your server PC.');
   if(trainingConnector.server||trainingConnector.starting)throw Error('A EuroScope connector is already active. Disconnect it under Student before switching servers.');
-  const state=await instructorClient.state(),slot=state.slots.find(s=>s.id===value.slot),native=slot?.engineMode==='euroscope';
-  const result=await instructorClient.action(value.slot,state.nativeControlsSupported?'instructorInvite':'studentInvite',value.epoch);const s=await trainingConnector.start(require('./training-invite').parseInvite(result.invite));
-  if(!native){try{await trainingCommandBridge.bind(value.slot);}catch(e){trainingConnector.stop();trainingCommandBridge.disable();throw e;}}else trainingCommandBridge.disable();require('electron').clipboard.writeText(s.address);
-  await dialog.showMessageBox(mainWindow,{type:'info',title:native?'Native EuroScope instructor controls':'Instructor EuroScope view ready',message:'Server address copied: '+s.address,detail:native?'Private native session: choose Start simulator session, leave Scenario EMPTY, Connect to VATSIM UNCHECKED, dummy credentials and a unique instructor callsign. Server '+s.address+' (port 6809). Never load the scenario on this PC. The SERVER-PC EuroScope must already be connected with the generated scenario and Publish simulation data: To everyone. Use {} → Get simulation and the native ribbon. This app has not connected EuroScope automatically.':'In EuroScope disconnect any old session, choose the normal direct connection, leave Connect to VATSIM UNCHECKED, use dummy credentials and a unique instructor callsign. Paste '+s.address+' as Server (port 6809). Keep ZYZTools running. This joins the selected server’s traffic; it does not transfer simulation to your PC.'});return {...s,engineMode:native?'euroscope':'zyztools'};
+  const state=await instructorClient.state(),slot=state.slots.find(s=>s.id===value.slot);if(slot?.engineMode==='euroscope')throw Error('Update the server app and restart this slot in ZYZTools mode. Native mode has been removed.');
+  const result=await instructorClient.action(value.slot,'studentInvite',value.epoch);const s=await trainingConnector.start(require('./training-invite').parseInvite(result.invite));
+  try{await trainingCommandBridge.bind(value.slot);}catch(e){trainingConnector.stop();trainingCommandBridge.disable();throw e;}require('electron').clipboard.writeText(s.address);
+  await dialog.showMessageBox(mainWindow,{type:'info',title:'Instructor EuroScope view ready',message:'Server address copied: '+s.address,detail:'In EuroScope disconnect any old session, choose the normal direct connection, leave Connect to VATSIM UNCHECKED, use dummy credentials and a unique instructor callsign. Paste '+s.address+' as Server (port 6809). Keep ZYZTools running. This joins the selected server’s traffic; it does not transfer simulation to your PC.'});return {...s,engineMode:'zyztools'};
  }
  if(action==='studentInvite'){const result=await instructorClient.action(value.slot,'studentInvite',value.epoch);require('electron').clipboard.writeText(result.invite);return {copied:true};}
  if(action==='action')return instructorClient.action(value.slot,value.action,value.epoch,value.payload);

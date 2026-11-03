@@ -19,7 +19,7 @@ function expandRoute(aircraft,catalogue,waypoints=[]){
  const tokens=String(aircraft.flightPlanRoute??aircraft.route??'').trim().toUpperCase().split(/\s+/).filter(Boolean);
  let arrivalRunway=aircraft.arrivalRunway||'';
  for(const t of tokens){const m=t.match(new RegExp('^'+(aircraft.destination||'CYYZ')+'/(\\d{2}[LRC]?)$'));if(m)arrivalRunway=m[1];}
- function add(name){if(!map.has(name))throw Error('Unknown flight-plan fix '+name+'. Import its sector/navdata.');if(route.at(-1)!==name)route.push(name);}
+ function add(name){if(!map.has(name)){const w=require('./training-navdata').lookup(catalogue,name);if(!w)throw Error('Unknown flight-plan fix '+name+'. Import its sector/navdata.');map.set(name,w);}if(route.at(-1)!==name)route.push(name);}
  for(let i=0;i<tokens.length;i++){
   const raw=tokens[i];if(raw==='DCT'||/^N\d{4}F\d{3}$/.test(raw))continue;
   const [name,suffix]=raw.split('/');if(name===aircraft.origin||name===aircraft.destination)continue;
@@ -28,6 +28,8 @@ function expandRoute(aircraft,catalogue,waypoints=[]){
    if(!route.length||!tokens[i+1])throw Error('Use ENTRY '+name+' EXIT for an airway.');
    const exit=tokens[++i].split('/')[0],points=airwayPath(name,route.at(-1),exit,catalogue,map);for(const w of points){const old=map.get(w.name);if(old&&Math.hypot(old.lat-w.lat,old.lon-w.lon)>.03)throw Error('Ambiguous airway fix '+w.name);map.set(w.name,w);add(w.name);}continue;
   }
+  const isProcedure=(catalogue.procedures||[]).some(p=>p.name===name);
+  if(!isProcedure&&require('./training-navdata').lookup(catalogue,name)){add(name);continue;}
   let candidates=(catalogue.procedures||[]).filter(p=>{const wanted=suffix||(p.kind==='STAR'?arrivalRunway:'');return p.name===name&&p.airport===(p.kind==='STAR'?(aircraft.destination||'CYYZ'):aircraft.origin)&&(!wanted||p.runway===wanted);});
   if(route.length&&candidates.some(p=>p.fixes.includes(route.at(-1))))candidates=candidates.filter(p=>p.fixes.includes(route.at(-1)));
   else if(candidates.some(p=>p.fixes[0]===name.replace(/\d+[A-Z]?$/,'')))candidates=candidates.filter(p=>p.fixes[0]===name.replace(/\d+[A-Z]?$/,''));

@@ -43,7 +43,18 @@ function importSectors(files){
   if(fs.existsSync(nav)&&fs.statSync(nav).size<30*1024*1024)for(const e of parser.parseAirways(fs.readFileSync(nav,'utf8')))airways.push(e);
  }
  if(!fixes.size)throw Error('No named fixes found. Select your .sct/.sct2 file containing [FIXES], [VOR] or [NDB].');
- if(fixes.size>30000)throw Error('Sector catalogue exceeds 30,000 fixes.');return {magneticVariationWest,fixes:[...fixes.values()],lines:lines.slice(0,100000),geometry:geometry.slice(0,100000),runways,procedures,airways};
+ const navPoints=[],navSources=[],loaded=new Set(),path=require('node:path'),nav=require('./training-navdata');
+ for(const file of files)for(const dir of [path.join(path.dirname(file),'navdata'),path.join(path.dirname(file),'DataFiles')]){
+  if(!fs.existsSync(dir))continue;for(const name of fs.readdirSync(dir))if(/^(isec|icao)\.txt$/i.test(name)){
+   const full=path.resolve(dir,name);if(loaded.has(full.toLowerCase()))continue;loaded.add(full.toLowerCase());if(fs.statSync(full).size>50*1024*1024)throw Error('Navdata file exceeds 50 MB.');
+   for(const point of nav.parsePoints(fs.readFileSync(full,'utf8')))navPoints.push(point);navSources.push(full);if(navPoints.length>700000)throw Error('Limit: 700,000 navdata points. Import one consistent cycle.');
+  }
+ }
+ // Airway endpoint coordinates are also valid fixes even without an SCT entry.
+ for(const edge of airways)for(const w of [edge.from,edge.to])navPoints.push([w.name,w.lat,w.lon]);
+ const unique=new Map();for(const w of navPoints)unique.set(w[0]+'@'+w[1].toFixed(5)+','+w[2].toFixed(5),w);
+ const list=[...fixes.values()],navBounds={south:Math.min(...list.map(w=>w.lat))-2,north:Math.max(...list.map(w=>w.lat))+2,west:Math.min(...list.map(w=>w.lon))-2,east:Math.max(...list.map(w=>w.lon))+2};
+ if(fixes.size>30000)throw Error('Sector catalogue exceeds 30,000 fixes.');return {magneticVariationWest,fixes:list,navPoints:[...unique.values()],navBounds,navSources,lines:lines.slice(0,100000),geometry:geometry.slice(0,100000),runways,procedures,airways};
 }
 const sectionKinds={GEO:'Geo',SID:'Sids',STAR:'Stars',RUNWAY:'Runways',ARTCC:'ARTCC boundary','ARTCC HIGH':'ARTCC high boundary','ARTCC LOW':'ARTCC low boundary',FIXES:'Fixes',VOR:'VORs',NDB:'NDBs',AIRPORT:'Airports',AIRPORTS:'Airports'};
 function parseAsr(text,name='Display profile'){
@@ -61,7 +72,7 @@ function resolveScenario(raw,catalogue){
  const required=new Set((raw.waypoints||[]).map(w=>w.name));
  const aircraft=(raw.aircraft||[]).map(a=>{
   const copy={...a},expanded=require('./training-routes').expandRoute(a,{...catalogue,fixes:[...map.values()]},raw.waypoints);copy.route=expanded.route;copy.flightPlanRoute=a.flightPlanRoute??a.route??'';copy.arrivalRunway=expanded.arrivalRunway;copy.procedures=expanded.procedures;for(const w of expanded.waypoints){map.set(w.name,w);required.add(w.name);}
-  if(a.spawnFix){const name=String(a.spawnFix).trim().toUpperCase(),fix=map.get(name);if(!fix)throw Error('Unknown spawn fix '+name+'. Import the correct sector file.');copy.lat=fix.lat;copy.lon=fix.lon;copy.spawnFix=name;required.add(name);}return copy;
+  if(a.spawnFix){const name=String(a.spawnFix).trim().toUpperCase(),fix=map.get(name)||require('./training-navdata').lookup(catalogue||{},name);if(!fix)throw Error('Unknown spawn fix '+name+'. Import the correct sector file.');map.set(name,fix);copy.lat=fix.lat;copy.lon=fix.lon;copy.spawnFix=name;required.add(name);}return copy;
  });
  for(const a of aircraft)if(a.initialDescent&&!a.route.split(' ').includes(a.initialDescent.fix))delete a.initialDescent;
  const waypoints=[...required].map(name=>{const fix=map.get(name);if(!fix)throw Error('Unknown route fix '+name+'. Import the correct sector file or define it manually.');return fix;});return {...raw,magneticVariationWest:raw.magneticVariationWest??catalogue?.magneticVariationWest,waypoints,aircraft,runways:raw.runways?.length?raw.runways:catalogue?.runways||[],speedRules:raw.speedRules??require('./training-speed-data').rules};

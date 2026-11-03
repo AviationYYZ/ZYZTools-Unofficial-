@@ -7,6 +7,9 @@ class CTrainingCommandBridge
     ULONGLONG deadline = 0, changed = 0;
     DWORD lastPort = 0;
     unsigned sequence = 0;
+    int predictionMinutes=0; ULONGLONG predictionVerified=0; std::string predictionCallsigns;
+    struct TagOverlay {std::string callsign,id,nonce;int type=0;ULONGLONG until=0;};
+    std::vector<TagOverlay> tagOverlays;
     static bool Callsign(const std::string &s) { return s.size() >= 2 && s.size() <= 12 && std::all_of(s.begin(), s.end(), [](unsigned char c) { return std::isalnum(c); }); }
     static int BridgePort() {
 #ifdef ZYZTOOLS_TEST_BUILD
@@ -23,7 +26,7 @@ class CTrainingCommandBridge
         return std::string(root) + "\\ZYZTools\\TrainingCommands\\Binding.json";
 #endif
     }
-    static bool Binding(std::string &nonce, std::string &session) {
+    static bool Binding(std::string &nonce, std::string &session,int *minutes=nullptr,std::string *callsigns=nullptr) {
         std::ifstream f(BindingFile(), std::ios::binary); if (!f) return false;
         const std::string json((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
         if (json.size() > 4096) return false;
@@ -31,6 +34,8 @@ class CTrainingCommandBridge
         if (!JsonStringValue(json,"nonce",nonce) || nonce.size()!=64 || !std::all_of(nonce.begin(),nonce.end(),[](unsigned char c){return std::isxdigit(c);}) ||
             !JsonStringValue(json,"sessionId",session) || session.size()>100 || session.empty() ||
             !JsonStringValue(json,"channel",channel) || channel!=ZYZTOOLS_CHANNEL || !JsonIntValue(json,"sent_at",sent)) return false;
+        if(minutes){int value=0;JsonIntValue(json,"prediction_minutes",value);*minutes=(value==1||value==2||value==3||value==5||value==10)?value:0;}
+        if(callsigns){std::string value;JsonStringValue(json,"prediction_callsigns",value);*callsigns=value.size()<=1400&&std::all_of(value.begin(),value.end(),[](unsigned char c){return std::isalnum(c)||c==',';})?value:"";}
         const auto age=std::time(nullptr)-sent; return age>=0 && age<=5;
     }
     static DWORD TrainingSocketPort() {
@@ -63,6 +68,29 @@ class CTrainingCommandBridge
         return "\"callsign\":\""+JsonEscape(cs)+"\",\"controller\":\""+JsonEscape(controller)+"\",\"port\":"+std::to_string(port)+",\"pid\":"+std::to_string(GetCurrentProcessId())+",\"sent_at\":"+std::to_string(std::time(nullptr))+",\"sessionId\":\""+JsonEscape(session)+"\"";
     }
 public:
+    struct TagRestore {std::string callsign,value,message;int type=0;};
+    std::string TagEdit(const std::string &callsign,const std::string &controller,int type,const std::string &value) {
+        std::string nonce,session;if(controller.empty()||!Callsign(callsign)||!Binding(nonce,session))return "";
+        std::ifstream file(BindingFile(),std::ios::binary);const std::string json((std::istreambuf_iterator<char>(file)),std::istreambuf_iterator<char>());int enabled=0;
+        if(json.size()>4096||!JsonIntValue(json,"tag_controls",enabled)||enabled!=1)return "";
+        std::string active;JsonStringValue(json,"prediction_callsigns",active);if(active.find(","+callsign+",")==std::string::npos)return "";
+        const DWORD port=TrainingSocketPort();if(!port)return "";
+        const std::string id="tag-"+std::to_string(GetCurrentProcessId())+"-"+std::to_string(GetTickCount64())+"-"+std::to_string(++sequence);
+        const auto response=Request(L"POST",L"/tag-edit",nonce,"{"+Payload(callsign,controller,port,session)+",\"id\":\""+id+"\",\"dataType\":"+std::to_string(type)+",\"value\":\""+JsonEscape(value)+"\"}");std::string state,message;
+        if(JsonStringValue(response,"state",state)&&state=="ignored")return "";
+        if(state=="overlay") {tagOverlays.erase(std::remove_if(tagOverlays.begin(),tagOverlays.end(),[&](const TagOverlay &o){return o.callsign==callsign&&o.type==type;}),tagOverlays.end());if(tagOverlays.size()<64)tagOverlays.push_back({callsign,id,nonce,type,GetTickCount64()+3000});return "";}
+        if(JsonStringValue(response,"message",message))return message;return "Tag control was not acknowledged. Check the instructor app before retrying.";
+    }
+    std::vector<TagRestore> TagRestores(const std::string &controller) {
+        std::vector<TagRestore> result;if(tagOverlays.empty())return result;std::string nonce,session;
+        if(controller.empty()||!Binding(nonce,session)||!TrainingSocketPort()){tagOverlays.clear();return result;}
+        for(auto it=tagOverlays.begin();it!=tagOverlays.end();) {
+            if(it->nonce!=nonce){it=tagOverlays.erase(it);continue;}if(GetTickCount64()<it->until){++it;continue;}
+            const auto response=Request(L"GET",L"/tag-state?id="+std::wstring(it->id.begin(),it->id.end()),nonce);std::string state,value,message;
+            if(JsonStringValue(response,"state",state)&&state=="restore"&&JsonStringValue(response,"value",value)){JsonStringValue(response,"message",message);result.push_back({it->callsign,value,message,it->type});}
+            it=tagOverlays.erase(it);
+        }return result;
+    }
     static bool Shortcut(const std::string &line,std::string &command) {
         if(line.empty() || line[0]!='.')return false;
         const auto end=line.find_first_of(" ,");const auto verb=line.substr(1,end==std::string::npos?std::string::npos:end-1);
@@ -71,6 +99,7 @@ public:
         command=line.substr(1);return true;
     }
     bool TrainingContext() const {std::string nonce,session;return Binding(nonce,session)&&TrainingSocketPort()!=0;}
+    int PredictionMinutes(const std::string &callsign) const {return GetTickCount64()-predictionVerified<2500&&predictionCallsigns.find(","+callsign+",")!=std::string::npos?predictionMinutes:0;}
     std::string Tick(const std::string &selected,const std::string &controller) {
         std::string nonce,session,message;
         if (!pending.empty()) {
@@ -80,7 +109,8 @@ public:
                 if (JsonStringValue(response,"state",state) && state!="pending") {JsonStringValue(response,"message",message);pending.clear();}
             }
         }
-        const DWORD port=!controller.empty() && Binding(nonce,session)?TrainingSocketPort():0;
+        int minutes=0;std::string callsigns;const DWORD port=!controller.empty() && Binding(nonce,session,&minutes,&callsigns)?TrainingSocketPort():0;
+        predictionMinutes=port?minutes:0;predictionCallsigns=port?callsigns:"";predictionVerified=port?GetTickCount64():0;
         if (port) {
             const std::string cs=Callsign(selected)?selected:"";
             if(cs!=lastSelection || controller!=lastController || port!=lastPort){changed=GetTickCount64();lastSelection=cs;lastController=controller;lastPort=port;}

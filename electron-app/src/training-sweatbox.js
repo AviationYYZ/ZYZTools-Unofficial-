@@ -62,7 +62,7 @@ function parse(text,catalogue={},name='Imported SweatBox'){
     if(route){const fixes=[];for(const part of route.trim().toUpperCase().split(/\s+/).filter(Boolean)){
      const [fix,alt]=part.split('/');if(alt!==undefined)warnings.add('Route altitude constraints are not flown automatically.');
      if(fix==='DCT')continue;
-     const runway=ils.get(fix);let w=map.get(fix);if(runway){if((runway.airport||defaultAirport)!==a.destination)throw Error('ILS airport does not match destination.');w={name:fix,...runway.threshold};a.arrivalRunway=runway.name;}
+     const runway=ils.get(fix);let w=map.get(fix);if(runway){if((runway.airport||defaultAirport)!==a.destination)throw Error('ILS airport does not match destination.');w={name:fix,...runway.threshold};a.arrivalRunway=runway.name;}else if(!w)w=require('./training-navdata').lookup(catalogue,fix);
      if(!w)throw Error('Unknown route fix '+fix+'. Import matching SCT/navdata.');if(fixes.at(-1)?.name!==fix)fixes.push(w);
     }expanded={route:fixes.map(w=>w.name).join(' '),waypoints:fixes};
     }else{expanded=require('./training-routes').expandRoute(a,catalogue);a.arrivalRunway=expanded.arrivalRunway||a.arrivalRunway;}

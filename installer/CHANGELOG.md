@@ -1,10 +1,34 @@
 # Changelog
 
+## 1.2.48 / Server test 0.4.4 — Local test, awaiting approval
+
+- Default missing/new-aircraft vertical rate is 2,250 FPM. Named initial descents retain the selected rate rather than continually replacing it with a calculated rate. Explicit saved rates and manual RATE commands remain supported; captured ILS glidepaths retain their own guidance.
+- Import companion navdata/isec.txt and icao.txt plus airway endpoint coordinates. Resolve omitted route/spawn fixes offline, retain sector coordinates as authoritative, reject ambiguous names, and embed used coordinates in portable scenarios. Re-import the SCT once to refresh the old catalogue.
+- Add synthetic west 65 arrivals/hour, east 40 arrivals/hour plus 10 airborne runway-05 departures, and a separate west 10-NM-entry-spacing exercise. See scenarios/README.md for the rate/spacing tradeoff and setup. Nothing published or connected to public networks.
+
+## 1.2.47 / Server test 0.4.3 — Local test, awaiting approval
+
+- Private instructor assigned-data controls alongside unmodified VATCAN Situ: altitude, IAS, magnetic heading, rate, direct-to and actual squawk. Match an SDK edit with its outgoing annotation before commanding; filter annotations before transport and restore the latest student annotation after roughly 3 seconds without undoing maneuvers.
+- Private instructor-only ownership view for tag access, separate from student tracking. Add distinct controller presence, late-join state, handoff offer/accept/recall and disconnect cleanup. Use unique sector-defined callsigns and dummy credentials only.
+- Includes paused 1.2.46 rate/PTL work. Native mode stays removed. See docs/INSTRUCTOR_TAG_CONTROLS.md for setup and limits. Nothing published; full Situ UI verification remains for user testing.
+
+## 1.2.46 / Server test 0.4.2 — Local test, awaiting approval
+
+- Configurable 1/2/5 Hz aircraft position publication; balanced 2 Hz default. Hosted rates persist per slot and change live through Instructor or server dashboard. Local rates travel in scenario JSON. Simulation physics/time and flight-plan refresh remain independent.
+- Add optional selected-aircraft ZYZTools training prediction line, using reported true heading and groundspeed rather than timestamp-derived velocity. Off by default; 1/2/3/5/10 minute choices, cyan dotted line and minute marks, scoped to the verified instructor simulation. Existing external PTL plugins remain untouched.
+- Retain 1 Hz compatibility fallback. EuroScope's own redraw limits and third-party plugin compatibility need user verification. See docs/TRAINING_UPDATE_RATE.md. Nothing published.
+
+## 1.2.45 / Server test 0.4.1 — Local test, awaiting approval
+
+- Remove experimental native EuroScope mode, its profile/scenario exporter, relay, launch buttons and engine selector. All saved server slots use ZYZTools simulation again; scenario files, names, autostart preferences and instructor pairing settings remain intact.
+- Preserve the graphical scenario builder, private three-slot hosting, mobile dashboard and instructor EuroScope command bridge. EuroScope is no longer required on the server PC. Clients use normal direct/private connections with Connect to VATSIM unchecked, not native simulator sessions.
+- No publication or automatic installation. The separate non-native runway-route mismatch report remains under investigation; this build does not claim to fix it.
+
 ## 1.2.44 / Server test 0.4.0 — Experimental local test
 
 - Keep the graphical scenario editor and client scenario uploads. Add an independent native EuroScope or ZYZTools engine choice for each private server slot.
 - Native mode generates dedicated local profiles and resolved scenario files, launches installed EuroScope without connecting, and separates instructor control transport from read-only student transport. No VATSIM/public SweatBox connection.
-- Native controls require manual private server-PC setup and end-to-end user verification. See docs/NATIVE_EUROSCOPE_TRAINING.md for limits. No publication authorized.
+- Native controls required manual private server-PC setup and end-to-end user verification. This experiment was subsequently removed in 1.2.45 / Server 0.4.1. No publication authorized.
 
 ## 1.2.43 / Server test 0.3.3 — Local test, awaiting approval
 

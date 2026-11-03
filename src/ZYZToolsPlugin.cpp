@@ -1911,6 +1911,7 @@ namespace
 } // namespace
 
 #include "TrainingCommandBridge.h"
+#include "TrainingPrediction.h"
 
 class CZYZToolsPlugin final : public CPlugIn
 {
@@ -2166,6 +2167,20 @@ public:
 
     void OnFlightPlanControllerAssignedDataUpdate(CFlightPlan FlightPlan, int DataType) override
     {
+        if(!m_trainingTagRestore&&FlightPlan.IsValid()&&GetConnectionType()==CONNECTION_TYPE_DIRECT) {
+            const auto self=ControllerMyself();if(self.IsValid()) {
+                const auto data=FlightPlan.GetControllerAssignedData();std::string value;bool supported=true;
+                switch(DataType){
+                case CTR_DATA_TYPE_SQUAWK:value=data.GetSquawk()?data.GetSquawk():"";break;
+                case CTR_DATA_TYPE_TEMPORARY_ALTITUDE:value=std::to_string(data.GetClearedAltitude());break;
+                case CTR_DATA_TYPE_SPEED:value=std::to_string(data.GetAssignedSpeed());break;
+                case CTR_DATA_TYPE_RATE:value=std::to_string(std::abs(data.GetAssignedRate()));break;
+                case CTR_DATA_TYPE_HEADING:value=std::to_string(data.GetAssignedHeading());break;
+                case CTR_DATA_TYPE_DIRECT_TO:value=data.GetDirectToPointName()?data.GetDirectToPointName():"";break;
+                default:supported=false;}
+                if(supported){const auto message=m_trainingCommands.TagEdit(FlightPlan.GetCallsign(),self.GetCallsign(),DataType,value);if(!message.empty())DisplayUserMessage("ZYZTools","TRAINING TAG",message.c_str(),true,true,false,false,false);}
+            }
+        }
         if (m_conflict) m_conflict->dirty = true;
         if (DataType == CTR_DATA_TYPE_SCRATCH_PAD_STRING) TryAssignArrivalRunway(FlightPlan);
         CacheFp(FlightPlan);
@@ -2237,6 +2252,17 @@ public:
     void OnTimer(int Counter) override
     {
         const auto trainingSelf=ControllerMyself();
+        const auto tagRestores=m_trainingCommands.TagRestores(GetConnectionType()==CONNECTION_TYPE_DIRECT&&trainingSelf.IsValid()?trainingSelf.GetCallsign():"");
+        m_trainingTagRestore=true;
+        for(const auto &restore:tagRestores){auto fp=FlightPlanSelect(restore.callsign.c_str());if(!fp.IsValid())continue;auto data=fp.GetControllerAssignedData();const int number=atoi(restore.value.c_str());switch(restore.type){
+            case CTR_DATA_TYPE_SQUAWK:data.SetSquawk(restore.value.c_str());break;
+            case CTR_DATA_TYPE_TEMPORARY_ALTITUDE:data.SetClearedAltitude(number);break;
+            case CTR_DATA_TYPE_SPEED:data.SetAssignedSpeed(number);break;
+            case CTR_DATA_TYPE_RATE:data.SetAssignedRate(number);break;
+            case CTR_DATA_TYPE_HEADING:data.SetAssignedHeading(number);break;
+            case CTR_DATA_TYPE_DIRECT_TO:data.SetDirectToPointName(restore.value.c_str());break;
+        }if(!restore.message.empty())DisplayUserMessage("ZYZTools","TRAINING TAG",restore.message.c_str(),true,true,false,false,false);}
+        m_trainingTagRestore=false;
         CFlightPlan trainingFp=FlightPlanSelectASEL(); CRadarTarget trainingRt=RadarTargetSelectASEL();
         const std::string trainingSelected=trainingFp.IsValid()?trainingFp.GetCallsign():trainingRt.IsValid()?trainingRt.GetCallsign():"";
         const std::string trainingResult=m_trainingCommands.Tick(trainingSelected,GetConnectionType()==CONNECTION_TYPE_DIRECT&&trainingSelf.IsValid()?trainingSelf.GetCallsign():"");
@@ -2420,6 +2446,7 @@ public:
 private:
     friend class CSettingsScreen;
     CTrainingCommandBridge m_trainingCommands;
+    bool m_trainingTagRestore=false;
 
     enum class SentChannel
     {
@@ -5684,6 +5711,7 @@ public:
         if (!m_plugin || Phase != REFRESH_PHASE_AFTER_LISTS)
             return;
         RefreshTheme();
+        DrawTrainingPrediction(hDC);
         if (m_plugin->m_settingsVisible)
         {
             KeepSettingsRectVisible();
@@ -5706,6 +5734,23 @@ public:
         }
         if (m_plugin->m_sendConfirmation.active)
             DrawSendConfirmation(hDC);
+    }
+
+    void DrawTrainingPrediction(HDC hDC)
+    {
+        if(m_plugin->GetConnectionType()!=CONNECTION_TYPE_DIRECT)return;
+        const auto target=m_plugin->RadarTargetSelectASEL();if(!target.IsValid())return;
+        const int minutes=m_plugin->m_trainingCommands.PredictionMinutes(target.GetCallsign());if(!minutes)return;
+        const auto data=target.GetPosition();if(!data.IsValid())return;
+        const auto origin=data.GetPosition();const double gs=data.GetReportedGS(),heading=data.GetReportedHeadingTrueNorth();
+        const int saved=SaveDC(hDC);if(!saved)return;const RECT area=GetRadarArea();IntersectClipRect(hDC,area.left,area.top,area.right,area.bottom);
+        HPEN pen=CreatePen(PS_DOT,1,RGB(80,230,230));if(!pen){RestoreDC(hDC,saved);return;}SelectObject(hDC,pen);
+        POINT previous=ConvertCoordFromPositionToPixel(origin);
+        for(int minute=1;minute<=minutes;++minute){TrainingPrediction::Point projected;if(!TrainingPrediction::Project(origin.m_Latitude,origin.m_Longitude,heading,gs,minute,projected))break;
+            CPosition end;end.m_Latitude=projected.lat;end.m_Longitude=projected.lon;const POINT point=ConvertCoordFromPositionToPixel(end);
+            MoveToEx(hDC,previous.x,previous.y,nullptr);LineTo(hDC,point.x,point.y);MoveToEx(hDC,point.x-2,point.y-2,nullptr);LineTo(hDC,point.x+3,point.y+3);previous=point;
+        }
+        RestoreDC(hDC,saved);DeleteObject(pen);
     }
 
     bool OnCompileCommand(const char *sCommandLine) override
