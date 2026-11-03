@@ -25,7 +25,7 @@
  }
  function draw(state){
   current=state;$('trainingAddress').value=state.host||'127.0.0.1';
-  if(document.activeElement!==$('trainingUpdateRate'))$('trainingUpdateRate').value=String(state.positionUpdateHz??2);
+  if(document.activeElement!==$('trainingUpdateRate'))$('trainingUpdateRate').value=String(state.positionUpdateHz??0.2);
   const active=state.aircraft.filter(a=>a.active!==false);
   $('trainingConnection').textContent=state.listening?'LISTENING — LOCAL ONLY — '+(state.host||'127.0.0.1')+':'+state.port+' | '+state.clients+' EuroScope connection(s) | '+(state.running?'Running':'Paused')+' | '+active.length+' active / '+state.aircraft.length+' total | '+time(state.elapsed):'STOPPED — no training server is listening.';
   $('trainingActivity').textContent=state.error||state.lastEvent||'No local connection received yet.';

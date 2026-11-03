@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.50 / Server test 0.4.6 — Local test, awaiting approval
+
+- Replace coupled regular-tag pilot controls with a separate, selected-aircraft ZYZTools PILOT strip. Middle-click ALT/HDG/IAS/RATE/DCT/SQUAWK to enter a value, or APP CLR to arm the approach. Pilot requests use independent authenticated command data, including identical values already annotated by the student.
+- Remove instructor fake-ownership injection and automatic assumptions. Both clients receive real ownership after handoff; pilot controls remain independent of tracking. All regular Situ tag/scratchpad edits are shared annotations, never pilot commands. Situ remains unmodified.
+- Lock position publication to every 5 seconds, disable rate selectors and migrate legacy rates. Keep continuous physics and no command-triggered extra samples. Update instructor DLL, desktop and server. Local protocol tests and SDK build pass; actual EuroScope middle-click UI verification remains for user testing. Nothing published.
+
 ## 1.2.49 / Server test 0.4.5 — Local test, awaiting approval
 
 - Handle classic $HO/$HA handoff offers/acceptances and WH/IH ownership queries, DR track drops, cancellation/refusal and late-join ownership. Instructor connector announces genuine ownership for initially unowned aircraft, without stealing student-owned tracks. Keep private pilot-control access after a handoff.

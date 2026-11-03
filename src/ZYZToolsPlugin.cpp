@@ -80,6 +80,8 @@ namespace
     constexpr int FUNC_SETTINGS_EDIT_IFR_SOUND = 9219;
     constexpr int FUNC_SETTINGS_EDIT_REPLAY_SAVE_COMMAND = 9220;
     constexpr int SCREEN_OBJECT_SETTINGS = 9301;
+    constexpr int SCREEN_OBJECT_PILOT = 9302;
+    constexpr int FUNC_PILOT_EDIT = 9700;
 
     constexpr ULONGLONG LAST_RENDERED_FALLBACK_MS = 1500ULL;
     constexpr int DEPARTURE_SNAPSHOT_INTERVAL_SECONDS = 10;
@@ -2080,6 +2082,13 @@ public:
 
     void OnFunctionCall(int FunctionId, const char *sItemString, POINT, RECT) override
     {
+        if(FunctionId>=FUNC_PILOT_EDIT&&FunctionId<FUNC_PILOT_EDIT+6){
+            const auto cs=m_pilotEditCallsign,context=m_pilotEditContext;const auto index=FunctionId-FUNC_PILOT_EDIT;
+            m_pilotEditCallsign.clear();m_pilotEditContext.clear();
+            if(cs.empty()||context.empty()||m_trainingCommands.PilotContext(cs)!=context)return;
+            static const char* verbs[]={"ALT","HDG","IAS","RATE","DCT","SQ"};const auto value=Upper(Trim(sItemString?sItemString:""));if(value.empty())return;
+            SendPilotAction(cs,std::string(verbs[index])+" "+value);return;
+        }
         if (HandleSettingsEdit(FunctionId, sItemString))
             return;
 
@@ -2167,20 +2176,6 @@ public:
 
     void OnFlightPlanControllerAssignedDataUpdate(CFlightPlan FlightPlan, int DataType) override
     {
-        if(!m_trainingTagRestore&&FlightPlan.IsValid()&&GetConnectionType()==CONNECTION_TYPE_DIRECT) {
-            const auto self=ControllerMyself();if(self.IsValid()) {
-                const auto data=FlightPlan.GetControllerAssignedData();std::string value;bool supported=true;
-                switch(DataType){
-                case CTR_DATA_TYPE_SQUAWK:value=data.GetSquawk()?data.GetSquawk():"";break;
-                case CTR_DATA_TYPE_TEMPORARY_ALTITUDE:value=std::to_string(data.GetClearedAltitude());break;
-                case CTR_DATA_TYPE_SPEED:value=std::to_string(data.GetAssignedSpeed());break;
-                case CTR_DATA_TYPE_RATE:value=std::to_string(std::abs(data.GetAssignedRate()));break;
-                case CTR_DATA_TYPE_HEADING:value=std::to_string(data.GetAssignedHeading());break;
-                case CTR_DATA_TYPE_DIRECT_TO:value=data.GetDirectToPointName()?data.GetDirectToPointName():"";break;
-                default:supported=false;}
-                if(supported){const auto message=m_trainingCommands.TagEdit(FlightPlan.GetCallsign(),self.GetCallsign(),DataType,value);if(!message.empty())DisplayUserMessage("ZYZTools","TRAINING TAG",message.c_str(),true,true,false,false,false);}
-            }
-        }
         if (m_conflict) m_conflict->dirty = true;
         if (DataType == CTR_DATA_TYPE_SCRATCH_PAD_STRING) TryAssignArrivalRunway(FlightPlan);
         CacheFp(FlightPlan);
@@ -2252,17 +2247,6 @@ public:
     void OnTimer(int Counter) override
     {
         const auto trainingSelf=ControllerMyself();
-        const auto tagRestores=m_trainingCommands.TagRestores(GetConnectionType()==CONNECTION_TYPE_DIRECT&&trainingSelf.IsValid()?trainingSelf.GetCallsign():"");
-        m_trainingTagRestore=true;
-        for(const auto &restore:tagRestores){auto fp=FlightPlanSelect(restore.callsign.c_str());if(!fp.IsValid())continue;auto data=fp.GetControllerAssignedData();const int number=atoi(restore.value.c_str());switch(restore.type){
-            case CTR_DATA_TYPE_SQUAWK:data.SetSquawk(restore.value.c_str());break;
-            case CTR_DATA_TYPE_TEMPORARY_ALTITUDE:data.SetClearedAltitude(number);break;
-            case CTR_DATA_TYPE_SPEED:data.SetAssignedSpeed(number);break;
-            case CTR_DATA_TYPE_RATE:data.SetAssignedRate(number);break;
-            case CTR_DATA_TYPE_HEADING:data.SetAssignedHeading(number);break;
-            case CTR_DATA_TYPE_DIRECT_TO:data.SetDirectToPointName(restore.value.c_str());break;
-        }if(!restore.message.empty())DisplayUserMessage("ZYZTools","TRAINING TAG",restore.message.c_str(),true,true,false,false,false);}
-        m_trainingTagRestore=false;
         CFlightPlan trainingFp=FlightPlanSelectASEL(); CRadarTarget trainingRt=RadarTargetSelectASEL();
         const std::string trainingSelected=trainingFp.IsValid()?trainingFp.GetCallsign():trainingRt.IsValid()?trainingRt.GetCallsign():"";
         const std::string trainingResult=m_trainingCommands.Tick(trainingSelected,GetConnectionType()==CONNECTION_TYPE_DIRECT&&trainingSelf.IsValid()?trainingSelf.GetCallsign():"");
@@ -2445,6 +2429,9 @@ public:
 
 private:
     friend class CSettingsScreen;
+    std::string m_pilotEditCallsign,m_pilotEditContext,m_pilotFeedback;
+    ULONGLONG m_pilotFeedbackUntil=0;
+    void SendPilotAction(const std::string &cs,const std::string &command){const auto self=ControllerMyself();if(GetConnectionType()!=CONNECTION_TYPE_DIRECT||!self.IsValid()||m_trainingCommands.PilotContext(cs).empty())return;const auto message=m_trainingCommands.Command(cs,self.GetCallsign(),command);m_pilotFeedback=cs+": "+command;m_pilotFeedbackUntil=GetTickCount64()+3000;if(!message.empty())DisplayUserMessage("ZYZTools","PILOT",message.c_str(),true,true,false,false,false);}
     CTrainingCommandBridge m_trainingCommands;
     bool m_trainingTagRestore=false;
 
@@ -5712,6 +5699,7 @@ public:
             return;
         RefreshTheme();
         DrawTrainingPrediction(hDC);
+        DrawPilotControls(hDC);
         if (m_plugin->m_settingsVisible)
         {
             KeepSettingsRectVisible();
@@ -5734,6 +5722,21 @@ public:
         }
         if (m_plugin->m_sendConfirmation.active)
             DrawSendConfirmation(hDC);
+    }
+
+    void DrawPilotControls(HDC dc)
+    {
+        if(m_plugin->GetConnectionType()!=CONNECTION_TYPE_DIRECT||m_plugin->m_settingsVisible)return;
+        const auto fp=m_plugin->FlightPlanSelectASEL();if(!fp.IsValid()||!m_plugin->m_trainingCommands.PilotAircraft(fp.GetCallsign()))return;
+        const RECT radar=GetRadarArea();const int width=std::min(620,static_cast<int>(radar.right-radar.left)-16);if(width<420)return;
+        RECT panel{radar.left+8,radar.bottom-76,radar.left+8+width,radar.bottom-8};const int saved=SaveDC(dc);HBRUSH bg=CreateSolidBrush(RGB(12,29,39));FillRect(dc,&panel,bg);DeleteObject(bg);SetBkMode(dc,TRANSPARENT);SetTextColor(dc,RGB(125,224,238));
+        const std::string owner=fp.GetTrackingControllerCallsign()?fp.GetTrackingControllerCallsign():"";
+        std::string title=std::string("PILOT ")+fp.GetCallsign()+" | Owner: "+(owner.empty()?"unowned":owner)+" | MIDDLE-click controls";RECT text=panel;text.left+=7;text.top+=3;DrawTextA(dc,title.c_str(),-1,&text,DT_SINGLELINE);
+        SelectObject(dc,GetStockObject(DC_BRUSH));SetDCBrushColor(dc,RGB(22,45,57));SelectObject(dc,GetStockObject(DC_PEN));SetDCPenColor(dc,RGB(78,131,149));
+        static const char* names[]={"ALT ft","HDG M","IAS kt","RATE fpm","DCT","SQUAWK","APP CLR"};const int cell=(width-14)/7;
+        for(int i=0;i<7;++i){RECT r{panel.left+7+i*cell,panel.top+22,panel.left+5+(i+1)*cell,panel.top+43};Rectangle(dc,r.left,r.top,r.right,r.bottom);DrawTextA(dc,names[i],-1,&r,DT_CENTER|DT_VCENTER|DT_SINGLELINE);const std::string id=std::string(fp.GetCallsign())+"|"+std::to_string(i);AddScreenObject(SCREEN_OBJECT_PILOT,id.c_str(),r,false,"Middle-click: instructor pilot command, separate from Situ annotations");}
+        if(GetTickCount64()<m_plugin->m_pilotFeedbackUntil){RECT r=panel;r.left+=7;r.top+=46;DrawTextA(dc,m_plugin->m_pilotFeedback.c_str(),-1,&r,DT_SINGLELINE);}
+        RestoreDC(dc,saved);
     }
 
     void DrawTrainingPrediction(HDC hDC)
@@ -5851,6 +5854,12 @@ public:
 
     void OnClickScreenObject(int ObjectType, const char *sObjectId, POINT, RECT Area, int Button) override
     {
+        if(m_plugin&&ObjectType==SCREEN_OBJECT_PILOT&&sObjectId){
+            if(Button!=BUTTON_MIDDLE||m_plugin->m_sendConfirmation.active)return;const std::string id=sObjectId;const auto split=id.find('|');if(split==std::string::npos)return;
+            const auto cs=id.substr(0,split),context=m_plugin->m_trainingCommands.PilotContext(cs);if(context.empty())return;const int index=atoi(id.substr(split+1).c_str());
+            if(index==6){m_plugin->SendPilotAction(cs,"APP CLEAR");RequestRefresh();return;}if(index<0||index>5)return;
+            m_plugin->m_pilotEditCallsign=cs;m_plugin->m_pilotEditContext=context;m_plugin->OpenPopupEdit(Area,FUNC_PILOT_EDIT+index,"");return;
+        }
         if (!m_plugin || ObjectType != SCREEN_OBJECT_SETTINGS || Button != BUTTON_LEFT || !sObjectId)
             return;
 

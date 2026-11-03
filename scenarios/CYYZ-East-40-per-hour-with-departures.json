@@ -1,5 +1,5 @@
 {
-  "positionUpdateHz": 2,
+  "positionUpdateHz": 0.2,
   "magneticVariationWest": 10.37,
   "format": "ZYZTools-training",
   "version": 1,

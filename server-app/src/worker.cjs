@@ -31,7 +31,7 @@ process.on('disconnect',shutdown);process.on('SIGTERM',shutdown);process.on('SIG
 process.on('message',m=>{operation=operation.then(async()=>{
  try{
   if(m.action==='start'){
-   training.load(JSON.parse(fs.readFileSync(path.join(folder,'scenario.json'),'utf8')));training.updateRate(m.positionUpdateHz??2);await training.start(16800+slot);
+   training.load(JSON.parse(fs.readFileSync(path.join(folder,'scenario.json'),'utf8')));training.updateRate(m.positionUpdateHz??0.2);await training.start(16800+slot);
    try{await shared.start();}catch(e){training.stop();throw e;}
    if(m.run)training.run();await network();
   }else if(m.action==='pause')training.pause();

@@ -8,6 +8,7 @@ class CTrainingCommandBridge
     DWORD lastPort = 0;
     unsigned sequence = 0;
     int predictionMinutes=0; ULONGLONG predictionVerified=0; std::string predictionCallsigns;
+    bool pilotControls=false;
     struct TagOverlay {std::string callsign,id,nonce;int type=0;ULONGLONG until=0;};
     std::vector<TagOverlay> tagOverlays;
     static bool Callsign(const std::string &s) { return s.size() >= 2 && s.size() <= 12 && std::all_of(s.begin(), s.end(), [](unsigned char c) { return std::isalnum(c); }); }
@@ -99,6 +100,8 @@ public:
         command=line.substr(1);return true;
     }
     bool TrainingContext() const {std::string nonce,session;return Binding(nonce,session)&&TrainingSocketPort()!=0;}
+    bool PilotAircraft(const std::string &cs) const {return pilotControls&&GetTickCount64()-predictionVerified<2500&&predictionCallsigns.find(","+cs+",")!=std::string::npos;}
+    std::string PilotContext(const std::string &cs) const {std::string nonce,session;return Callsign(cs)&&PilotAircraft(cs)&&Binding(nonce,session)&&TrainingSocketPort()?nonce+"|"+session:"";}
     int PredictionMinutes(const std::string &callsign) const {return GetTickCount64()-predictionVerified<2500&&predictionCallsigns.find(","+callsign+",")!=std::string::npos?predictionMinutes:0;}
     std::string Tick(const std::string &selected,const std::string &controller) {
         std::string nonce,session,message;
@@ -111,6 +114,7 @@ public:
         }
         int minutes=0;std::string callsigns;const DWORD port=!controller.empty() && Binding(nonce,session,&minutes,&callsigns)?TrainingSocketPort():0;
         predictionMinutes=port?minutes:0;predictionCallsigns=port?callsigns:"";predictionVerified=port?GetTickCount64():0;
+        pilotControls=false;if(port){std::ifstream f(BindingFile(),std::ios::binary);const std::string json((std::istreambuf_iterator<char>(f)),std::istreambuf_iterator<char>());int enabled=0;pilotControls=json.size()<=4096&&JsonIntValue(json,"pilot_controls",enabled)&&enabled==1;}
         if (port) {
             const std::string cs=Callsign(selected)?selected:"";
             if(cs!=lastSelection || controller!=lastController || port!=lastPort){changed=GetTickCount64();lastSelection=cs;lastController=controller;lastPort=port;}

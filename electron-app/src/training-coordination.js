@@ -17,7 +17,7 @@ function coordinate(sim,c,line){
   if(kind==='ACCEPT'&&(a.handoffTarget!==c.callsign||recipient!==a.trackingController))throw Error('No handoff to accept from that controller.');
   if(a.trackingController&&a.trackingController!==c.callsign&&a.handoffTarget!==c.callsign)throw Error('Accept the handoff before taking this aircraft.');
   if(a.handoffTarget&&a.handoffTarget!==c.callsign&&a.trackingController!==c.callsign)throw Error('That aircraft is offered to another controller.');
-  const previous=a.trackingController;a.trackingController=c.callsign;clear();if(previous&&previous!==c.callsign)sim.broadcast('$HA'+c.callsign+':'+previous+':'+a.callsign);owner();return true;
+  const previous=a.trackingController;a.trackingController=c.callsign;clear();if(previous&&previous!==c.callsign){sim.broadcast('$CQ'+previous+':*A:DR:'+a.callsign);sim.broadcast('$HA'+c.callsign+':'+previous+':'+a.callsign);}owner();return true;
  }
  if(kind==='HT'){
   const target=value||recipient;if(target===c.callsign||!present(target))throw Error('Choose a different connected private controller for the handoff.');
