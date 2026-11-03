@@ -31,23 +31,31 @@ Use its normal Situ/EuroScope assigned-data fields:
 | Direct-to | DCT to a fix already embedded in the scenario |
 | Assigned squawk | Aircraft squawks the code; student assigned-code annotation is retained |
 
-Instructor annotation messages are filtered BEFORE reaching the transport/server/
+Instructor pilot-control annotation messages are filtered BEFORE reaching the transport/server/
 student. An SDK callback AND a matching outgoing local annotation are required
 before issuing a pilot command; incoming student annotations alone cannot command
-an aircraft. Arbitrary scratchpad text is never treated as command-box input.
+an aircraft. Ordinary instructor scratchpad notes ARE shared with the student and
+remain there; they do not clear after three seconds. H/S/R or known-fix scratchpad
+encodings are pilot controls and stay private. Arbitrary notes are not commands.
 
 The temporary entry restores after roughly three seconds (SDK-only fields restore
 on the next EuroScope timer callback). It restores the LATEST student annotation,
 including changes during those three seconds, without undoing the maneuver.
 Re-editing restarts the overlay timer. Student edits remain controller annotations.
 
-The instructor sees a private ownership view so normal tag click spots remain
+Initially unowned aircraft are genuinely assumed by the instructor connector, so
+the student sees the instructor as owner and can receive handoffs. It never steals
+a student-owned track. The instructor also sees a private ownership view so tag click spots remain
 usable while the student owns the real track. That view is not published as real
 tracking ownership. Pilot control and real track ownership are separate. Disconnect
 the instructor connector before changing roles.
 
 ## Handoffs
 
+Update BOTH desktop 1.2.49 and server 0.4.5 for this fix. Reconnect both EuroScopes
+after restarting the updated slot. The server PC still does not need EuroScope.
+Classic handoff offer/accept packets and ownership queries are now handled, not
+only synthetic test metadata. Drop, recall and refusal update the shared owner state.
 Controller position reports are relayed/cached so separate sector-defined positions
 can appear in EuroScope. An upstream instructor may offer an unowned aircraft to
 the connected student through the standard handoff UI. Acceptance gives the student

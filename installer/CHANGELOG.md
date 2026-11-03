@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.49 / Server test 0.4.5 — Local test, awaiting approval
+
+- Handle classic $HO/$HA handoff offers/acceptances and WH/IH ownership queries, DR track drops, cancellation/refusal and late-join ownership. Instructor connector announces genuine ownership for initially unowned aircraft, without stealing student-owned tracks. Keep private pilot-control access after a handoff.
+- Reassert the private instructor tag-access view after student metadata and restores; repair reconnect/session overlay registration. Restoration suppression now only filters matching restored values, not a subsequent different instructor command.
+- Share ordinary instructor scratchpad notes (and clearing) with students. Typed heading/speed/rate/fix pilot-control messages remain private and restore after about three seconds. Update desktop plus private server. Nothing published; actual Situ UI verification remains for user testing.
+
 ## 1.2.48 / Server test 0.4.4 — Local test, awaiting approval
 
 - Default missing/new-aircraft vertical rate is 2,250 FPM. Named initial descents retain the selected rate rather than continually replacing it with a calculated rate. Explicit saved rates and manual RATE commands remain supported; captured ILS glidepaths retain their own guidance.

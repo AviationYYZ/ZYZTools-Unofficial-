@@ -70,6 +70,7 @@ class LocalTraining{
   if(line.startsWith('$CR')||line.startsWith('$CQ')){const f=line.slice(3).split(':');if(f[0]===c.callsign&&['CAPS','RN','RV','ATIS'].includes(f[2])){for(const peer of this.clients)if(peer!==c&&peer.callsign===f[1])this.write(peer,line);return;}}
   if(line.startsWith('$PI')){const f=line.slice(3).split(':');this.write(c,'$POSERVER:'+c.callsign+':'+(f.slice(2).join(':')||'0'));}
   try{
+   if(require('./training-coordination').coordinate(this,c,line))return;
    if(line.startsWith('$AM')){
     const f=line.slice(3).split(':');if(f[0]!==c.callsign||f.length!==18)throw Error('Invalid local flight-plan amendment.');
     const aircraftType=f[4].split('/');let wake='M';if(['H','J','L','M'].includes(aircraftType[0]))wake=aircraftType.shift();
@@ -81,19 +82,6 @@ class LocalTraining{
     if(kind==='FP'){this.announce(a,c);return;}
     if(kind==='BC'&&(value===undefined||value==='')){this.write(c,'$CQSERVER:'+c.callsign+':BC:'+a.callsign+':'+a.assignedSquawk);return;}
     if(kind==='BC'){a.assignedSquawk=token(value,/^[0-7]{4}$/,'assigned squawk');}
-    else if(kind==='IT'){
-     if(a.handoffTarget&&a.handoffTarget!==c.callsign&&a.trackingController!==c.callsign)throw Error('That aircraft is offered to another controller.');
-     if(a.trackingController&&a.trackingController!==c.callsign&&a.handoffTarget!==c.callsign)throw Error('Accept the handoff before taking this aircraft.');
-     a.trackingController=c.callsign;a.handoffTarget='';a.handoffPacket='';
-    }
-    else if(kind==='HT'){
-     const target=value||f[1];if(target===c.callsign||![...this.clients].some(peer=>peer.callsign===target))throw Error('Choose a different connected private controller for the handoff.');
-     if(a.trackingController&&a.trackingController!==c.callsign)throw Error('Only the tracking controller can offer this handoff.');
-     if(!a.trackingController){a.trackingController=c.callsign;this.broadcast('$CQ'+c.callsign+':*A:IT:'+a.callsign);}
-     a.handoffTarget=target;a.handoffPacket=line;
-    }
-    else if(kind==='HC'){if(a.trackingController!==c.callsign)throw Error('Only the tracking controller can recall a handoff.');a.handoffTarget='';a.handoffPacket='';}
-    else if(kind==='IC'){if(a.trackingController!==c.callsign)return;a.trackingController='';a.handoffTarget='';a.handoffPacket='';}
     else if(kind==='SC'){a.scratchpad=fpText(value,64,'scratchpad');const text=a.scratchpad.toUpperCase();let match;if((match=text.match(/^H(\d{1,3})$/)))a.assignedHeading=Number(match[1])%360;else if((match=text.match(/^S(\d{2,3})$/)))a.assignedSpeed=Number(match[1]);else if((match=text.match(/^R(-?\d{1,4})$/)))a.assignedRate=Math.abs(Number(match[1]));else if((this.runtimeWaypoints||this.scenario.waypoints).some(w=>w.name===text))a.directTo=text;else if(!text){a.assignedHeading=0;a.assignedSpeed=0;a.assignedRate=0;a.directTo='';}}
     else if(kind==='TA')a.clearedAltitude=number(value,0,60000,'Cleared altitude');
     else return;
@@ -109,7 +97,7 @@ class LocalTraining{
   this.error='';const server=net.createServer(socket=>{
    if(!/^127\.\d+\.\d+\.\d+$/.test(socket.remoteAddress||'')||this.clients.size>=4){socket.destroy();return;}
    const c={socket,buffer:'',callsign:null};this.clients.add(c);this.lastEvent='Local TCP connection received; waiting for controller login.';socket.setNoDelay(true);socket.setTimeout(120000,()=>socket.destroy());
-   socket.on('error',()=>{});socket.on('close',()=>{this.clients.delete(c);if(c.callsign){this.broadcast('#DA'+c.callsign+':SERVER');for(const a of this.aircraft){if(a.trackingController===c.callsign){a.trackingController='';a.handoffTarget='';a.handoffPacket='';this.broadcast('$CQ'+c.callsign+':*A:IC:'+a.callsign);}else if(a.handoffTarget===c.callsign){a.handoffTarget='';a.handoffPacket='';this.broadcast('$CQ'+a.trackingController+':*A:HC:'+a.callsign);}}}this.lastEvent=c.callsign?'Local controller disconnected.':'Local connection closed before controller login. Verify the non-VATSIM connection settings.';});
+   socket.on('error',()=>{});socket.on('close',()=>{this.clients.delete(c);if(c.callsign){this.broadcast('#DA'+c.callsign+':SERVER');for(const a of this.aircraft){if(a.trackingController===c.callsign){a.trackingController='';a.handoffTarget='';a.handoffPacket='';this.broadcast('$CQ'+c.callsign+':*A:DR:'+a.callsign);}else if(a.handoffTarget===c.callsign){a.handoffTarget='';a.handoffPacket='';this.broadcast('$CQ'+a.trackingController+':*A:HC:'+a.callsign);}}}this.lastEvent=c.callsign?'Local controller disconnected.':'Local connection closed before controller login. Verify the non-VATSIM connection settings.';});
    socket.on('data',bytes=>{c.buffer+=bytes.toString('utf8');if(c.buffer.length>32768){socket.destroy();return;}let end;while((end=c.buffer.indexOf('\n'))>=0){const line=c.buffer.slice(0,end).replace(/\r$/,'');c.buffer=c.buffer.slice(end+1);this.receive(c,line);}});
   });
   this.starting=true;

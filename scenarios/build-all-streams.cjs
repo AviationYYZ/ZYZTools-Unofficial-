@@ -21,7 +21,7 @@ const flights=[
  ['ROU163','A321','KLAS','FINGL','NUBER6','23',22000],
  ['POE309','E295','CYQM','UDNOX','RAGID6','24L',20000]
 ];
-const raw={format:'ZYZTools-training',version:1,name:'CYYZ West Flow - All Five Streams - One Minute Spawns',waypoints:[],aircraft:flights.map(([callsign,type,origin,spawnFix,star,arrivalRunway,altitude],i)=>({callsign,type,origin,destination:'CYYZ',spawnFix,lat:0,lon:0,altitude,speed:250,speedBasis:'IAS',heading:0,rate:1500,spawnTime:i*60,squawk:String(2201+i),squawkMode:'N',flightRules:'I',wake:['A332','B789'].includes(type)?'H':'M',equipment:'S',category:'jet',publishedSpeeds:true,arrivalRunway,flightPlanRoute:spawnFix+' '+star+' CYYZ/'+arrivalRunway,cruiseAltitude:altitude,cruiseSpeed:440,alternate:'CYHM',remarks:'SYNTHETIC LOCAL TRAINING ONLY'}))};
+const raw={format:'ZYZTools-training',version:1,name:'CYYZ West Flow - All Five Streams - One Minute Spawns',waypoints:[],aircraft:flights.map(([callsign,type,origin,spawnFix,star,arrivalRunway,altitude],i)=>({callsign,type,origin,destination:'CYYZ',spawnFix,lat:0,lon:0,altitude,speed:250,speedBasis:'IAS',heading:0,rate:1500,spawnTime:i*60,squawk:String(2201+i),squawkMode:'N',flightRules:'I',wake:['A332','B789'].includes(type)?'H':'M',equipment:'S',category:'jet',publishedSpeeds:true,arrivalRunway,flightPlanRoute:spawnFix+' '+star+' CYYZ/'+arrivalRunway,cruiseAltitude:altitude,cruiseSpeed:440,alternate:'CYHM',remarks:'/v/ SYNTHETIC LOCAL TRAINING ONLY'}))};
 // Use valid, unique octal squawks (never 8 or 9).
 raw.aircraft.forEach((a,i)=>a.squawk=(parseInt('2201',8)+i).toString(8).padStart(4,'0'));
 const resolved=resolveScenario(raw,sector);

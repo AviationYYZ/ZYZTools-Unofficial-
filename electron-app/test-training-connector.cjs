@@ -1,10 +1,10 @@
 const assert=require('node:assert/strict'),net=require('node:net'),{once}=require('node:events'),{LocalTraining}=require('./src/local-training'),{TrainingMultiplayer}=require('./src/training-multiplayer'),{FsdConnector}=require('./src/training-fsd-tunnel');
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
-(async()=>{const address=process.env.ZYZTOOLS_TEST_LOOPBACK||'127.0.0.2';assert(['127.0.0.1','127.0.0.2'].includes(address));const host=new LocalTraining(),shared=new TrainingMultiplayer(host,0),remote=new FsdConnector(address);let socket;try{
+(async()=>{const address=process.env.ZYZTOOLS_TEST_LOOPBACK||'127.0.0.2';assert(['127.0.0.1','127.0.0.2'].includes(address));const host=new LocalTraining(),shared=new TrainingMultiplayer(host,0),remote=new FsdConnector(address,{port:0});let socket;try{
  host.load(require('./src/training-demo.json'));await host.start(7155);await shared.start();
  await assert.rejects(()=>remote.start({url:'http://example.com',token:shared.token}),/HTTPS/);
  await assert.rejects(()=>remote.start({url:shared.status().url,token:'0'.repeat(64)}),/expired or incorrect/);assert(!remote.server);
- await remote.start({url:shared.status().url,token:shared.token});socket=net.connect({host:address,port:6809});let wire='';socket.on('data',b=>wire+=b);await once(socket,'connect');socket.write('#AATOR_APP:SERVER:Dummy:0000000:dummy:1:100\r\n');
+ await remote.start({url:shared.status().url,token:shared.token});socket=net.connect({host:address,port:remote.server.address().port});let wire='';socket.on('data',b=>wire+=b);await once(socket,'connect');socket.write('#AATOR_APP:SERVER:Dummy:0000000:dummy:1:100\r\n');
  for(let i=0;i<60&&!wire.includes('$FPTEST101');i++)await wait(100);assert(wire.includes('$FPTEST101'));assert(wire.includes('@N:TEST101'));assert.equal(host.status().clients,1);
  socket.write('$CQTOR_APP:@94835:BC:TEST101:4321\r\n');for(let i=0;i<30&&host.aircraft[0].assignedSquawk!=='4321';i++)await wait(100);assert.equal(host.aircraft[0].assignedSquawk,'4321');
  wire='';host.command('TEST101','DELETE AIRCRAFT');for(let i=0;i<30&&!wire.includes('#DPTEST101:0');i++)await wait(100);assert(wire.includes('#DPTEST101:0'),'Correct delete-pilot PDU must reach the remote EuroScope socket');wire='';host.tick(3);host.broadcastAll();await wait(250);assert(!wire.includes('@N:TEST101:'));assert(!host.aircraft.some(a=>a.callsign==='TEST101'));
