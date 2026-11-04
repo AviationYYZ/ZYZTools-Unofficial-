@@ -1,4 +1,4 @@
-# Independent instructor pilot tags — test 1.2.59 / server 0.4.13
+# Independent instructor pilot tags — test 1.2.61 / server 0.4.14
 
 Update BOTH apps. Close instructor EuroScope and update its ZYZTools DLL using
 Install / Link. Stop/exit the old server app from its tray before updating it.
@@ -10,6 +10,8 @@ EuroScope is not needed on the server PC.
 
 Sector Inbound and Sector Exit list clicks can use the same pilot controls. See
 INSTRUCTOR_LIST_CONTROLS.md for the one-time instructor-only column bindings.
+Alternatively use the new auto-opening All Aircraft list: it includes all active
+private targets regardless of CTR/APP or sector-list filters, already configured.
 
 In Training → Instructor, pair and use Connect my EuroScope for the slot. Allow
 ZYZTools to draw on your radar display/ASR types. Independent ZYZTools data blocks
@@ -106,6 +108,19 @@ Skipped restriction fixes retire on the next simulation step. Scenario reset
 clears all runtime restrictions. Paused aircraft do not advance their restrictions.
 
 ## Default jet IAS profile
+
+Before approach clearance, the reference altitude is the instructor's pilot target
+altitude (ALT, or the active scenario/crossing target), not the student's Situ CFL
+annotation and not current altitude. Selecting ALT updates the automatic IAS target
+immediately, even while paused; actual IAS still accelerates/decelerates gradually.
+
+As soon as APP CLEAR is issued, the reference becomes CURRENT altitude, including
+while armed and before localizer/glideslope capture. Cancelling approach returns
+to the assigned-target basis (APP CANCEL initially commands a level-off at current
+altitude). This applies to default and customized jet bands. IAS/Mach assignments
+and active speed restrictions continue to override automation. The dashboard's
+speed status names the current reference altitude and basis. IAS-to-groundspeed
+conversion still uses actual aircraft altitude, never its assigned altitude.
 
 Edit the altitude/IAS table in Scenario Builder → Automatic jet speed profile,
 or Instructor → Scenario and session → Automatic jet speed profile. Ceilings are

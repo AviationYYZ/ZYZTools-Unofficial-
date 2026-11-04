@@ -1,5 +1,34 @@
 # Instructor controls in Sector Inbound and Sector Exit lists
 
+## Recommended: the independent All Aircraft list
+
+Desktop test 1.2.60 adds **ZYZTools test - All Aircraft** (production name:
+**ZYZTools - All Aircraft**). It opens automatically after Instructor → Connect
+my EuroScope is active and the private EuroScope connection has logged in. The
+columns and click functions are supplied by ZYZTools: no Situ list setup is needed.
+Server 0.4.13 remains compatible; update/relink only the instructor app/DLL.
+
+Every active simulated aircraft with a received flight plan is explicitly added,
+without CTR/APP facility, sector inbound/exit, tag ownership or radar-view filters.
+Unspawned scheduled aircraft are not real targets yet; they appear when spawned.
+Deleted/disconnected targets are removed; disconnecting the instructor binding
+clears/hides this list. It is not populated from public/live-network flight plans.
+
+Actual ALT / IAS / HDG columns sit beside independent P ALT / P SPD / P NAV
+targets. Click either altitude cell for altitude/approach, either speed cell for
+IAS (left) or Mach (right), and either heading/navigation cell for heading (left)
+or direct-to (right). Next opens direct-to. Type opens Advanced, including preset
+speed restrictions, squawk/IDENT and confirmed deletion. Callsign left toggles
+route drawing; right opens normal handoff. Owner shows actual tracking ownership.
+
+Pilot targets are blue; a green `+` means the student's annotation matches.
+Pending orders have `~`, failed orders `!`. This is not proof a maneuver is complete.
+You can move/resize/scroll the list using EuroScope's normal list controls. Default
+columns are added only when the list has no saved column configuration; your
+existing Sector Inbound/Exit lists and live/student profiles are never modified.
+
+## Optional: keep using Sector Inbound / Exit
+
 Requires desktop test 1.2.59 and its linked DLL plus server 0.4.13 for the latest
 heading/ILS behavior. The list column bindings introduced in 1.2.58 are unchanged.
 Use only your private training connection through Instructor → Connect my EuroScope.

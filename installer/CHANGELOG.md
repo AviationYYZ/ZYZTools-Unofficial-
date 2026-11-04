@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.2.61 / Server test 0.4.14 — Local test, awaiting approval
+
+- Automatic jet speed bands use the instructor's pilot target altitude before approach clearance, excluding student CFL annotations. ALT/profile changes immediately update the IAS target without jumping actual IAS.
+- APP CLEAR switches the profile to current altitude immediately, even before capture; APP CANCEL restores assigned-target logic. Manual IAS/Mach and speed restrictions retain priority. Speed status identifies the reference basis/altitude.
+- Student invites now open a mobile-friendly pilot dashboard with live actual/target data, equivalent dropdown controls, restrictions/browser preset slots, route plot, confirmed deletion and normal handoffs. Invite holders can control all active aircraft, including queued orders while the host is paused, but cannot administer sessions/servers or load scenarios. Credentials remain memory-only; browser presets are separate non-secret preferences.
+- Recalculated the separate 10NM-spacing exercise's injection intervals for the new default speed behavior. Hourly-rate/15NM-entry scenarios retain their schedules.
+- Local test builds only; nothing published.
+
+## 1.2.60 — Local test, awaiting approval
+
+- Independent instructor All Aircraft EuroScope list, explicitly populated from authenticated active simulator targets without sector/facility/ownership/radar-view filters. Auto-opens on private instructor binding; cleans up on deletion/disconnect/reset.
+- Preconfigured actual ALT/IAS/HDG plus independent pilot-target columns, blue targets/green student-match indicators, direct/Advanced controls, route/handoff, actual owner, next fix and SFI. Existing list/profile settings are not edited.
+- Server 0.4.13 stays compatible. Local test build only, nothing published.
+
 ## 1.2.59 / Server test 0.4.13 — Local test, awaiting approval
 
 - Heading dropdowns in tags/lists offer custom 000–360 magnetic entry and Fly present heading. Present heading is sampled at execution on the server, not from stale radar data; numeric targets retain student-match checks.

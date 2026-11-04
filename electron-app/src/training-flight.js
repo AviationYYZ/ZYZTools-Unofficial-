@@ -130,9 +130,12 @@ function publishedIAS(a,rules,fixes,geometry,runways=[]){
  if(performance.isJet(a)){
   // User's simplified IAS schedule; the lower band owns exactly 8,100 feet.
   // Carry each band through gaps; above 15,000 retain the 270-knot default.
-  const target=jetProfile.target(a.jetSpeedProfile,a.altitude);
-  a.speedPhase='jet altitude band';a.performanceSource='ZYZTools jet training profile';a.trainingFinalIAS=136;
-  a.speedNotice=a.performanceSource+' | '+target+' IAS';return target;
+  const onApproach=!!a.approachState&&a.approachState!=='off';
+  const reference=onApproach?a.altitude:Number.isFinite(a.targetAltitude)?a.targetAltitude:a.altitude;
+  const target=jetProfile.target(a.jetSpeedProfile,reference);
+  a.speedProfileAltitude=reference;a.speedProfileBasis=onApproach?'current altitude (approach cleared)':'assigned altitude';
+  a.speedPhase='jet '+a.speedProfileBasis+' band';a.performanceSource='ZYZTools jet training profile';a.trainingFinalIAS=136;
+  a.speedNotice=a.performanceSource+' | '+target+' IAS | '+a.speedProfileBasis+' '+Math.round(reference)+' ft';return target;
  }
  let target=Math.min(a.altitude>10000?270:250,model.ias);a.speedPhase=phase;a.performanceSource=model.source;a.trainingFinalIAS=model.finalIAS;
  // Begin reducing before crossing 10,000, not after the crossing.

@@ -2,7 +2,7 @@ const fs=require('node:fs'),path=require('node:path'),engine=require('./engine.c
 const {LocalTraining}=engine('local-training'),{TrainingMultiplayer}=engine('training-multiplayer'),{TrainingTunnel}=engine('training-tunnel'),{DirectoryLease}=engine('training-directory');
 const slot=Number(process.argv[2]),folder=process.argv[3],helper=process.argv[4];
 if(![1,2,3].includes(slot)||!folder)process.exit(2);
-const training=new LocalTraining(),shared=new TrainingMultiplayer(training,16810+slot,{readOnly:true}),tunnel=new TrainingTunnel(helper,()=>shared.server?shared.status().url:null,{launch:(...args)=>{const child=require('node:child_process').spawn(...args);child.once('spawn',()=>send({tunnelPid:child.pid}));return child;}}),lease=new DirectoryLease();
+const training=new LocalTraining(),shared=new TrainingMultiplayer(training,16810+slot,{pilotControls:true}),tunnel=new TrainingTunnel(helper,()=>shared.server?shared.status().url:null,{launch:(...args)=>{const child=require('node:child_process').spawn(...args);child.once('spawn',()=>send({tunnelPid:child.pid}));return child;}}),lease=new DirectoryLease();
 const readiness=new (engine('training-fsd-tunnel').FsdConnector)('127.0.0.2');
 tunnel.configFolder=folder;
 let stopping=false,operation=Promise.resolve(),networkBusy=false,nextLease=0,nextTunnel=0,verifiedURL='',publicError='';

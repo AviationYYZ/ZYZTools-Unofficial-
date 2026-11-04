@@ -116,7 +116,7 @@ class LocalTraining{
   this.last=performance.now();this.publishElapsed=0;this.timer=setInterval(()=>{const now=performance.now(),dt=Math.max(0,(now-this.last)/1000);this.last=now;this.frame(dt);},100);return this.status();
  }
  updateRate(value){const hz=positionRate(value);if(hz===this.scenario.positionUpdateHz)return this.status();this.scenario={...this.scenario,positionUpdateHz:hz};this.publishElapsed=0;return this.status();}
- speedProfile(profile){const normalized=jetProfiles.normalize(profile);this.scenario={...this.scenario,jetSpeedProfile:normalized};for(const a of this.aircraft)a.jetSpeedProfile=normalized;return this.status();}
+ speedProfile(profile){const normalized=jetProfiles.normalize(profile);this.scenario={...this.scenario,jetSpeedProfile:normalized};for(const a of this.aircraft){a.jetSpeedProfile=normalized;if(a.speedMode==='published')a.targetIAS=flight.publishedIAS(a,this.scenario.speedRules,this.runtimeWaypoints||this.scenario.waypoints,geometry,this.scenario.runways);}return this.status();}
  initialOwner(a){if(this.scenario.initialOwnership!=='instructor'||!a.active||a.initialOwnershipAssigned||!this.instructorCallsign||![...this.clients].some(c=>c.callsign===this.instructorCallsign&&!c.socket.destroyed))return; a.initialOwnershipAssigned=true;if(!a.trackingController)a.trackingController=this.instructorCallsign;}
  registerInstructor(callsign){if(this.scenario.initialOwnership!=='instructor')throw Error('This scenario does not request instructor ownership.');const present=cs=>[...this.clients].some(c=>c.callsign===cs&&!c.socket.destroyed);if(!/^[A-Z0-9_]{2,16}$/.test(callsign)||!present(callsign))throw Error('Connect instructor EuroScope before assigning ownership.');if(this.instructorCallsign&&this.instructorCallsign!==callsign&&present(this.instructorCallsign))throw Error('A different instructor is already registered.');this.instructorCallsign=callsign;for(const a of this.aircraft){const owner=a.trackingController;this.initialOwner(a);if(a.active&&a.trackingController!==owner)this.broadcast('$CQ'+a.trackingController+':*A:IT:'+a.callsign);}return this.status();}
  frame(seconds){if(this.running)this.tick(Math.min(1,seconds)*this.scale);const interval=1/this.scenario.positionUpdateHz;this.publishElapsed=(this.publishElapsed||0)+seconds;if(this.publishElapsed+1e-9>=interval){this.publishElapsed=Math.max(0,this.publishElapsed-Math.floor((this.publishElapsed+1e-9)/interval)*interval);this.broadcastAll();}}
@@ -185,6 +185,7 @@ class LocalTraining{
   }
   else if(verb==='ROUTE'&&arg==='RESUME'){if(!a.remaining.length)throw Error('No remaining route. Use DCT FIX.');a.approachVectorTarget=null;a.navigation='route';}
   else throw Error('Unknown command. Use ALT, RATE, SPD, HDG, DCT or ROUTE RESUME.');
+  if(a.speedMode==='published')a.targetIAS=flight.publishedIAS(a,this.scenario.speedRules,this.runtimeWaypoints||this.scenario.waypoints,geometry,this.scenario.runways);
   a.revision=(a.revision||0)+1;return this.status();
  }
  amend(callsign,fields){

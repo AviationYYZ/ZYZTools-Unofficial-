@@ -20,3 +20,9 @@ table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:8px;bord
  #aircraft td:not(:first-child)::before{content:attr(data-label);display:block;font-size:12px;color:#a7bdcb;margin-bottom:2px}
 }
 @media(prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+.pilot-toolbar{display:flex;flex-wrap:wrap;gap:6px;flex-basis:100%}.pilot-target{color:#4191ff;white-space:normal}
+.pilot-toolbar button{min-width:0;padding:8px 4px;white-space:normal;overflow-wrap:anywhere;font-size:14px}
+dialog button{margin-right:8px}
+dialog{background:#2d2d2d;color:#e0edf5;border:1px solid #777;border-radius:8px;max-width:min(680px,94vw);max-height:92vh;overflow:auto;padding:18px}dialog::backdrop{background:#0009}dialog select,dialog input{display:block;width:100%;background:#303030;color:#eee}dialog select{min-height:180px}dialog option{padding:5px;background:#303030}dialog option:checked{background:#484848}#pilotError{color:#ffad9d}#pilotRoute{width:100%;min-height:200px;background:#101a20}#pilotRoute .route-line{fill:none;stroke:#63b9df;stroke-width:2}#pilotRoute circle{fill:#4191ff}#pilotRoute text{fill:#e0edf5;font:12px system-ui}
+#browserPresets{border:1px solid #344b59;padding:12px;margin:16px 0}.preset-row{display:grid;grid-template-columns:60px minmax(0,2fr) minmax(0,1fr) minmax(0,2fr);gap:8px;align-items:center}.preset-row input{min-width:0}#controls label:has(#command){flex:1;min-width:220px}
+@media(max-width:700px){.pilot-toolbar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}.preset-row{grid-template-columns:repeat(2,minmax(0,1fr))}.preset-row span{grid-column:1/-1}dialog{padding:12px}#controls label:has(#command){min-width:0}}

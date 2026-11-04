@@ -11,6 +11,7 @@
 
 #include "../SDK/EuroScopePlugIn.h"
 #include "TrainingPilotTagDraw.h"
+#include "TrainingPilotList.h"
 #include "TrainingPilotDropdown.h"
 #include "DepartureAssignment.h"
 #include "ArrivalAssignment.h"
@@ -1935,6 +1936,18 @@ public:
         RegisterTagItemFunction("TEST: Trigger Incoming Message", FUNC_PDC_TEST);
         const char* pilotFunctions[]={"ZYZTools PILOT: altitude","ZYZTools PILOT: IAS","ZYZTools PILOT: Mach","ZYZTools PILOT: heading","ZYZTools PILOT: direct waypoint","ZYZTools PILOT: advanced"};
         for(int i=0;i<6;++i)RegisterTagItemFunction(pilotFunctions[i],FUNC_PILOT_LIST_FIRST+i);
+        const char* listItems[]={"ZYZTools list: actual altitude","ZYZTools list: pilot altitude","ZYZTools list: actual IAS","ZYZTools list: pilot speed","ZYZTools list: actual heading","ZYZTools list: pilot navigation","ZYZTools list: next fix","ZYZTools list: actual owner","ZYZTools list: SFI"};
+        for(int i=0;i<9;++i)RegisterTagItemType(listItems[i],TrainingPilotList::Altitude+i);
+        m_pilotAircraftList=RegisterFpList(ZYZTOOLS_PLUGIN_NAME " - All Aircraft");
+        if(m_pilotAircraftList.IsValid()&&m_pilotAircraftList.GetColumnNumber()==0){
+            const auto column=[this](const char* title,int width,int item,int left,int right){m_pilotAircraftList.AddColumnDefinition(title,width,false,ZYZTOOLS_PLUGIN_NAME,item,ZYZTOOLS_PLUGIN_NAME,left,ZYZTOOLS_PLUGIN_NAME,right);};
+            m_pilotAircraftList.AddColumnDefinition("Callsign",12,false,ZYZTOOLS_PLUGIN_NAME,zyzca::CallsignItem,nullptr,TAG_ITEM_FUNCTION_TOGGLE_ROUTE_DRAW,nullptr,TAG_ITEM_FUNCTION_HANDOFF_POPUP_MENU);
+            m_pilotAircraftList.AddColumnDefinition("Type",5,false,nullptr,TAG_ITEM_TYPE_PLANE_TYPE,ZYZTOOLS_PLUGIN_NAME,FUNC_PILOT_LIST_LAST,ZYZTOOLS_PLUGIN_NAME,FUNC_PILOT_LIST_LAST);
+            column("ALT",4,TrainingPilotList::Altitude,9710,9710);column("P ALT",5,TrainingPilotList::PilotAltitude,9710,9710);
+            column("IAS",4,TrainingPilotList::IAS,9711,9712);column("P SPD",7,TrainingPilotList::PilotSpeed,9711,9712);
+            column("HDG",4,TrainingPilotList::Heading,9713,9714);column("P NAV",10,TrainingPilotList::PilotNavigation,9713,9714);
+            column("Next",8,TrainingPilotList::NextFix,9714,9714);column("Owner",14,TrainingPilotList::Owner,9715,9715);column("SFI",3,TrainingPilotList::SFI,9715,9715);
+        }
 
         LoadConfig();
         StartHoppieWorker();
@@ -2007,6 +2020,13 @@ public:
     void OnGetTagItem(CFlightPlan FlightPlan, CRadarTarget target, int ItemCode, int tagData,
                       char sItemString[16], int *pColorCode, COLORREF *pRGB, double *fontSize) override
     {
+        if(ItemCode>=TrainingPilotList::Altitude&&ItemCode<=TrainingPilotList::SFI){
+            sItemString[0]=0;*pColorCode=TAG_COLOR_DEFAULT;if(!FlightPlan.IsValid()||!m_trainingCommands.PilotAircraft(FlightPlan.GetCallsign()))return;
+            for(const auto &tag:m_trainingCommands.PilotTags())if(tag.callsign==FlightPlan.GetCallsign()){
+                const auto value=TrainingPilotList::Value(ItemCode,tag);strncpy_s(sItemString,16,value.text.c_str(),_TRUNCATE);
+                *pColorCode=TAG_COLOR_RGB_DEFINED;*pRGB=value.tone==3?RGB(255,110,90):value.tone==2?RGB(70,230,115):value.tone==1?TrainingPilotTagDraw::Blue:TrainingPilotTagDraw::Normal;return;
+            }return;
+        }
         if (ItemCode == zyzca::CallsignItem || ItemCode == zyzca::MarkerItem) {
             if (m_conflict) m_conflict->OnGetTagItem(FlightPlan, target, ItemCode, tagData, sItemString, pColorCode, pRGB, fontSize);
             return;
@@ -2167,6 +2187,7 @@ public:
 
     void OnFlightPlanDisconnect(CFlightPlan FlightPlan) override
     {
+        if(FlightPlan.IsValid()&&m_pilotAircraftList.IsValid()){m_pilotAircraftList.RemoveFpFromTheList(FlightPlan);m_pilotListMembers.erase(FlightPlan.GetCallsign());}
         if (m_conflict) m_conflict->OnFlightPlanDisconnect(FlightPlan);
         std::string cs = Upper(Trim(FlightPlan.GetCallsign()));
         if (!cs.empty())
@@ -2271,6 +2292,7 @@ public:
         CFlightPlan trainingFp=FlightPlanSelectASEL(); CRadarTarget trainingRt=RadarTargetSelectASEL();
         const std::string trainingSelected=trainingFp.IsValid()?trainingFp.GetCallsign():trainingRt.IsValid()?trainingRt.GetCallsign():"";
         const std::string trainingResult=m_trainingCommands.Tick(trainingSelected,GetConnectionType()==CONNECTION_TYPE_DIRECT&&trainingSelf.IsValid()?trainingSelf.GetCallsign():"");
+        RefreshPilotAircraftList();
         if(!trainingResult.empty()) DisplayUserMessage("ZYZTools","TRAINING",trainingResult.c_str(),true,true,false,false,false);
         if (m_conflict) m_conflict->OnTimer(Counter);
         UpdateStatisticsConnectionState();
@@ -2497,6 +2519,18 @@ private:
     ULONGLONG m_pilotFeedbackUntil=0;
     void SendPilotAction(const std::string &cs,const std::string &command){const auto self=ControllerMyself();if(GetConnectionType()!=CONNECTION_TYPE_DIRECT||!self.IsValid()||m_trainingCommands.PilotContext(cs).empty())return;const auto message=m_trainingCommands.Command(cs,self.GetCallsign(),command);m_pilotFeedback=cs+": "+command;m_pilotFeedbackUntil=GetTickCount64()+3000;if(!message.empty())DisplayUserMessage("ZYZTools","PILOT",message.c_str(),true,true,false,false,false);}
     CTrainingCommandBridge m_trainingCommands;
+    CFlightPlanList m_pilotAircraftList;
+    std::map<std::string,CFlightPlan> m_pilotListMembers;
+    std::string m_pilotListContext;
+    void RefreshPilotAircraftList(){
+        if(!m_pilotAircraftList.IsValid())return;
+        const auto context=m_trainingCommands.PilotLayoutContext();std::set<std::string> active;
+        if(!context.empty())for(const auto &tag:m_trainingCommands.PilotTags())if(m_trainingCommands.PilotAircraft(tag.callsign))active.insert(tag.callsign);
+        for(auto i=m_pilotListMembers.begin();i!=m_pilotListMembers.end();){if(context!=m_pilotListContext||!active.count(i->first)||!i->second.IsValid()){if(i->second.IsValid())m_pilotAircraftList.RemoveFpFromTheList(i->second);i=m_pilotListMembers.erase(i);}else ++i;}
+        if(context.empty()){if(!m_pilotListContext.empty())m_pilotAircraftList.ShowFpList(false);m_pilotListContext.clear();return;}
+        for(const auto &cs:active){if(m_pilotListMembers.count(cs))continue;const auto fp=FlightPlanSelect(cs.c_str());if(fp.IsValid()){m_pilotAircraftList.AddFpToTheList(fp);m_pilotListMembers.emplace(cs,fp);}}
+        if(context!=m_pilotListContext)m_pilotAircraftList.ShowFpList(true);m_pilotListContext=context;
+    }
     bool m_trainingTagRestore=false;
 
     enum class SentChannel
