@@ -1,4 +1,4 @@
-# Independent instructor pilot tags — test 1.2.51 / server 0.4.7
+# Independent instructor pilot tags — test 1.2.55 / server 0.4.10
 
 Update BOTH apps. Close instructor EuroScope and update its ZYZTools DLL using
 Install / Link. Stop/exit the old server app from its tray before updating it.
@@ -9,27 +9,99 @@ EuroScope is not needed on the server PC.
 ## New tag UI
 
 In Training → Instructor, pair and use Connect my EuroScope for the slot. Allow
-ZYZTools to draw on your radar display/ASR types. Blue ZYZTools PILOT data blocks
+ZYZTools to draw on your radar display/ASR types. Independent ZYZTools data blocks
 appear beside visible active aircraft without needing track ownership or selection.
-The compact monospace rows and leader lines are inspired by the installed CSiT
-family; they are not an exact reproduction of Situ's proprietary drawing.
+The three compact rows match the user's reference: callsign, actual altitude /
+groundspeed, then aircraft type / destination. They use the EuroScope font and
+CSiT base palette. Actual data stays visible; instructor targets appear beside it
+in blue, with student-match checks. Altitude targets use three digits without a C
+prefix: actual 110 and assigned 080 means 11,000 feet and target 8,000 feet.
 
-- LEFT-click a blue field to open its dropdown (middle-click works too).
-- Use Previous/Next to page through options. No typed-value popup is required.
+- LEFT-click for the primary control; RIGHT-click for its secondary control.
+- Dropdowns have a compact scrollable list. Use the wheel or scrollbar; there
+  are no Next/Previous pages. Lists are dark gray, with eight compact visible rows.
+  Squawk and custom direct-to use text entry.
 - Drag the callsign header to reposition a tag; its leader line follows the plane.
 - Orders stay blue after selection. A pending request has a small ~; a failed order
   has a red ! and an error message. Acknowledgment is not assumed from local entry.
 - Long names can be shortened visually; hover for the full callsign/field/value.
 
-| Field | Dropdown values / meaning |
+| Field | Left click | Right click |
+| --- | --- | --- |
+| 1 · Altitude (second row, left) | 010–600 in steps of 010 (1,000–60,000 ft), plus Cleared approach | Same (middle click too) |
+| 2 · Groundspeed / speed target (second row, right) | 80–400 knots IAS in 5-knot increments | Mach 0.40–0.99 |
+| 3 · Destination / navigation target (bottom row, right) | Magnetic heading, 5–360 degrees in 5-degree increments | Direct-to: route fixes first, or Type waypoint |
+| 4 · Callsign (top row) | Toggle EuroScope route drawing | Standard EuroScope handoff menu |
+| 5 · Aircraft type (bottom row, left) | Advanced options | Same (middle click too) |
+
+Rate remains available in the command centre; default descent rate is 2,250 FPM.
+There are no separate rate, approach or direct-to buttons cluttering the tag.
+
+## Advanced restrictions
+
+Advanced also contains Enter squawk and IDENT. Setting a squawk never prints
+that code on the instructor tag. Callsign handoffs use EuroScope's normal ownership
+rules and the private simulator's coordination; they do not force track ownership.
+Existing enabled ZYZTools conflict alerts colour the instructor callsign and show
+CA (including urgent flashing), using the same correlated-aircraft checks/stages.
+
+- Custom speed restrictions: enter `170 UNTIL KIREX`. Speed is IAS. The fix must
+  be ahead on the aircraft's route. Add multiple fixes to queue successive speeds;
+  the earliest upcoming fix wins. The speed is held until that fix sequences
+  (turn entry for a fly-by fix), is reached within 0.15 NM, or is passed abeam
+  within 1.5 NM. This geometric release also works on vectors/ILS when earlier
+  STAR fixes are still unsequenced. After the final restriction, automatic speeds
+  resume and the expired blue target disappears. A new normal IAS/Mach/published command replaces
+  all queued speed restrictions. Advanced always offers Clear speed restrictions:
+  it clears manual speed overrides too and switches back to automatic speeds.
+- Crossing altitude restrictions: enter `LINNG AT 11000` (feet). The aircraft
+  continuously adjusts its vertical rate to meet the upcoming route fix, allowing
+  for fly-by turn lead. It never teleports. Required rates are capped at 6,000 FPM;
+  impossible crossings are reported as unable/missed rather than guaranteed.
+  Restrictions suspend on vectors or a captured ILS; return to route to resume.
+  A normal ALT command replaces crossing restrictions. Advanced offers Clear
+  crossing restrictions; clearing retains the last assigned target altitude.
+- Delete aircraft requires a second selection to confirm, and removes the target
+  from the simulator and radar feed. Cancel leaves it untouched.
+
+The same commands work in the command centre: `IAS 170 UNTIL KIREX`,
+`CROSS LINNG AT 11000`, `RESTRICTIONS SPEED CLEAR`, `RESTRICTIONS ALT CLEAR`.
+Skipped restriction fixes retire on the next simulation step. Scenario reset
+clears all runtime restrictions. Paused aircraft do not advance their restrictions.
+
+## Default jet IAS profile
+
+Edit the altitude/IAS table in Scenario Builder → Automatic jet speed profile,
+or Instructor → Scenario and session → Automatic jet speed profile. Ceilings are
+inclusive whole feet MSL, strictly increasing, ending at 60,000 feet; IAS is
+50–400 knots. Apply explicitly. Local profiles save with exported scenarios;
+instructor edits are scoped to the selected slot and saved on the server PC.
+Manual assignments stay unchanged until cleared. Restore defaults populates the
+table; click Apply to activate it. Non-jet profiles are not changed by this editor.
+
+| Altitude (feet MSL) | Target IAS |
 | --- | --- |
-| ALT | Feet, 500–60,000 in 500-foot increments |
-| IAS | Knots, 80–400 in 5-knot increments |
-| HDG | Magnetic degrees, 5–360 in 5-degree increments |
-| RATE / R | Positive climb/descent magnitude, 500–6,000 FPM in 250-FPM increments; ALT determines direction |
-| DCT / D | Remaining route fixes first, then embedded scenario fixes |
-| SQ | Scenario actual/assigned squawks plus common training codes; leading zeroes retained |
-| APP | CLEAR arms the assigned runway ILS; CANCEL cancels it |
+| Ground–1,999 | 136 knots |
+| 2,000–2,999 | 160 knots |
+| 3,000–3,999 | 200 knots |
+| 4,000–8,100 | 210 knots |
+| Above 8,100–11,099 | 230 knots |
+| 11,100–15,000 | 250 knots |
+| Above 15,000 | 270 knots (existing high-altitude default) |
+
+These are simulation targets, not chart or aircraft operating limits. The lower
+band owns exactly 8,100 feet, and gaps in the requested bands continue the lower
+band. Actual IAS changes gradually, at the existing acceleration/deceleration rate.
+All jets use the same schedule; old downwind/final speed caps no longer override
+it. Non-jets retain their aircraft-specific profile. Manual assignments and custom
+restrictions override automatic speeds. Stationary/landed aircraft remain stopped.
+
+## Automatic aircraft cleanup
+
+Touchdown and completion of the filed route send a radar disconnect and remove
+the simulated aircraft. A vector-only aircraft with no route does not disappear;
+an approach-cleared aircraft stays until touchdown, even after its route ends.
+Reset restores the scenario's initial aircraft and schedule as usual.
 
 Other command-bar/dashboard actions remain available, e.g. pause, delete or a
 specific value outside the dropdown increments. Ordinary Situ tag edits on EITHER

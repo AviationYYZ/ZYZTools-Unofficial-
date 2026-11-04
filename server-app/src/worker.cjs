@@ -38,11 +38,13 @@ process.on('message',m=>{operation=operation.then(async()=>{
   else if(m.action==='run')training.run();
   else if(m.action==='reset')training.reset();
   else if(m.action==='updateRate')training.updateRate(m.hz);
+  else if(m.action==='speedProfile')training.speedProfile(m.profile);
   else if(m.action==='instructor'){
    if(m.operation==='snapshot'){send({id:m.id,result:shared.snapshot()});return;}
    if(m.sessionId!==training.sessionId)throw Error('Scenario changed. Refresh the aircraft dashboard.');
    if(!training.server)throw Error('Start this server first.');
-   if(m.operation==='command')training.command(m.callsign,m.command);
+   if(m.operation==='initialOwner')training.registerInstructor(m.callsign);
+   else if(m.operation==='command')training.command(m.callsign,m.command);
    else if(m.operation==='amend'){
     const allowed=['flightRules','type','wake','equipment','origin','destination','alternate','cruiseAltitude','cruiseSpeed','departureTime','actualDepartureTime','enrouteHours','enrouteMinutes','fuelHours','fuelMinutes','remarks','flightPlanRoute','arrivalRunway','squawk'];
     if(!m.fields||typeof m.fields!=='object'||Array.isArray(m.fields)||Object.keys(m.fields).some(k=>!allowed.includes(k)))throw Error('Unsupported flight-plan field.');

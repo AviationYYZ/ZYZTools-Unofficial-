@@ -24,4 +24,5 @@ function profile(a,phase,tasToIas){
  const finalIAS=a.finalApproachIAS||(slow>0&&slow<140?Math.max(60,Math.min(110,Math.round(slow*.8/5)*5)):prop?120:heavy?150:140);
  return {ias,rod:low.rod+(high.rod-low.rod)*fraction,finalIAS,source:'EuroScope '+a.type+' '+phase};
 }
-module.exports={parse,profile,typeCount:types.size};
+function isJet(a){if(a.category==='prop')return false;return a.category==='jet'||/^(?:A[23]\d\d|B[37][A-Z0-9]{2}|B3[89]M|E1[789][A-Z0-9]|E[279][A-Z0-9]{2}|CRJ|C(?:25|5|6|7)|GLF|CL[36]|LJ|FA[1256789]|F[12789]0|MD[18]|DC[89]|HDJT|SF50|PRM1|RJ[178])/.test(a.type||'');}
+module.exports={parse,profile,isJet,typeCount:types.size};

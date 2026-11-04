@@ -1,8 +1,10 @@
 // Generic offline training guidance; not a certified FMS or published ILS database.
 const rad=Math.PI/180,wrap=n=>(n%360+360)%360,delta=(a,b)=>(a-b+540)%360-180;
 const performance=require('./training-performance');
+const jetProfile=require('./training-jet-profile');
 function density(altitude){const h=Math.min(11000,Math.max(0,altitude)*.3048);return Math.pow(1-2.25577e-5*h,4.25588);}
 const iasToTas=(ias,altitude)=>ias/Math.sqrt(density(altitude)),tasToIas=(tas,altitude)=>tas*Math.sqrt(density(altitude));
+const machToTas=(mach,altitude)=>mach*Math.sqrt(1.4*287.05*(288.15-.0065*Math.min(11000,Math.max(0,altitude)*.3048)))/.514444;
 const turnRate=speed=>Math.min(3,1091*Math.tan(25*rad)/Math.max(60,speed));
 const turnRadius=speed=>(Math.max(0,speed)/3600)/(turnRate(speed)*rad);
 function turnError(a,target=a.targetHeading){let error=delta(target,a.heading);if(a.turnDirection>0&&error<0)error+=360;if(a.turnDirection<0&&error>0)error-=360;return error;}
@@ -33,7 +35,14 @@ function turnShape(speed,angle){
 }
 const turnLead=(speed,angle)=>turnShape(speed,angle).lead;
 function guideRoute(a,fixes,geometry,move){
- if(a.flyBy){if(a.flyBy.next===a.remaining[0]&&Math.abs(delta(a.heading,a.flyBy.course))>.5){a.targetHeading=a.flyBy.course;return;}a.flyBy=null;}
+ if(a.flyBy){
+  if(a.flyBy.next===a.remaining[0]){
+   if(!a.flyBy.intercepting&&Math.abs(delta(a.heading,a.flyBy.course))>.5){a.targetHeading=a.flyBy.course;return;}
+   const anchor=a.flyBy.anchor;if(anchor){const g=geometry(anchor,a),cross=g.distance*Math.sin(delta(g.bearing,a.flyBy.course)*rad);
+    if(Math.abs(cross)>.035||Math.abs(delta(a.heading,a.flyBy.course))>1){a.flyBy.intercepting=true;const along=g.distance*Math.cos(delta(g.bearing,a.flyBy.course)*rad),look=Math.max(.5,turnRadius(a.speed)*1.5);a.targetHeading=geometry(a,move(anchor,Math.max(0,along)+look,a.flyBy.course)).bearing;return;}
+   }
+  }a.flyBy=null;
+ }
  let count=0;while(a.remaining.length&&count++<10){
   const fix=fixes.find(w=>w.name===a.remaining[0]);if(!fix){a.navigation='heading';a.navigationNotice='Missing route fix '+a.remaining[0];return;}
   const g=geometry(a,fix),start=a.legStart||a,leg=geometry(start,fix),next=fixes.find(w=>w.name===a.remaining[1]);
@@ -65,7 +74,7 @@ function guideRoute(a,fixes,geometry,move){
    if(required>available&&angle>90)a.navigationNotice='Turn space limited at '+fix.name+'; reduce speed or vector.';
   }
   const projected=g.distance*Math.cos(delta(g.bearing,leg.bearing)*rad);
-  if(anticipated||projected<=lead||passed){a.remaining.shift();(a.passedFixes||(a.passedFixes=[])).push(fix.name);a.legStart={lat:fix.lat,lon:fix.lon};if(!a.remaining.length){a.navigation='heading';a.targetHeading=leg.distance>.05?leg.bearing:a.heading;}else if(next&&Math.abs(delta(geometry(fix,next).bearing,leg.bearing))>5){a.flyBy={course:geometry(fix,next).bearing,next:next.name};a.targetHeading=a.flyBy.course;return;}continue;}
+  if(anticipated||projected<=lead||passed){a.remaining.shift();(a.passedFixes||(a.passedFixes=[])).push(fix.name);a.legStart={lat:fix.lat,lon:fix.lon};if(!a.remaining.length){a.routeCompleted=true;a.navigation='heading';a.targetHeading=leg.distance>.05?leg.bearing:a.heading;}else if(next&&Math.abs(delta(geometry(fix,next).bearing,leg.bearing))>5){a.flyBy={course:geometry(fix,next).bearing,next:next.name,anchor:{lat:fix.lat,lon:fix.lon}};a.targetHeading=a.flyBy.course;return;}continue;}
   const fromStart=geometry(start,a),along=fromStart.distance*Math.cos(delta(fromStart.bearing,leg.bearing)*rad),look=Math.max(.4,turnRadius(a.speed)*1.5,a.speed/3600*12),aim=move(start,Math.max(0,Math.min(leg.distance,along+look)),leg.bearing);
   a.targetHeading=geometry(a,aim).bearing;return;
  }
@@ -115,6 +124,13 @@ function publishedIAS(a,rules,fixes,geometry,runways=[]){
  if(a.landed||a.baseIAS===0&&a.speed===0){a.speedNotice='Stationary aircraft';return 0;}
  const phase=a.targetAltitude>a.altitude+100?'climb':a.targetAltitude<a.altitude-100||a.initialDescent||a.arrivalRunway?'descent':'cruise';
  const model=performance.profile(a,phase,tasToIas);
+ if(performance.isJet(a)){
+  // User's simplified IAS schedule; the lower band owns exactly 8,100 feet.
+  // Carry each band through gaps; above 15,000 retain the 270-knot default.
+  const target=jetProfile.target(a.jetSpeedProfile,a.altitude);
+  a.speedPhase='jet altitude band';a.performanceSource='ZYZTools jet training profile';a.trainingFinalIAS=136;
+  a.speedNotice=a.performanceSource+' | '+target+' IAS';return target;
+ }
  let target=Math.min(a.altitude>10000?270:250,model.ias);a.speedPhase=phase;a.performanceSource=model.source;a.trainingFinalIAS=model.finalIAS;
  // Begin reducing before crossing 10,000, not after the crossing.
  if(a.altitude>10000&&a.targetAltitude<10000&&(a.altitude-10000)/Math.max(1,a.rate/60)<Math.max(0,a.ias-250)/2)target=Math.min(target,250);
@@ -160,4 +176,4 @@ function publishedIAS(a,rules,fixes,geometry,runways=[]){
  a.speedNotice=model.source+' | '+a.speedPhase+' | '+target+' IAS'+(a.speedPhase==='final'?' (training final target)':'')+(!runway?' | no runway geometry: approach schedule unavailable':'');
  return target;
 }
-module.exports={iasToTas,tasToIas,turnRate,turnRadius,turnError,turnMotion,turnLead,guideRoute,guideApproach,initialVerticalGuidance,normalizeSpeedRules,publishedIAS};
+module.exports={machToTas,iasToTas,tasToIas,turnRate,turnRadius,turnError,turnMotion,turnLead,guideRoute,guideApproach,initialVerticalGuidance,normalizeSpeedRules,publishedIAS};

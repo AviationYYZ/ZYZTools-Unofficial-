@@ -25,10 +25,12 @@ coordinates. Cached pre-1.2.48 imports will not gain those files until re-import
 | File | Traffic injection |
 | --- | --- |
 | CYYZ-West-65-per-hour.json | One hour: LINNG3 20/h, NUBER6 15/h, BOXUM7 10/h, IMEBA9 10/h, RAGID6 10/h. BOXUM/IMEBA land 23; others 24R. 65 arrivals. |
+| CYYZ-West-65-15NM-SFI.json | New 65/h variant using the close-entry 15 route NM setup and randomized, fleet-matched airline callsigns/types. Initial Situ SFI scratchpads: ` N` for 23 (20 aircraft), ` R` for 24R (45 aircraft). Requires app 1.2.56 / server 0.4.11 or newer. |
+| CYYZ-West-65-15NM-SFI-Instructor-Owned.json | Same SFI/fleet/15NM exercise, with initial ownership assigned to the authenticated instructor EuroScope. Requires app 1.2.57 / server 0.4.12. Use Instructor → Connect my EuroScope before Run; use a unique instructor callsign. Delayed aircraft inherit ownership when they spawn. Accepted handoffs and intentional drops are not reclaimed. Older scenarios keep their existing behavior. |
 | CYYZ-East-40-per-hour-with-departures.json | One hour: 8/h on each STAR, 40 total arrivals. BOXUM/IMEBA land 05; others 06R. Also 10 runway-05 airborne departures. |
 | CYYZ-West-10NM-spacing-20min.json | Separate exercise: 11 aircraft on each STAR, approximately 20 minutes of injection. Same west runway mapping, but successors spawn at 10 NM from their own stream predecessor under the default model. 55 arrivals. |
 
-For all arrivals, spawn is 35 route NM before the bedpost at 17,000 ft. Automatic
+For the original three exercises, spawn is 35 route NM before the bedpost at 17,000 ft. The new 15NM-SFI variant preserves the existing close-entry version: 15 route NM before the bedpost, 14,000 ft for LINNG/NUBER/BOXUM and 11,000 ft for IMEBA/RAGID. Automatic
 descent at 2,250 FPM reaches 11,000 ft by LINNG/NUBER/BOXUM, and 8,000 by IMEBA/RAGID.
 It levels there until you issue ALT. Manual ALT overrides this initial target.
 Routes use actual installed transitions and runway-specific continuations. IAS

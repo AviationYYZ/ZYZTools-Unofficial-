@@ -1,5 +1,42 @@
 # Changelog
 
+## 1.2.57 / Server test 0.4.12 — Local test, awaiting approval
+
+- Instructor-owned variant of the 65/h 15NM SFI scenario. The paired app registers its connected instructor EuroScope through the authenticated instructor API; the first student login is never used to guess that role.
+- Initial active aircraft and delayed spawns receive real, globally shared tracking ownership once. Normal handoffs, accepted ownership transfers and explicit drops are preserved; no recurring forced owner override.
+- Optional scenario flag round-trips through exports. Older scenarios remain unowned by default. Local test builds only; nothing published.
+
+## 1.2.56 / Server test 0.4.11 — Local test, awaiting approval
+
+- New 65/h west-flow scenario retaining 15 route NM entry and bedpost targets, with fleet-matched fictional airline callsigns/types and Situ SFI scratchpads (N for 23, R for 24R).
+- Optional initial scratchpads survive validation, scenario load/reset, delayed spawning and late joins; old scenarios retain their empty defaults.
+- Local test builds only; nothing published.
+
+## 1.2.55 / Server test 0.4.10 — Local test, awaiting approval
+
+- App altitude/IAS band editor for automatic jet profiles: local scenario export and remotely persisted per-server-slot changes, validation and default restore.
+- Callsign left click toggles EuroScope route drawing; right click opens its handoff menu. Squawk and IDENT moved to Advanced; squawk assignments are no longer drawn.
+- Instructor tags display the existing correlated conflict-alert stages and urgent flashing without changing detection thresholds.
+- Speed restrictions release by actual fix passage on vectors/ILS despite unsequenced STAR fixes; expired blue targets disappear. Clearing restrictions returns to automatic speeds, not a previous manual override.
+- Aircraft automatically disconnect/delete at touchdown or filed-route completion; vector-only aircraft remain and approach traffic stays until touchdown.
+- Local test builds only; nothing published.
+
+## 1.2.54 / Server test 0.4.9 — Local test, awaiting approval
+
+- Three-row instructor tags based on the user's numbered reference: altitude on either click, IAS/Mach, heading/direct, callsign squawk/ident, aircraft-type Advanced menu. Blue targets and green student checks retained.
+- Actual aircraft data remains visible beside targets. Altitude targets and dropdowns use compact three-digit levels (080 = 8,000 feet), without a C prefix. All instructor selection lists have dark-gray rows and compact scrolling.
+- Advanced offers confirmed aircraft deletion, queued IAS-until-fix and crossing-altitude constraints, plus clearing active restrictions. Constraints are route-validated, pause/reset safe, and never teleport aircraft.
+- Simplified common jet altitude-based IAS schedule; retains non-jet performance data, explicit manual overrides, five-second radar samples and stopped-aircraft protection.
+- Sharp rolling turns retain fly-by guidance until the outbound track is recovered, including the higher-speed LINNG corner regression.
+- The bundled 10 NM spacing scenario's spawn intervals were recalculated for the changed default jet speeds; hourly-rate scenarios retain their schedules.
+- Local-only builds; no GitHub publication or live-network connections.
+
+## 1.2.53 / Server test 0.4.8 — Local test, awaiting approval
+
+- Use CSiT's EuroScope font, normal beige/orange palette and live callsign/altitude/vertical-motion/GS/type/destination rows. Add live IAS, heading, next fix and squawk. Only instructor-selected values are blue; matching student annotations keep green checks. No Situ DLL/profile edits or fake ownership.
+- Consolidate to four click zones. ALT left: whole-thousand altitudes or cleared approach. IAS left/right: IAS/Mach. HDG left/right: heading/direct-to, including typed waypoint entry. SQ left/right: squawk entry/IDENT. Remove redundant RATE, DCT and APP tag buttons; command-centre rate controls remain.
+- Replace paginated SDK menus with compact native scrolling dropdowns (eight visible rows), no Next/Previous entries. Add real Mach speed control with altitude-dependent TAS/IAS and student Mach confirmation. Fixed five-second position updates remain. Native hidden-window dropdown and matching/Mach regression tests added. Nothing published; actual EuroScope integration still needs user testing.
+
 ## 1.2.52 — Local test, awaiting approval
 
 - Reduce instructor tags from 348×66 to 204×48 pixels and font height from 14 to 11. Compact the header and approach label, shrink confirmation markers, and use shared dimensions for drawing, dropdown hitboxes, dragging and radar-edge clamping. Blue orders and green student-match checks remain unchanged. Server 0.4.7 remains compatible; no server update required. Nothing published.

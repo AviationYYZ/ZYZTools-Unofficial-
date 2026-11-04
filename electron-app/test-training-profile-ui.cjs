@@ -1,0 +1,9 @@
+const {app,BrowserWindow}=require('electron'),path=require('node:path'),assert=require('node:assert/strict');
+app.whenReady().then(async()=>{
+ const w=new BrowserWindow({show:false,webPreferences:{preload:path.join(__dirname,'test-training-ui-preload.cjs'),contextIsolation:true,sandbox:false}});
+ try{await w.loadFile(path.join(__dirname,'src/index.html'));const js=s=>w.webContents.executeJavaScript(s),wait=()=>new Promise(r=>setTimeout(r,150));await js("document.querySelector('[data-tab=trainingBuilder]').click()");await wait();assert.equal(await js("document.querySelectorAll('#trainingSpeedProfile tbody tr').length"),7);
+ await js("const input=document.querySelector('#trainingSpeedProfile input[data-field=ias]');input.value=145;input.dispatchEvent(new Event('input'));[...document.querySelectorAll('#trainingSpeedProfile button')].find(b=>b.textContent==='Apply speed profile').click()");await wait();assert.equal(await js("window.preferredCyyzPdc.training('status').then(s=>s.scenario.jetSpeedProfile[0].ias)"),145);
+ await js("[...document.querySelectorAll('#trainingSpeedProfile input[data-field=ceiling]')].at(-1).value=50000;[...document.querySelectorAll('#trainingSpeedProfile button')].find(b=>b.textContent==='Apply speed profile').click()");await wait();assert((await js("document.getElementById('trainingSpeedProfile').textContent")).includes('60000'));
+ await js("[...document.querySelectorAll('#trainingSpeedProfile button')].find(b=>b.textContent==='Restore defaults').click();[...document.querySelectorAll('#trainingSpeedProfile button')].find(b=>b.textContent==='Apply speed profile').click()");await wait();assert.equal(await js("window.preferredCyyzPdc.training('status').then(s=>s.scenario.jetSpeedProfile[0].ias)"),136);console.log('PASS app speed editor: editable table, explicit apply, validation and default restore.');
+ }finally{w.destroy();app.quit();}
+}).catch(e=>{console.error(e);app.exit(1);});

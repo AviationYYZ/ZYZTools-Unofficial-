@@ -1,6 +1,7 @@
 (() => {
  const api=window.preferredCyyzPdc,$=id=>document.getElementById(id),ns='http://www.w3.org/2000/svg';
  let current=null,draft={format:'ZYZTools-training',version:1,name:'New scenario',waypoints:[],aircraft:[]},edit=-1,busy=false,liveCallsign=null;
+ const profileEditor=new window.ZYZSpeedProfileEditor('trainingSpeedProfile',async profile=>{const state=await api.training('speedProfile',{profile});draft={...draft,jetSpeedProfile:state.scenario.jetSpeedProfile};draw(state);message('Automatic jet profile applied to this scenario. Export to keep it.');});
  let sector={fixes:[],lines:[]},centre={lat:43.8,lon:-79.65},span=2.6,sectorLoaded=false,rotation=0;
  const fields=['callsign','type','lat','lon','altitude','speed','heading','rate','origin','destination','squawk','spawnTime','squawkMode','flightRules','wake','equipment','departureTime','actualDepartureTime','cruiseAltitude','cruiseSpeed','enrouteHours','enrouteMinutes','fuelHours','fuelMinutes','alternate','remarks','flightPlanRoute','arrivalRunway','category'];
  let routePreview={route:'',waypoints:[]},previewSequence=0,previewTimer=null,editorDirty=false,editorMetadata={};
@@ -24,6 +25,7 @@
   liveCallsign=live?a.callsign:null;$('training_callsign').readOnly=live;centre={lat:a.lat,lon:a.lon};editorDirty=false;renderMap();preview();
  }
  function draw(state){
+  profileEditor.set(state.scenario.jetSpeedProfile,state.sessionId);
   current=state;$('trainingAddress').value=state.host||'127.0.0.1';
   if(document.activeElement!==$('trainingUpdateRate'))$('trainingUpdateRate').value=String(state.positionUpdateHz??0.2);
   const active=state.aircraft.filter(a=>a.active!==false);
@@ -46,7 +48,7 @@
   $('trainingAdd').textContent=edit>=0?'Update aircraft':'Add aircraft';
   selectedState();
  }
- function selectedState(){const a=current?.aircraft.find(a=>a.callsign===$('trainingSelected').value&&a.active);$('trainingPauseAircraft').textContent=a?.paused?'Resume selected aircraft':'Pause selected aircraft';for(const id of ['trainingPauseAircraft','trainingClearApproach','trainingCancelApproach','trainingPublished','trainingSetIAS'])$(id).disabled=!current?.listening||!a;$('trainingAircraftState').textContent=a?[a.callsign,'RWY '+(a.arrivalRunway||'not assigned'),a.paused?'PAUSED':!current.listening?'server stopped':!current.running?'session paused':'moving',a.approachState||'approach off','Speed: '+a.speedMode,(a.speedMode==='published'?a.speedNotice:'Assigned IAS '+Math.round(a.targetIAS||0))||''].join(' | '):'Select an active aircraft to see runway, approach and speed mode.';}
+ function selectedState(){const a=current?.aircraft.find(a=>a.callsign===$('trainingSelected').value&&a.active);$('trainingPauseAircraft').textContent=a?.paused?'Resume selected aircraft':'Pause selected aircraft';for(const id of ['trainingPauseAircraft','trainingClearApproach','trainingCancelApproach','trainingPublished','trainingSetIAS'])$(id).disabled=!current?.listening||!a;$('trainingAircraftState').textContent=a?[a.callsign,'RWY '+(a.arrivalRunway||'not assigned'),a.paused?'PAUSED':!current.listening?'server stopped':!current.running?'session paused':'moving',a.approachState||'approach off','Speed: '+a.speedMode,(['published','restriction'].includes(a.speedMode)?a.speedNotice:a.speedMode==='mach'?'Mach '+a.targetMach:'Assigned IAS '+Math.round(a.targetIAS||0))||'',a.crossingNotice||''].filter(Boolean).join(' | '):'Select an active aircraft to see runway, approach and speed mode.';}
  $('trainingSelected').onchange=selectedState;
  function readDraft(){draft.name=$('trainingName').value;if($('trainingMagVar').value==='')throw Error('Enter the sector magnetic variation.');draft.magneticVariationWest=Number($('trainingMagVar').value);draft.waypoints=$('trainingWaypoints').value.trim().split(/\r?\n/).filter(l=>l.trim()).map(l=>{const p=l.trim().split(/\s+/);if(p.length!==3)throw Error('Each custom fix must be NAME LATITUDE LONGITUDE.');return {name:p[0].toUpperCase(),lat:Number(p[1]),lon:Number(p[2])};});return draft;}
  function aircraftForm(){const a={...editorMetadata};for(const f of fields)a[f]=$('training_'+f).value;const minutes=Number(a.spawnTime),seconds=Number($('training_spawnSeconds').value);if(a.spawnTime===''||$('training_spawnSeconds').value===''||!Number.isInteger(minutes)||!Number.isInteger(seconds)||minutes<0||seconds<0||seconds>59||minutes*60+seconds>86400)throw Error('Spawn delay must be whole minutes (0–1440) plus seconds (0–59), no more than 24 hours after Run.');a.spawnTime=minutes*60+seconds;a.spawnFix=$('trainingSpawnFix').value.trim().toUpperCase();for(const f of ['callsign','type','origin','destination','alternate','equipment','flightPlanRoute','arrivalRunway'])a[f]=a[f].trim().toUpperCase();a.heading=(Number(a.heading)-Number($('trainingMagVar').value)+360)%360;a.route=a.flightPlanRoute;a.speedBasis='IAS';a.automaticSpeeds=$('trainingPublishedDefault').checked;a.publishedSpeeds=a.automaticSpeeds;return a;}
