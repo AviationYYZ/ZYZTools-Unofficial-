@@ -167,6 +167,7 @@ class LocalTraining{
   if(parts[0]==='RESTRICTIONS'){if(parts[1]==='SPEED'){restrictions.clearSpeed(a);a.targetIAS=flight.publishedIAS(a,this.scenario.speedRules,this.runtimeWaypoints||this.scenario.waypoints,geometry,this.scenario.runways);}else restrictions.clearCross(a);a.revision=(a.revision||0)+1;return this.status();}
   if(parts[0]==='IDENT'&&parts.length===1){a.revision=(a.revision||0)+1;a.identUntil=this.elapsed+18;a.identActive=true;return this.status();}if(parts.length!==2)throw Error('Use ALT, RATE, SPD, HDG/LHDG/RHDG, DCT, SQ, MODE, IDENT or ROUTE RESUME.');
   const [verb,arg]=parts;
+  if(verb==='HDG'&&arg==='PRESENT'){a.targetHeading=a.heading;a.turnDirection=0;a.bank=0;a.navigation='heading';a.flyBy=null;if(a.approachState!=='off'){a.approachState='armed';a.approachVectorTarget=a.targetHeading;}a.revision=(a.revision||0)+1;return this.status();}
   if(verb==='ALT'){a.targetAltitude=number(arg,0,60000,'Target altitude (feet)');a.initialDescentActive=false;restrictions.clearCross(a);}
   else if(verb==='RATE'){if(a.approachState==='glideslope captured')throw Error('ILS glidepath controls vertical rate (ground speed × 6). Use APP CANCEL, then ALT and RATE for a manual climb/descent.');a.rate=number(arg,100,6000,'Climb/descent rate magnitude (feet/min)');a.manualRate=true;}
   else if(['SPD','IAS'].includes(verb)){const n=number(arg,50,400,'Speed (knots IAS)');restrictions.clearSpeed(a,false);a.targetIAS=n;a.speedMode='assigned';a.iasCommand=true;}
@@ -174,7 +175,7 @@ class LocalTraining{
   else if(verb==='SPEED'&&arg==='PUBLISHED'){restrictions.clearSpeed(a,false);a.speedMode='published';a.targetIAS=flight.publishedIAS(a,this.scenario.speedRules,this.runtimeWaypoints||this.scenario.waypoints,geometry,this.scenario.runways);}
   else if(verb==='PAUSE'&&['ON','OFF'].includes(arg)){a.paused=arg==='ON';}
   else if(verb==='APP'&&arg==='CLEAR'){if(!a.arrivalRunway||!this.scenario.runways.some(r=>r.airport===a.destination&&r.name===a.arrivalRunway))throw Error('Select a runway with imported sector geometry before clearing the approach.');a.approachVectorTarget=a.navigation==='heading'&&Math.abs(flight.turnError(a))>1?a.targetHeading:null;a.approachState='armed';}
-  else if(verb==='APP'&&arg==='CANCEL'){a.approachState='off';a.approachVectorTarget=null;a.navigation='heading';a.flyBy=null;a.targetHeading=a.heading;a.turnDirection=0;a.targetAltitude=a.altitude;a.initialDescentActive=false;}
+  else if(verb==='APP'&&arg==='CANCEL'){a.approachNotice='';a.approachState='off';a.approachVectorTarget=null;a.navigation='heading';a.flyBy=null;a.targetHeading=a.heading;a.turnDirection=0;a.targetAltitude=a.altitude;a.initialDescentActive=false;}
   else if(['HDG','LHDG','RHDG'].includes(verb)){a.targetHeading=wrap(number(arg,0,360,'Magnetic heading')-this.scenario.magneticVariationWest);a.navigation='heading';a.flyBy=null;if(a.approachState!=='off'){a.approachState='armed';a.approachVectorTarget=a.targetHeading;}a.turnDirection=verb==='LHDG'?-1:verb==='RHDG'?1:0;}
   else if(verb==='SQ')a.squawk=token(arg,/^[0-7]{4}$/,'squawk');
   else if(verb==='MODE'){if(!['C','STBY'].includes(arg))throw Error('Use MODE C or MODE STBY.');a.squawkMode=arg==='C'?'N':'S';a.identUntil=0;a.identActive=false;}

@@ -89,15 +89,18 @@ function guideApproach(a,runways,geometry){
  a.approachDistance=along;
  if(along<0){if(a.approachState==='glideslope captured'&&Math.abs(cross)<.15){a.altitude=r.elevation;a.targetAltitude=r.elevation;a.speed=0;a.targetSpeed=0;a.ias=0;a.targetIAS=0;a.landed=true;a.paused=true;a.approachState='touchdown';}return;}
  const intercept=delta(a.heading,course),closing=cross*Math.sin(intercept*rad)>0,lead=turnRadius(a.speed)*(1-Math.cos(intercept*rad))+a.speed/3600*2.5*Math.abs(Math.sin(intercept*rad));
- if(a.approachState==='armed'&&along<=25&&along>.15&&Math.abs(intercept)<=80&&((closing&&Math.abs(cross)<=lead+.06)||Math.abs(cross)<.06))a.approachState='localizer captured';
+ if(a.approachState==='armed'&&along<=35&&along>.15&&Math.abs(intercept)<=80&&((closing&&Math.abs(cross)<=lead+.06)||Math.abs(cross)<.06))a.approachState='localizer captured';
+ if(a.approachState==='armed')a.approachNotice=along>35?'Outside 35 NM simulated localizer capture range':'Localizer armed: maintain assigned intercept heading';
  if(['localizer captured','glideslope captured'].includes(a.approachState)){
   a.flyBy=null;
   const look=Math.max(.6,turnRadius(a.speed)*1.6,a.speed/3600*15);
   a.targetHeading=wrap(course+Math.max(-30,Math.min(30,Math.atan2(cross,look)/rad)));a.navigation='approach';a.turnDirection=0;
   const glide=r.elevation+50+Math.tan(3*rad)*along*6076.12;
+  a.glidepathAltitude=glide;
+  a.approachNotice=a.altitude>glide+60?'Above simulated glidepath ('+Math.round(glide)+' ft here): descend below the beam before capture':a.altitude<glide-100?'Localizer captured; waiting for glidepath from below':'Glidepath capture window';
   // Capture only from below/near the beam, never dive down from above to "catch" it.
   if(a.approachState==='localizer captured'&&Math.abs(cross)<.15&&Math.abs(delta(a.heading,course))<15&&a.altitude<=glide+60&&a.altitude>=glide-100)a.approachState='glideslope captured';
-  if(a.approachState==='glideslope captured'){a.targetAltitude=Math.max(r.elevation,glide);a.approachRate=Math.max(500,Math.min(2500,a.speed*6));}
+  if(a.approachState==='glideslope captured'){a.approachNotice='Glideslope captured';a.targetAltitude=Math.max(r.elevation,Math.min(a.altitude,glide));a.approachRate=Math.max(500,Math.min(2500,a.speed*6));}
  }
 }
 function normalizeSpeedRules(rows){if(!Array.isArray(rows)||rows.length>2000)throw Error('Limit: 2,000 speed rules.');return rows.map(r=>{if(!/^[A-Z]{4}$/.test(r.airport)||!(/^[A-Z0-9]+$/).test(r.procedure)||!/^\d{2}[LRC]?$/.test(r.runway)||!(/^[A-Z0-9_-]{1,16}$/).test(r.fix)||!['at','max','min'].includes(r.kind)||!Number.isFinite(Number(r.knots))||r.knots<80||r.knots>400||typeof r.source!=='string'||!r.source.trim()||r.source.length>300)throw Error('Invalid published-speed rule; airport/procedure/runway/fix/kind/IAS/source required.');return {...r,knots:Number(r.knots)};});}

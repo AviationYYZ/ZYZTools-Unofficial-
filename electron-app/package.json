@@ -1,6 +1,6 @@
 {
   "name": "zyztools-test",
-  "version": "1.2.57",
+  "version": "1.2.59",
   "zyzBuildChannel": "test",
   "displayName": "ZYZTools test",
   "description": "ZYZTools EuroScope controller tools and plugin installer",
@@ -36,6 +36,7 @@
       "package.json"
     ],
     "extraResources": [
+      { "from": "../docs/INSTRUCTOR_LIST_CONTROLS.md", "to": "plugin/INSTRUCTOR_LIST_CONTROLS.md" },
       { "from": "../build/TestSourceSnapshot.json", "to": "TestSourceSnapshot.json" },
       {
         "from": "../build",

@@ -30,6 +30,6 @@ template<class Tag> void Draw(HDC dc,int left,int top,const Tag &tag,int conflic
  Value(dc,Cell(left,top,1),std::to_string(tag.groundSpeed/10),speedTarget,speed,tag.matches[speedField],tag.states[speedField]);
  Text(dc,Cell(left,top,8),tag.type,Normal);
  const int navField=tag.navMode=="DCT"?4:2;const bool nav=tag.values[navField]!="-";const RECT navCell=Cell(left,top,2);
- if(nav)Value(dc,navCell,tag.destination,navField==4?tag.values[4]:Heading(std::atoi(tag.values[2].c_str())),true,tag.matches[navField],tag.states[navField]);else Text(dc,navCell,tag.destination,tag.destination=="CYYZ"?RGB(255,255,255):Normal);
+ if(nav)Value(dc,navCell,tag.destination,navField==4?tag.values[4]:tag.values[2]=="PRESENT"?"PRES":Heading(std::atoi(tag.values[2].c_str())),true,tag.matches[navField],tag.states[navField]);else Text(dc,navCell,tag.destination,tag.destination=="CYYZ"?RGB(255,255,255):Normal);
 }
 }

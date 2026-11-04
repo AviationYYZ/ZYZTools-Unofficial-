@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.2.59 / Server test 0.4.13 — Local test, awaiting approval
+
+- Heading dropdowns in tags/lists offer custom 000–360 magnetic entry and Fly present heading. Present heading is sampled at execution on the server, not from stale radar data; numeric targets retain student-match checks.
+- Six named IAS-until-waypoint preset slots in Instructor settings, persisted separately per app channel and applied from Advanced. Aircraft route validation and automatic release still apply.
+- Synthetic localizer range extended to 35 NM. Capture tests cover 6,000 feet on 05/06R/23/24R and up to 10,000 feet on 23; capture does not climb onto the beam or force an above-beam dive. Dashboard displays waiting/above-beam status.
+- Local tests/builds only. No live-network connections or GitHub publication.
+
+## 1.2.58 — Local test, awaiting approval
+
+- Registered instructor list click functions for altitude, IAS, Mach, heading, direct waypoint and Advanced. Bind these to columns in Sector Inbound/Exit lists in the dedicated instructor profile.
+- List and radar controls share the same bounded dropdowns, captured aircraft/session context, command bridge and student matching. Existing list data providers and student annotations stay unchanged; no live profiles are edited.
+- Server 0.4.12 remains compatible. Nothing published.
+
 ## 1.2.57 / Server test 0.4.12 — Local test, awaiting approval
 
 - Instructor-owned variant of the 65/h 15NM SFI scenario. The paired app registers its connected instructor EuroScope through the authenticated instructor API; the first student login is never used to guess that role.

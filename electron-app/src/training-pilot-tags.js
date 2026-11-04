@@ -1,6 +1,6 @@
 // Private instructor UI model. Orders never change controller annotations.
 const fields=['ALT','IAS','HDG','RATE','DCT','SQ','APP','MACH'];
-function order(command){const p=String(command).trim().split(/\s+/);if(p.length===4&&p[0]==='IAS'&&p[2]==='UNTIL')return {field:'IAS',value:String(Number(p[1])),untilFix:p[3]};if(p.length===4&&p[0]==='CROSS'&&p[2]==='AT')return {field:'ALT',value:String(Number(p[3]))};if(p.length!==2||!fields.includes(p[0]))return null;let value=p[1];if(['ALT','IAS','HDG','RATE','MACH'].includes(p[0]))value=String(Number(value));if(p[0]==='HDG'&&Number(value)===0)value='360';return {field:p[0],value};}
+function order(command){const p=String(command).trim().split(/\s+/);if(p[0]==='HDG'&&p[1]==='PRESENT')return {field:'HDG',value:'PRESENT'};if(p.length===4&&p[0]==='IAS'&&p[2]==='UNTIL')return {field:'IAS',value:String(Number(p[1])),untilFix:p[3]};if(p.length===4&&p[0]==='CROSS'&&p[2]==='AT')return {field:'ALT',value:String(Number(p[3]))};if(p.length!==2||!fields.includes(p[0]))return null;let value=p[1];if(['ALT','IAS','HDG','RATE','MACH'].includes(p[0]))value=String(Number(value));if(p[0]==='HDG'&&Number(value)===0)value='360';return {field:p[0],value};}
 function annotate(a,author,kind,value,fixes=[]){
  const set=(field,value)=>{a.annotationSources??={};a.annotationSources[field]={author,value:String(value)};};
  if(kind==='TA'){set('ALT',Number(value)>2?Number(value):'');set('APP',Number(value)===1?'CLEAR':Number(value)===2?'VISUAL':'CANCEL');}
@@ -14,7 +14,7 @@ function menu(field,a,shot){
  if(field==='ALT')return ['Cleared approach',...Array.from({length:60},(_,i)=>String((i+1)*10).padStart(3,'0'))];
  if(field==='MACH')return Array.from({length:60},(_,i)=>((40+i)/100).toFixed(2));
  if(field==='IAS')return Array.from({length:65},(_,i)=>String(80+i*5));
- if(field==='HDG')return Array.from({length:72},(_,i)=>String((i+1)*5));
+ if(field==='HDG')return ['Enter custom heading...','Fly present heading',...Array.from({length:72},(_,i)=>String((i+1)*5))];
  if(field==='RATE')return Array.from({length:23},(_,i)=>String(500+i*250));
  if(field==='DCT')return ['Type waypoint...',...[...new Set([...(a.remaining||[]),...(shot.fixes||[]).map(w=>w.name)])].slice(0,2000)];
  if(field==='SQ')return [...new Set([a.assignedSquawk,a.squawk,...shot.aircraft.map(a=>a.assignedSquawk||a.squawk),'1000','1200','2000'].filter(v=>/^[0-7]{4}$/.test(v)))];

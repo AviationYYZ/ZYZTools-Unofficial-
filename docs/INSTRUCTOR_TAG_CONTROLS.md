@@ -1,4 +1,4 @@
-# Independent instructor pilot tags — test 1.2.55 / server 0.4.10
+# Independent instructor pilot tags — test 1.2.59 / server 0.4.13
 
 Update BOTH apps. Close instructor EuroScope and update its ZYZTools DLL using
 Install / Link. Stop/exit the old server app from its tray before updating it.
@@ -7,6 +7,9 @@ dummy credentials, Connect to VATSIM UNCHECKED. Never use public SweatBox/VATSIM
 EuroScope is not needed on the server PC.
 
 ## New tag UI
+
+Sector Inbound and Sector Exit list clicks can use the same pilot controls. See
+INSTRUCTOR_LIST_CONTROLS.md for the one-time instructor-only column bindings.
 
 In Training → Instructor, pair and use Connect my EuroScope for the slot. Allow
 ZYZTools to draw on your radar display/ASR types. Independent ZYZTools data blocks
@@ -36,6 +39,39 @@ prefix: actual 110 and assigned 080 means 11,000 feet and target 8,000 feet.
 
 Rate remains available in the command centre; default descent rate is 2,250 FPM.
 There are no separate rate, approach or direct-to buttons cluttering the tag.
+
+Heading menus (radar tags and configured list cells) also offer Enter custom
+heading and Fly present heading. Custom entry accepts any whole magnetic degree
+000–360, not just the five-degree presets. Fly present heading samples the actual
+aircraft heading on the server when executed, ends its current turn/route guidance,
+and holds that heading. It does not use the last five-second radar sample. The
+command-bar equivalent is `HDG PRESENT`.
+
+## Saved speed-restriction slots
+
+In Instructor → Scenario and session → Speed restriction presets, fill up to six
+slots with a name, knots IAS and until-waypoint, then click Save restriction presets.
+Blank rows disable slots. Entries appear as Preset 1–6 in each aircraft's Advanced
+menu, including when opened from a list cell. The aircraft must still have that
+waypoint ahead in its route; invalid or unavailable fixes are rejected.
+
+Slots are stored in this app's local settings, independently for test/production,
+not embedded in the scenario or shared with students. Applying a slot creates the
+same runtime restriction as typed IAS-until-fix. Normal fix-passage release and
+Clear speed restrictions return the aircraft to its automatic speed profile.
+
+## Higher straight-in ILS interception
+
+The synthetic localizer capture range is now 35 NM. Glideslope interception has
+no separate altitude cutoff: tests cover 6,000 feet on 05/06R/23/24R and up to
+10,000 feet on 23. Capture does not climb the aircraft onto the beam. The aircraft
+must meet the modeled three-degree glidepath from below or near it; 6,000 feet
+MSL is roughly 17 NM from a YYZ threshold in this model. At 6,000 feet close in,
+it is above the beam and will not dive/teleport down to capture.
+
+The selected-aircraft dashboard reports whether it is waiting below the beam or
+above it, including current glidepath altitude. These are simulation defaults,
+not certified ILS service volumes or chart procedures.
 
 ## Advanced restrictions
 

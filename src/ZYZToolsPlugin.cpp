@@ -84,6 +84,8 @@ namespace
     constexpr int SCREEN_OBJECT_SETTINGS = 9301;
     constexpr int SCREEN_OBJECT_PILOT = 9302;
     constexpr int FUNC_PILOT_EDIT = 9700;
+    constexpr int FUNC_PILOT_LIST_FIRST = 9710;
+    constexpr int FUNC_PILOT_LIST_LAST = 9715;
 
     constexpr ULONGLONG LAST_RENDERED_FALLBACK_MS = 1500ULL;
     constexpr int DEPARTURE_SNAPSHOT_INTERVAL_SECONDS = 10;
@@ -1931,6 +1933,8 @@ public:
         RegisterTagItemFunction("CYYZ_PDC RESTORE FLAG", FUNC_PDC_RESTORE);
         RegisterTagItemFunction("Generate PDC (legacy)", FUNC_PDC_GENERATE_LEGACY);
         RegisterTagItemFunction("TEST: Trigger Incoming Message", FUNC_PDC_TEST);
+        const char* pilotFunctions[]={"ZYZTools PILOT: altitude","ZYZTools PILOT: IAS","ZYZTools PILOT: Mach","ZYZTools PILOT: heading","ZYZTools PILOT: direct waypoint","ZYZTools PILOT: advanced"};
+        for(int i=0;i<6;++i)RegisterTagItemFunction(pilotFunctions[i],FUNC_PILOT_LIST_FIRST+i);
 
         LoadConfig();
         StartHoppieWorker();
@@ -2082,10 +2086,19 @@ public:
         }
     }
 
-    void OnFunctionCall(int FunctionId, const char *sItemString, POINT, RECT) override
+    void OnFunctionCall(int FunctionId, const char *sItemString, POINT, RECT Area) override
     {
+        if(FunctionId>=FUNC_PILOT_LIST_FIRST&&FunctionId<=FUNC_PILOT_LIST_LAST){
+            const auto fp=FlightPlanSelectASEL();
+            if(!fp.IsValid()){DisplayUserMessage("ZYZTools","PILOT","Select the aircraft's list row first.",true,true,false,false,false);return;}
+            const char* fields[]={"ALT","IAS","MACH","HDG","DCT","ADV"};OpenPilotControl(fp.GetCallsign(),fields[FunctionId-FUNC_PILOT_LIST_FIRST],Area);return;
+        }
         if(FunctionId==FUNC_PILOT_EDIT){
             const auto cs=m_pilotEditCallsign,context=m_pilotEditContext,field=m_pilotMenuField;const auto value=Upper(Trim(sItemString?sItemString:""));m_pilotEditCallsign.clear();m_pilotEditContext.clear();if(cs.empty()||context.empty()||m_trainingCommands.PilotContext(cs)!=context)return;
+            if(field=="HDG"){
+                if(value.empty()||value.size()>3||!std::all_of(value.begin(),value.end(),[](char c){return c>='0'&&c<='9';})||std::atoi(value.c_str())>360){DisplayUserMessage("ZYZTools","PILOT","Enter a magnetic heading from 000 to 360.",true,true,false,false,false);return;}
+                SendPilotAction(cs,"HDG "+value);return;
+            }
             if(field=="SPEED_RESTRICTION"||field=="CROSS_RESTRICTION"){
                 std::istringstream input(value);std::string first,separator,last,extra;input>>first>>separator>>last;
                 const auto fix=[](const std::string &s){return !s.empty()&&s.size()<=16&&std::all_of(s.begin(),s.end(),[](unsigned char c){return std::isalnum(c)||c=='_'||c=='-';});};
@@ -2442,12 +2455,31 @@ private:
     std::vector<std::string> m_pilotMenuValues;
     TrainingPilotDropdown m_pilotDropdown;
     RECT m_pilotMenuArea{};
+    void OpenPilotControl(const std::string &cs,const std::string &field,RECT area){
+        if(m_sendConfirmation.active)return;
+        const auto context=m_trainingCommands.PilotContext(cs);
+        if(context.empty()){DisplayUserMessage("ZYZTools","PILOT","Use Connect my EuroScope and select an active aircraft in your private instructor session. Normal live-network list fields are unchanged.",true,true,false,false,false);return;}
+        m_pilotEditCallsign=cs;m_pilotEditContext=context;m_pilotMenuField=field;m_pilotMenuArea=area;m_pilotSelected="";
+        for(const auto &tag:m_trainingCommands.PilotTags())if(tag.callsign==cs){
+            const int i=field=="ALT"?0:field=="IAS"?1:field=="HDG"?2:field=="DCT"?4:field=="SQ"?5:field=="MACH"?7:-1;
+            if(i>=0)m_pilotSelected=field=="SQ"?tag.squawk:tag.values[i];
+            if(field=="ALT"&&tag.values[0]!="-")m_pilotSelected=TrainingPilotTagDraw::Level(std::atoi(tag.values[0].c_str()));
+            if(field=="MACH"&&tag.values[7]!="-"){char value[16];std::snprintf(value,sizeof(value),"%.2f",std::atof(tag.values[7].c_str()));m_pilotSelected=value;}
+            if(field=="ALT"&&tag.altMode=="APP"&&tag.values[6]=="CLEAR")m_pilotSelected="Cleared approach";
+        }
+        if(field=="SQ"){OpenPopupEdit(area,FUNC_PILOT_EDIT,m_pilotSelected.c_str());return;}
+        m_pilotMenuValues=m_trainingCommands.PilotMenu(cs,field);
+        if(m_pilotMenuValues.empty()){DisplayUserMessage("ZYZTools","PILOT","No choices available. Check instructor connection and retry.",true,true,false,false,false);return;}ShowPilotMenu();
+    }
     void ShowPilotMenu(){
         const auto cs=m_pilotEditCallsign,context=m_pilotEditContext,field=m_pilotMenuField;
         if(context.empty()||m_trainingCommands.PilotContext(cs)!=context||m_pilotMenuValues.empty())return;const RECT area=m_pilotMenuArea;
         const bool opened=m_pilotDropdown.Open(m_pilotMenuValues,m_pilotSelected,[this,cs,context,field,area](std::string value){
             if(m_trainingCommands.PilotContext(cs)!=context)return;
+            if(field=="HDG"&&value=="Enter custom heading..."){m_pilotEditCallsign=cs;m_pilotEditContext=context;m_pilotMenuField="HDG";OpenPopupEdit(area,FUNC_PILOT_EDIT,"");return;}
+            if(field=="HDG"&&value=="Fly present heading"){SendPilotAction(cs,"HDG PRESENT");return;}
             if(field=="ADV"){
+                if(value.rfind("Preset ",0)==0){const auto start=value.rfind('(');if(start!=std::string::npos&&value.back()==')')SendPilotAction(cs,"IAS "+Upper(value.substr(start+1,value.size()-start-2)));return;}
                 m_pilotEditCallsign=cs;m_pilotEditContext=context;m_pilotMenuArea=area;
                 if(value=="Delete aircraft"){m_pilotMenuField="DELETE_CONFIRM";m_pilotMenuValues={"Cancel","Delete aircraft"};m_pilotSelected="Cancel";ShowPilotMenu();return;}
                 if(value=="IDENT"){SendPilotAction(cs,"IDENT");return;}
@@ -5901,10 +5933,7 @@ public:
             if(Button!=BUTTON_LEFT&&Button!=BUTTON_RIGHT&&!(Button==BUTTON_MIDDLE&&(index==0||index==8)))return;
             if(index==5){const auto fp=m_plugin->FlightPlanSelect(cs.c_str());if(!fp.IsValid())return;m_plugin->SetASELAircraft(fp);StartTagFunction(cs.c_str(),nullptr,0,cs.c_str(),nullptr,Button==BUTTON_RIGHT?TAG_ITEM_FUNCTION_HANDOFF_POPUP_MENU:TAG_ITEM_FUNCTION_TOGGLE_ROUTE_DRAW,Pt,Area);return;}
             const std::string field=index==8?"ADV":index==0?"ALT":index==1?(Button==BUTTON_RIGHT?"MACH":"IAS"):index==2?(Button==BUTTON_RIGHT?"DCT":"HDG"):"SQ";
-            m_plugin->m_pilotEditCallsign=cs;m_plugin->m_pilotEditContext=context;m_plugin->m_pilotMenuField=field;m_plugin->m_pilotMenuArea=Area;m_plugin->m_pilotSelected="";
-            for(const auto &tag:m_plugin->m_trainingCommands.PilotTags())if(tag.callsign==cs&&index!=8){const int selected=field=="MACH"?7:field=="DCT"?4:index;m_plugin->m_pilotSelected=field=="SQ"?tag.squawk:tag.values[selected];if(field=="ALT"&&tag.values[0]!="-")m_plugin->m_pilotSelected=TrainingPilotTagDraw::Level(std::atoi(tag.values[0].c_str()));if(field=="MACH"&&tag.values[7]!="-"){char value[16];std::snprintf(value,sizeof(value),"%.2f",std::atof(tag.values[7].c_str()));m_plugin->m_pilotSelected=value;}if(field=="ALT"&&tag.altMode=="APP"&&tag.values[6]=="CLEAR")m_plugin->m_pilotSelected="Cleared approach";}
-            if(field=="SQ"){m_plugin->OpenPopupEdit(Area,FUNC_PILOT_EDIT,m_plugin->m_pilotSelected.c_str());return;}
-            const auto choices=m_plugin->m_trainingCommands.PilotMenu(cs,field);if(choices.empty()){m_plugin->DisplayUserMessage("ZYZTools","PILOT","No choices available. Check instructor connection and retry.",true,true,false,false,false);return;}m_plugin->m_pilotMenuValues=choices;m_plugin->ShowPilotMenu();return;
+            m_plugin->OpenPilotControl(cs,field,Area);return;
         }
         if (!m_plugin || ObjectType != SCREEN_OBJECT_SETTINGS || Button != BUTTON_LEFT || !sObjectId)
             return;
