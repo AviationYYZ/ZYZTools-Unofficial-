@@ -6,6 +6,14 @@ Desktop test 1.2.60 adds **ZYZTools test - All Aircraft** (production name:
 **ZYZTools - All Aircraft**). It opens automatically after Instructor → Connect
 my EuroScope is active and the private EuroScope connection has logged in. The
 columns and click functions are supplied by ZYZTools: no Situ list setup is needed.
+This is a native in-EuroScope flight-plan list, not a browser or app panel. It
+inherits EuroScope's list font, colors, header and resizing behavior from your
+profile, just like Sector Inbound. Situ itself is not modified.
+
+To reopen a closed list, click an instructor tag's aircraft type to open Advanced,
+then **Show All Aircraft list**. Alternatively enter **.aircraft** in EuroScope's
+command bar. Both require the private instructor binding; neither connects you
+to a network. There is no "Aircraft lists" submenu under QUICK SET.
 Server 0.4.13 remains compatible; update/relink only the instructor app/DLL.
 
 Every active simulated aircraft with a received flight plan is explicitly added,

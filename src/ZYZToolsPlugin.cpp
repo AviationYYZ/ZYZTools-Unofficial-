@@ -2320,6 +2320,11 @@ public:
     {
         if (!sCommandLine) return false;
         const std::string trainingCommand=Upper(CollapseWhitespace(Trim(sCommandLine)));
+        if(trainingCommand==".AIRCRAFT"){
+            if(m_trainingCommands.PilotLayoutContext().empty())DisplayUserMessage("ZYZTools","PILOT","Connect my EuroScope to your private instructor session before opening All Aircraft.",true,true,false,false,false);
+            else {RefreshPilotAircraftList();if(m_pilotAircraftList.IsValid())m_pilotAircraftList.ShowFpList(true);}
+            return true;
+        }
         const bool explicitTraining=trainingCommand==".SIM" || trainingCommand.rfind(".SIM ",0)==0;
         // Existing plugin/configured replay commands retain priority. Generic
         // shortcuts are claimed only with our verified local training context.
@@ -2491,6 +2496,7 @@ private:
         }
         if(field=="SQ"){OpenPopupEdit(area,FUNC_PILOT_EDIT,m_pilotSelected.c_str());return;}
         m_pilotMenuValues=m_trainingCommands.PilotMenu(cs,field);
+        if(field=="ADV")m_pilotMenuValues.insert(m_pilotMenuValues.begin(),"Show All Aircraft list");
         if(m_pilotMenuValues.empty()){DisplayUserMessage("ZYZTools","PILOT","No choices available. Check instructor connection and retry.",true,true,false,false,false);return;}ShowPilotMenu();
     }
     void ShowPilotMenu(){
@@ -2501,6 +2507,7 @@ private:
             if(field=="HDG"&&value=="Enter custom heading..."){m_pilotEditCallsign=cs;m_pilotEditContext=context;m_pilotMenuField="HDG";OpenPopupEdit(area,FUNC_PILOT_EDIT,"");return;}
             if(field=="HDG"&&value=="Fly present heading"){SendPilotAction(cs,"HDG PRESENT");return;}
             if(field=="ADV"){
+                if(value=="Show All Aircraft list"){RefreshPilotAircraftList();if(m_pilotAircraftList.IsValid())m_pilotAircraftList.ShowFpList(true);return;}
                 if(value.rfind("Preset ",0)==0){const auto start=value.rfind('(');if(start!=std::string::npos&&value.back()==')')SendPilotAction(cs,"IAS "+Upper(value.substr(start+1,value.size()-start-2)));return;}
                 m_pilotEditCallsign=cs;m_pilotEditContext=context;m_pilotMenuArea=area;
                 if(value=="Delete aircraft"){m_pilotMenuField="DELETE_CONFIRM";m_pilotMenuValues={"Cancel","Delete aircraft"};m_pilotSelected="Cancel";ShowPilotMenu();return;}

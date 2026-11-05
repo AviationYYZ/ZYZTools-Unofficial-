@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.62 — Local test, awaiting approval
+
+- Native EuroScope All Aircraft list can be reopened from an instructor tag's Advanced menu or `.aircraft`. It retains native profile styling and independent actual/pilot-target columns, without modifying Situ or student annotations.
+- Corrected list-opening instructions: no QUICK SET Aircraft lists submenu is required. Server 0.4.14 remains compatible.
+
 ## 1.2.61 / Server test 0.4.14 — Local test, awaiting approval
 
 - Automatic jet speed bands use the instructor's pilot target altitude before approach clearance, excluding student CFL annotations. ALT/profile changes immediately update the IAS target without jumping actual IAS.
