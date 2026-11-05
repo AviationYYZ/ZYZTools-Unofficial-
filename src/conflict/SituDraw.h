@@ -7,6 +7,7 @@
 namespace draw {
 using Lookup=std::function<ca::Stage(const std::string&)>;
 void setLookup(Lookup lookup);
+void setLocationLookup(std::function<std::string(const std::string&)> lookup);
 bool install(HMODULE module);
 void uninstall();
 bool installed();

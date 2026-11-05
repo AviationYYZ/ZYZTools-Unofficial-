@@ -3,7 +3,7 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
 const {LocalTraining,normalize,geometry}=require('../electron-app/src/local-training');
 const {fleets}=require('./Create-Sfi65Scenario.cjs');
 const stem='CYYZ-West-65-15NM-VERKO-Challenge-B';
-function create({seedValue=2026110405,jetSpeedProfile,name}={}){
+function create({seedValue=2026110405,jetSpeedProfile,name,fastRamp=false}={}){
  const base=JSON.parse(fs.readFileSync(path.join(__dirname,'../scenarios/CYYZ-West-65-15NM-SFI-Instructor-Owned.json'),'utf8'));
  if(jetSpeedProfile)base.jetSpeedProfile=require('../electron-app/src/training-jet-profile').normalize(jetSpeedProfile);
  let seed=seedValue;const rand=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296),used=new Set(base.aircraft.map(a=>a.callsign));
@@ -28,6 +28,12 @@ function create({seedValue=2026110405,jetSpeedProfile,name}={}){
   targets.push({number:cycle+1,callsigns:[groups.LINNG3[cycle*4].callsign,groups.NUBER6[cycle*3].callsign],streams:['LINNG3','NUBER6'],predictedSeconds:gateTimes.NUBER6+shift+offset});
  }
  for(const [index,star]of ['BOXUM7','IMEBA9','RAGID6'].entries())for(let i=0;i<10;i++)groups[star][i].spawnTime=55+index*82+i*350+Math.round((rand()-.5)*44);
+ if(fastRamp){
+  // Keep all five calibrated pairs intact; bring a non-pair LINNG arrival and
+  // all other streams online immediately rather than waiting several minutes.
+  groups.LINNG3[19].spawnTime=12+Math.floor(rand()*10);
+  for(const [index,star]of ['BOXUM7','IMEBA9','RAGID6'].entries())for(let i=0;i<10;i++)groups[star][i].spawnTime=i===0?3+index*8+Math.floor(rand()*5):i===1?115+index*15+Math.floor(rand()*10):270+(i-2)*440+index*12+Math.floor(rand()*25);
+ }
  const scenario=normalize({...base,name:name||'CYYZ West 65 AAR - VERKO Challenge B - 15NM - Instructor Owned',aircraft:aircraft.sort((a,b)=>a.spawnTime-b.spawnTime)});
  assert(scenario.aircraft.every(a=>a.spawnTime>=0&&a.spawnTime<3600));
  return {scenario,targets,gateTimes,gate};

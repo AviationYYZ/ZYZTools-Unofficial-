@@ -154,8 +154,10 @@ std::map<std::string,Alert> scan(const std::vector<Aircraft>&all,const Config&c,
   std::string reason;double t=firstLoss(*a[i],*a[j],paths[i],paths[j],c,r,reason);
   if(t>h+1e-7)continue;
   Stage stage=early?Stage::Early:stageFor(t,c);
+  auto at=[&](const Trajectory&path){const size_t index=std::min(static_cast<size_t>(std::max(0.,std::floor(t))),path.points.size()-1),next=std::min(index+1,path.points.size()-1);return path.points[index].p+(path.points[next].p-path.points[index].p)*(t-std::floor(t));};
+  const Vec point=(at(paths[i])+at(paths[j]))*.5;
   for(auto pair:{std::make_pair(a[i],a[j]),std::make_pair(a[j],a[i])}){
-   auto&v=result[pair.first->id];if(stage>v.stage||(stage==v.stage&&t<v.seconds))v={stage,t,pair.second->id,reason};
+   auto&v=result[pair.first->id];if(stage>v.stage||(stage==v.stage&&t<v.seconds))v={stage,t,pair.second->id,reason,point,true};
   }
  }return result;
 }

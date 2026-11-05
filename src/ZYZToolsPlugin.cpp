@@ -2504,6 +2504,8 @@ private:
         if(context.empty()||m_trainingCommands.PilotContext(cs)!=context||m_pilotMenuValues.empty())return;const RECT area=m_pilotMenuArea;
         const bool opened=m_pilotDropdown.Open(m_pilotMenuValues,m_pilotSelected,[this,cs,context,field,area](std::string value){
             if(m_trainingCommands.PilotContext(cs)!=context)return;
+            if(value.rfind("Quick ",0)==0||value.rfind("Crossing ",0)==0){const auto start=value.rfind('[');if(start!=std::string::npos&&value.back()==']')SendPilotAction(cs,Upper(value.substr(start+1,value.size()-start-2)));return;}
+            if(field=="IAS"&&value.rfind("Preset ",0)==0){const auto start=value.rfind('(');if(start!=std::string::npos&&value.back()==')')SendPilotAction(cs,"IAS "+Upper(value.substr(start+1,value.size()-start-2)));return;}
             if(field=="HDG"&&value=="Enter custom heading..."){m_pilotEditCallsign=cs;m_pilotEditContext=context;m_pilotMenuField="HDG";OpenPopupEdit(area,FUNC_PILOT_EDIT,"");return;}
             if(field=="HDG"&&value=="Fly present heading"){SendPilotAction(cs,"HDG PRESENT");return;}
             if(field=="ADV"){
@@ -5848,7 +5850,7 @@ public:
             POINT offset{28,24};const auto found=m_pilotTagOffsets.find(tag.callsign);if(found!=m_pilotTagOffsets.end())offset=found->second;
             const int left=std::max(static_cast<int>(radar.left)+4,std::min(static_cast<int>(radar.right)-TrainingPilotTagDraw::Width-4,static_cast<int>(plane.x+offset.x))),top=std::max(static_cast<int>(radar.top)+4,std::min(static_cast<int>(radar.bottom)-TrainingPilotTagDraw::Height-4,static_cast<int>(plane.y+offset.y)));
             RECT box{left,top,left+TrainingPilotTagDraw::Width,top+TrainingPilotTagDraw::Height};SetDCPenColor(dc,TrainingPilotTagDraw::Normal);MoveToEx(dc,plane.x,plane.y,nullptr);LineTo(dc,left,top+8);
-            TrainingPilotTagDraw::Draw(dc,left,top,tag,m_plugin->m_conflict?static_cast<int>(m_plugin->m_conflict->displayStage(tag.callsign)):0);RECT header{left,top,left+TrainingPilotTagDraw::Width,top+TrainingPilotTagDraw::HeaderHeight};
+            TrainingPilotTagDraw::Draw(dc,left,top,tag,m_plugin->m_conflict?static_cast<int>(m_plugin->m_conflict->displayStage(tag.callsign)):0,m_plugin->m_conflict?m_plugin->m_conflict->displayLocation(tag.callsign):std::string{});RECT header{left,top,left+TrainingPilotTagDraw::Width,top+TrainingPilotTagDraw::HeaderHeight};
             for(int i:{0,1,2,5,8}){RECT r=TrainingPilotTagDraw::Cell(left,top,i);const auto tip=tag.callsign+" "+(i==5?"Callsign: left route, right handoff":names[i])+" - pilot control; green check means student annotation matches";AddScreenObject(SCREEN_OBJECT_PILOT,(tag.callsign+"|"+std::to_string(i)).c_str(),r,i==5,tip.c_str());}
         }
         RestoreDC(dc,saved);if(font)DeleteObject(font);

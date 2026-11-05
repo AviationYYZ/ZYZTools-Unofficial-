@@ -2,6 +2,35 @@
 
 ## Recommended: the independent All Aircraft list
 
+### Current preset system (test 1.2.66)
+
+The older comma-separated/chip editor is replaced by **numbered Name/Value rows**.
+In Instructor > Scenario and session > Pilot presets, expand **Quick control
+slots**, then the desired category. Each of the twelve rows is independent;
+blank Name AND Value disables just that row. Save all quick slots, then reopen
+the aircraft dropdown. Altitude defaults are 080, 060, 070, 050, 040, 030.
+Altitude Value is flight level, IAS Value is plain knots, Mach is decimal,
+heading is magnetic, and Direct Value is a waypoint name.
+
+The original six speed-until slots now appear in the **IAS dropdown**, with
+defaults 24R / 170 / NOAHA, 24L / 170 / KIREX, 23 / 170 / OMTOK. Saved nonempty
+legacy slots are preserved; defaults fill available legacy empty slots. Newly
+saved empty rows stay disabled. Configure **Crossing altitude presets** for six
+Name / Altitude(feet) / At waypoint slots, which appear in the **ALT dropdown**.
+These send normal CROSS instructions and require the fix ahead on the route.
+Quick slots and dynamic restrictions are independent; neither changes another
+slot's stored value. Existing custom values migrate; Restore default quick slots
+is available if you want the six requested defaults instead of custom values.
+
+Native instructor dropdowns no longer scroll merely from moving the mouse.
+Use the wheel to scroll and click to select; no Next/Previous pages.
+
+CA tags include the predicted loss location. A fix label means the predicted
+midpoint is within 5 NM of that named sector fix, not necessarily exactly over
+it. Without a nearby fix the short distance/compass label is measured from the
+Toronto projection reference (43.68N, 79.63W). It is a prediction, not a clearance.
+Approach-clearance suppression remains active and removes the location label.
+
 Test 1.2.63 adds configurable quick choices at the top of native pilot menus.
 From test 1.2.64, use **Add** to append each new choice without replacing existing
 ones. Each saved choice has an individual **×** removal button. Click **Save quick

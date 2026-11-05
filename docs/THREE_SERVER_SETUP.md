@@ -1,6 +1,21 @@
 # ZYZTools — instructor, student and server PC
 
-Install `ZYZTools-Server-Test-Setup-0.4.1.exe` on the spare Windows PC. Install `ZYZTools-Test-Setup-1.2.45.exe` on instructor/student PCs. They remain separate installed apps. Native EuroScope mode has been removed; previously native slots now use ZYZTools simulation. Existing saved scenarios remain available. No Node.js, EuroScope, purchased domain, router port forwarding or separate cloudflared installation is needed on the server PC. Training does not connect to VATSIM.
+## Speed profiles and go-arounds (app 1.2.66 / server 0.4.15)
+
+Automatic speed profiles belong to each server slot, not the imported scenario.
+Edit the band table in the server dashboard or Instructor > Scenario and session
+> Automatic jet speed profile, then Apply. This works while running without
+resetting the clock or aircraft. Slot settings persist in servers.json through
+reset, restart and replacement scenarios; imported profile tables are ignored.
+Manual IAS/Mach and speed-until restrictions keep priority. Existing on-server
+profile settings are migrated once so updating does not erase a custom profile.
+
+For a go-around while on approach, assign a climb altitude above current altitude
+(for example ALT 5000). This cancels approach guidance, holds present heading and
+climbs. Follow with vectors/speed as needed. Student Situ approach annotations are
+independent and are not silently erased; clear them separately when appropriate.
+
+Install `ZYZTools-Server-Test-Setup-0.4.15.exe` on the spare Windows PC. Install `ZYZTools-Test-Setup-1.2.66.exe` on instructor/student PCs. They remain separate installed apps. Native EuroScope mode has been removed; previously native slots now use ZYZTools simulation. Existing saved scenarios remain available. No Node.js, EuroScope, purchased domain, router port forwarding or separate cloudflared installation is needed on the server PC. Training does not connect to VATSIM.
 
 Before updating, stop the old slots and exit the old server app from its tray. Close/disconnect any old native host EuroScope yourself. After updating both apps, start the slot, use Instructor → Connect my EuroScope, and reconnect client EuroScope using the NORMAL DIRECT connection with Connect to VATSIM unchecked and dummy local credentials. Do not use Start simulator session or load a scenario in client EuroScope: ZYZTools on the server runs it. Use the dashboard or ZYZTools commands for pilot control, not native Get simulation/ribbon controls.
 

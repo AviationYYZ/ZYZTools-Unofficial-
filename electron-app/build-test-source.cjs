@@ -18,6 +18,8 @@ for (const entry of ['src', 'tools', 'docs', 'scenarios', 'assets/sounds', 'asse
 const config = JSON.parse(files.find(file => file.path === 'PreferredCYYZPdcPlugin.json').content);
 add('electron-app/test-training-control-presets.cjs');
 add('electron-app/test-training-conflict-telemetry.cjs');
+add('electron-app/test-training-control-slots.cjs');
+add('electron-app/test-training-go-around.cjs');
 for (const name of ['rework','mobile','command-bridge','native-command','connector','flight','guidance','sweatbox','speed-profiles','update-rate','tag-controls','navdata','pilot-tags','pilot-secondary','restrictions','tag-workflow','profile-ui','sfi-scenario','initial-owner','list-controls','heading-ils','speed-presets','all-aircraft-list','speed-altitude-basis','browser-pilots','pilot-invite']) add(`electron-app/test-training-${name}.cjs`);
 if (files.some(file => /\bsk-(?:proj-|svcacct-)?[A-Za-z0-9_-]{24,}\b/.test(file.content))) throw new Error('A possible API secret was found in source; refusing to bundle it.');
 if (config.hoppie_logon_code !== 'REPLACE_WITH_YOUR_HOPPIE_LOGON_CODE') throw new Error('Source snapshot must contain only the default placeholder Hoppie configuration.');

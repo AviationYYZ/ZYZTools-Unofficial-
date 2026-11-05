@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.2.66 — Local test, awaiting approval
+
+- Server 0.4.15 owns each slot's speed profile in servers.json. Configure from the server dashboard or paired instructor panel before import or while running; imports cannot override it, and reset/restart retains it. Existing saved server/scenario settings seed the profile once on migration. Scenario files no longer control the server profile.
+- A climb ALT instruction while approach guidance is active now cancels that guidance, holds present heading and climbs to the assigned altitude. Prevents completed-route deletion during go-around; manual IAS/Mach overrides remain unchanged.
+
+- Replaced the quick-value/chip editor with independent numbered Name/Value slots per category, matching the speed-until editor. Twelve available slots per category; altitude defaults 080/060/070/050/040/030. Existing custom quick values migrate without deleting their old file. Each category's slots appear only in its own native dropdown.
+- IAS dropdown includes six dynamic speed-until slots, defaulting to 24R/170/NOAHA, 24L/170/KIREX and 23/170/OMTOK. Added six crossing-altitude Name/Altitude/Waypoint slots in the altitude dropdown.
+- Native dropdown list scrolling is wheel-driven: hover/drag edge scrolling, auto-scroll timers and scrollbar scrolling are blocked in our own list. Plain clicking still selects an item; EuroScope/Situ windows are not subclassed.
+- CA tags show a predicted conflict point near a sector fix, or distance/direction from the Toronto reference when no fix lies within 5 NM. Labels use the predicted loss-of-separation midpoint and respect all existing approach suppression. Both our pilot tags and the Situ adapter receive labels.
+- New Challenge D retains 65 hourly arrivals and five deliberate VERKO merges, but all five streams start within 20 seconds. Origins and airline types match the entry direction. Original compact STAR notation, speed profile, 15NM entry, bedpost/SFI/instructor ownership rules retained.
+- Update app/plugin 1.2.66 and server 0.4.15 for all changes above. Local testing only; nothing published.
+
 ## 1.2.65 — Local test, awaiting approval
 
 - Private instructor conflict scans use fresh authenticated simulator telemetry instead of depending on EuroScope radar/flight-plan correlation being available. Public/live radar scans retain strict SDK correlation checks. Status identifies the active data source; user enable/mute settings remain unchanged.

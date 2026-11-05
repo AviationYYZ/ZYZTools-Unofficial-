@@ -47,7 +47,8 @@ struct Config {
  std::vector<std::string> arrivals={"CYYZ","CYTZ","CYHM","CYKF","CYOO","CYXU","CYQG","CYSB","CYYB","CYAM"};
  std::vector<std::string> parallel={"CYYZ/05/06L","CYYZ/05/06R","CYYZ/06L/06R","CYYZ/23/24L","CYYZ/23/24R","CYYZ/24L/24R","CYYZ/15L/15R","CYYZ/33L/33R"};
 };
-struct Alert { Stage stage=Stage::None; double seconds=1e9; std::string other,reason; };
+struct Alert { Stage stage=Stage::None; double seconds=1e9; std::string other,reason; Vec point; bool hasPoint=false; };
+inline std::string conflictLocation(const Alert&a,const std::vector<Waypoint>&fixes){if(!a.hasPoint)return "";double nearest=5;std::string name;for(const auto&w:fixes){double d=norm(w.p-a.point);if(d<nearest){nearest=d;name=w.name;}}if(!name.empty())return name;static const char*dirs[]={"N","NE","E","SE","S","SW","W","NW"};int direction=(static_cast<int>(std::lround((bearing(a.point)+360)/45))%8+8)%8;return std::to_string(static_cast<int>(std::lround(norm(a.point))))+dirs[direction];}
 struct VectorMemory { bool vectored=false; double divergent=-1,aligned=-1,lastSeen=0; std::string direct,rejoinedFix; };
 class VectorTracker {
  std::map<std::string,VectorMemory> memory;

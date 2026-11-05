@@ -6,7 +6,9 @@ static DrawTextFn original=::DrawTextA;
 static void** slot=nullptr;
 static HMODULE heldModule=nullptr;
 static Lookup lookup;
+static std::function<std::string(const std::string&)> locationLookup;
 void setLookup(Lookup fn){lookup=std::move(fn);}
+void setLocationLookup(std::function<std::string(const std::string&)> fn){locationLookup=std::move(fn);}
 bool installed(){return slot!=nullptr;}
 int WINAPI render(HDC dc,LPCSTR text,int count,LPRECT rect,UINT flags){
  if(!text||!rect||!lookup)return original(dc,text,count,rect,flags);
@@ -30,6 +32,7 @@ int WINAPI render(HDC dc,LPCSTR text,int count,LPRECT rect,UINT flags){
  if(flags&DT_CALCRECT){rect->right=local.right;rect->bottom=local.bottom;}
  else {
   COLORREF color=stage>=ca::Stage::Red?RGB(255,40,50):RGB(255,220,0);
+  if(locationLookup){const auto point=locationLookup(id);if(!point.empty()){SIZE extent{};GetTextExtentPoint32A(dc,text,n,&extent);RECT label{local.left+extent.cx+6,local.top,local.left+extent.cx+126,local.bottom};SetTextColor(dc,color);const auto value="CA "+point;original(dc,value.c_str(),-1,&label,DT_LEFT|DT_SINGLELINE|DT_NOCLIP);}}
   HPEN pen=CreatePen(PS_SOLID,2,color);HBRUSH brush=CreateSolidBrush(color);
   SelectObject(dc,pen);SelectObject(dc,brush);
   int x=local.left-13,y=local.top+5;

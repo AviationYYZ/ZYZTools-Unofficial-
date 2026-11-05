@@ -49,6 +49,8 @@ public:
  bool enabled=false,muted=false,dirty=true,hookEnabled=true,hookReported=false;
  // Supplied only by the fresh, authenticated private instructor bridge.
  std::vector<ca::Aircraft> trainingAircraft;
+ std::vector<ca::Waypoint> locationFixes;
+ std::map<std::string,std::string> locationLabels;
  bool trainingVerified=false;
  bool lightOpen=false,loudOpen=false;UINT_PTR refreshTimer=0;
  HANDLE adapterLock=nullptr;
@@ -57,12 +59,13 @@ public:
   host.RegisterTagItemType("CA Callsign",CallsignItem);host.RegisterTagItemType("CA Indicator",MarkerItem);
   loadConfig();
   draw::setLookup([this](const std::string&id){return displayStage(id);});
+  draw::setLocationLookup([this](const std::string&id){return displayLocation(id);});
   refreshTimer=SetTimer(nullptr,0,500,[](HWND,UINT,UINT_PTR,DWORD){if(plugin&&std::any_of(plugin->alerts.begin(),plugin->alerts.end(),[](const auto&v){return v.second.stage==ca::Stage::Urgent;}))for(auto*s:plugin->screens)s->RequestRefresh();});
  }
  ~ConflictModule(){
   if(refreshTimer)KillTimer(nullptr,refreshTimer);draw::uninstall();stopAudio();
   if(adapterLock){ReleaseMutex(adapterLock);CloseHandle(adapterLock);}
-  draw::setLookup({});plugin=nullptr;
+  draw::setLookup({});draw::setLocationLookup({});plugin=nullptr;
  }
 
  static std::string escape(const std::string& value){
@@ -134,6 +137,7 @@ public:
   if(!enabled||i==alerts.end()||!currentlyCorrelated(id)||!currentlyCorrelated(i->second.other))return ca::Stage::None;
   return i->second.stage;
  }
+ std::string displayLocation(const std::string&id){if(displayStage(id)==ca::Stage::None)return "";auto i=locationLabels.find(id);return i==locationLabels.end()?"":i->second;}
  void log(const std::string&s){std::ofstream f(dir/"CZYZConflictAlert.log",std::ios::app);f<<now()<<" "<<s<<"\n";}
  void loadConfig(){
   config=ca::Config{};auto path=(dir/"CZYZConflictAlert.ini").string();
@@ -172,6 +176,7 @@ public:
  void readRunways(){
   host.SelectActiveSectorfile();
   runways.clear();
+  locationFixes.clear();for(auto fix=host.SectorFileElementSelectFirst(SECTOR_ELEMENT_FIX);fix.IsValid();fix=host.SectorFileElementSelectNext(fix,SECTOR_ELEMENT_FIX)){CPosition p;if(fix.GetPosition(&p,0))locationFixes.push_back({safe(fix.GetName()),ca::project(p.m_Latitude,p.m_Longitude),0});}
   for(auto r=host.SectorFileElementSelectFirst(SECTOR_ELEMENT_RUNWAY);r.IsValid();r=host.SectorFileElementSelectNext(r,SECTOR_ELEMENT_RUNWAY)){
    CPosition p,q;if(!r.GetPosition(&p,0)||!r.GetPosition(&q,1))continue;
    auto a=ca::project(p.m_Latitude,p.m_Longitude),b=ca::project(q.m_Latitude,q.m_Longitude);if(ca::norm(b-a)<.1)continue;
@@ -269,6 +274,7 @@ public:
    std::set<std::string>valid;for(auto&a:aircraft)if(ca::eligible(a,config))valid.insert(a.id);
    for(auto i=early.begin();i!=early.end();)if(!valid.count(i->first)||!valid.count(i->second.other))i=early.erase(i);else ++i;
    for(auto&[id,v]:early)if(valid.count(id)&&valid.count(v.other)&&!alerts.count(id))alerts[id]=v;
+   locationLabels.clear();for(const auto&[id,v]:alerts)locationLabels[id]=ca::conflictLocation(v,locationFixes);
    bool urgent=false,newRed=false,newUrgent=false;
    for(auto&[id,v]:alerts){auto old=previous.find(id);auto before=old==previous.end()?ca::Stage::None:old->second.stage;
     urgent|=v.stage==ca::Stage::Urgent;newUrgent|=v.stage==ca::Stage::Urgent&&before<ca::Stage::Urgent;newRed|=v.stage==ca::Stage::Red&&before<ca::Stage::Red;
