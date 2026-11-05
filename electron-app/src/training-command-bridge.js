@@ -6,6 +6,7 @@ class TrainingCommandBridge{
  constructor(folder,channel,client,connector,options={}){this.folder=folder;this.channel=channel;this.client=client;this.connector=connector;this.port=options.port??(channel==='test'?6815:6816);this.file=path.join(folder,'Binding.json');this.requests=new Map();this.revision=0;this.selected='';this.lastChanged=0;this.tagRequests=new Map();this.pilotOrders=new Map();}
  fingerprint(){return this.client.pair?crypto.createHash('sha256').update(this.client.pair.url+'|'+this.client.pair.token).digest('hex'):'';}
  speedPresets(value){this.presets??=new(require('./training-speed-presets').SpeedPresets)(path.dirname(this.folder));return {slots:value?.slots!==undefined?this.presets.set(value.slots):this.presets.get()};}
+ controlPresets(value){this.controlSlots??=new(require('./training-control-presets').ControlPresets)(path.dirname(this.folder));return {fields:value?.fields!==undefined?this.controlSlots.set(value.fields):this.controlSlots.get()};}
  tagControls(){return {enabled:false};}
  async tagEdit(){throw Error('Use middle-click ZYZTools pilot controls; regular tags are annotations.');}
  prediction(value){const file=path.join(this.folder,'Prediction.json');if(this.predictionMinutes===undefined){this.predictionMinutes=0;try{const saved=JSON.parse(fs.readFileSync(file,'utf8'));if([0,1,2,3,5,10].includes(saved.minutes))this.predictionMinutes=saved.minutes;}catch{}}
@@ -32,7 +33,7 @@ class TrainingCommandBridge{
   if(req.method==='GET'&&req.url.startsWith('/pilot-')){
    const u=new URL(req.url,'http://127.0.0.1'),peer=this.connector.peerForPort(Number(u.searchParams.get('port')));if(!peer||!this.valid()||!this.snapshot||Date.now()-this.updated>5000)throw Error('Current instructor connection required.');
    const model=require('./training-pilot-tags');if(u.pathname==='/pilot-state')return this.reply(res,200,{sessionId:this.snapshot.sessionId,tags:model.rows(this.snapshot,peer,this.pilotOrders)});
-   if(u.pathname==='/pilot-menu'){const a=this.snapshot.aircraft.find(a=>a.callsign===u.searchParams.get('callsign')&&a.active);if(!a)throw Error('Aircraft is no longer active.');return this.reply(res,200,{sessionId:this.snapshot.sessionId,choices:[...model.menu(u.searchParams.get('field'),a,this.snapshot),...(u.searchParams.get('field')==='ADV'?(this.speedPresets(),this.presets.choices()):[])]});}
+   if(u.pathname==='/pilot-menu'){const a=this.snapshot.aircraft.find(a=>a.callsign===u.searchParams.get('callsign')&&a.active);if(!a)throw Error('Aircraft is no longer active.');const field=u.searchParams.get('field');this.controlPresets();const base=model.menu(field,a,this.snapshot);if(field==='ADV')base.push('Set vertical rate','Cancel approach');return this.reply(res,200,{sessionId:this.snapshot.sessionId,choices:[...this.controlSlots.choices(field,base),...(field==='ADV'?(this.speedPresets(),this.presets.choices()):[])]});}
    throw Error('Unknown pilot UI request.');
   }
   if(req.url.startsWith('/tag-state'))return this.reply(res,410,{state:'error',message:'Legacy controls retired.'});

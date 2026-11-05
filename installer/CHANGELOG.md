@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.63 — Local test, awaiting approval
+
+- Added configurable quick choices for every instructor control category, with useful defaults and up to 12 choices per category. Edit under Instructor > Scenario and session > Speed restriction presets > Quick control presets. Native tag and list dropdowns open at the top, with the full choices retained below.
+- Squawk now offers saved choices and custom entry; Advanced exposes vertical-rate choices and cancel approach. Existing named IAS-until-fix presets remain separate.
+- Radar tag navigation now uses left-click direct waypoint, right-click heading. List bindings remain unchanged. Server 0.4.14 remains compatible; nothing published.
+
 ## 1.2.62 — Local test, awaiting approval
 
 - Native EuroScope All Aircraft list can be reopened from an instructor tag's Advanced menu or `.aircraft`. It retains native profile styling and independent actual/pilot-target columns, without modifying Situ or student annotations.

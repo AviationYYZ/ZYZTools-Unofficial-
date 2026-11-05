@@ -2,6 +2,16 @@
 
 ## Recommended: the independent All Aircraft list
 
+Test 1.2.63 adds configurable quick choices at the top of native pilot menus.
+In the app, expand Instructor > Scenario and session > Speed restriction presets,
+then Quick control presets. Use comma-separated choices (up to 12 per category),
+for example ALT `030, 050, 080, 110`, IAS `170, 210, 250`, or DCT `LINNG, KIREX`.
+Save and reopen the dropdown. Normal choices remain below; blank fields disable
+quick choices. Test/production preferences are separate; browser menus are separate.
+Radar tag navigation is now LEFT direct-to / RIGHT heading; native list heading
+columns remain LEFT heading / RIGHT direct-to. Advanced exposes vertical rate,
+cancel approach and squawk (saved choices or custom entry).
+
 Desktop test 1.2.60 adds **ZYZTools test - All Aircraft** (production name:
 **ZYZTools - All Aircraft**). It opens automatically after Instructor → Connect
 my EuroScope is active and the private EuroScope connection has logged in. The

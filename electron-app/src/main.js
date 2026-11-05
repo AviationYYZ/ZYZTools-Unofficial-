@@ -969,6 +969,7 @@ ipcMain.handle('training:instructor',async(event,action,value={})=>{
  if(action==='disconnect'){trainingCommandBridge.disable();return instructorClient.disconnect(value.forget===true);}
  if(action==='euroScopeSelection')return trainingCommandBridge.selection();
  if(action==='speedPresets')return trainingCommandBridge.speedPresets(value);
+ if(action==='controlPresets')return trainingCommandBridge.controlPresets(value);
  if(action==='prediction'){const result=trainingCommandBridge.prediction(value.minutes);await trainingCommandBridge.refresh();return result;}
  if(action==='state')return instructorClient.state();
  if(action==='aircraft')return instructorClient.aircraft(value.slot);

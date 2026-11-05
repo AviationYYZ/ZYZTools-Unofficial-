@@ -2494,8 +2494,8 @@ private:
             if(field=="MACH"&&tag.values[7]!="-"){char value[16];std::snprintf(value,sizeof(value),"%.2f",std::atof(tag.values[7].c_str()));m_pilotSelected=value;}
             if(field=="ALT"&&tag.altMode=="APP"&&tag.values[6]=="CLEAR")m_pilotSelected="Cleared approach";
         }
-        if(field=="SQ"){OpenPopupEdit(area,FUNC_PILOT_EDIT,m_pilotSelected.c_str());return;}
         m_pilotMenuValues=m_trainingCommands.PilotMenu(cs,field);
+        if(field=="SQ")m_pilotMenuValues.push_back("Enter custom squawk...");
         if(field=="ADV")m_pilotMenuValues.insert(m_pilotMenuValues.begin(),"Show All Aircraft list");
         if(m_pilotMenuValues.empty()){DisplayUserMessage("ZYZTools","PILOT","No choices available. Check instructor connection and retry.",true,true,false,false,false);return;}ShowPilotMenu();
     }
@@ -2512,7 +2512,9 @@ private:
                 m_pilotEditCallsign=cs;m_pilotEditContext=context;m_pilotMenuArea=area;
                 if(value=="Delete aircraft"){m_pilotMenuField="DELETE_CONFIRM";m_pilotMenuValues={"Cancel","Delete aircraft"};m_pilotSelected="Cancel";ShowPilotMenu();return;}
                 if(value=="IDENT"){SendPilotAction(cs,"IDENT");return;}
-                if(value=="Enter squawk"){m_pilotMenuField="SQ";OpenPopupEdit(area,FUNC_PILOT_EDIT,"");return;}
+                if(value=="Enter squawk"){OpenPilotControl(cs,"SQ",area);return;}
+                if(value=="Set vertical rate"){OpenPilotControl(cs,"RATE",area);return;}
+                if(value=="Cancel approach"){SendPilotAction(cs,"APP CANCEL");return;}
                 if(value=="Clear speed restrictions"){SendPilotAction(cs,"RESTRICTIONS SPEED CLEAR");return;}
                 if(value=="Clear crossing restrictions"){SendPilotAction(cs,"RESTRICTIONS ALT CLEAR");return;}
                 m_pilotMenuField=value=="Custom speed restrictions"?"SPEED_RESTRICTION":"CROSS_RESTRICTION";
@@ -2520,6 +2522,7 @@ private:
             }
             if(field=="DELETE_CONFIRM"){if(value=="Delete aircraft")SendPilotAction(cs,"DELETE AIRCRAFT");return;}
             if(field=="DCT"&&value=="Type waypoint..."){m_pilotEditCallsign=cs;m_pilotEditContext=context;m_pilotMenuField=field;OpenPopupEdit(area,FUNC_PILOT_EDIT,"");return;}
+            if(field=="SQ"&&value=="Enter custom squawk..."){m_pilotEditCallsign=cs;m_pilotEditContext=context;m_pilotMenuField=field;OpenPopupEdit(area,FUNC_PILOT_EDIT,"");return;}
             SendPilotAction(cs,field=="ALT"?(value=="Cleared approach"?"APP CLEAR":"ALT "+std::to_string(std::atoi(value.c_str())*100)):field+" "+value);
         });if(!opened)DisplayUserMessage("ZYZTools","PILOT","Could not open pilot dropdown. Refocus EuroScope and retry.",true,true,false,false,false);
     }
@@ -5973,7 +5976,7 @@ public:
             const auto cs=id.substr(0,split),context=m_plugin->m_trainingCommands.PilotContext(cs);if(context.empty())return;const int index=atoi(id.substr(split+1).c_str());if(index!=0&&index!=1&&index!=2&&index!=5&&index!=8)return;
             if(Button!=BUTTON_LEFT&&Button!=BUTTON_RIGHT&&!(Button==BUTTON_MIDDLE&&(index==0||index==8)))return;
             if(index==5){const auto fp=m_plugin->FlightPlanSelect(cs.c_str());if(!fp.IsValid())return;m_plugin->SetASELAircraft(fp);StartTagFunction(cs.c_str(),nullptr,0,cs.c_str(),nullptr,Button==BUTTON_RIGHT?TAG_ITEM_FUNCTION_HANDOFF_POPUP_MENU:TAG_ITEM_FUNCTION_TOGGLE_ROUTE_DRAW,Pt,Area);return;}
-            const std::string field=index==8?"ADV":index==0?"ALT":index==1?(Button==BUTTON_RIGHT?"MACH":"IAS"):index==2?(Button==BUTTON_RIGHT?"DCT":"HDG"):"SQ";
+            const std::string field=index==8?"ADV":index==0?"ALT":index==1?(Button==BUTTON_RIGHT?"MACH":"IAS"):index==2?(Button==BUTTON_RIGHT?"HDG":"DCT"):"SQ";
             m_plugin->OpenPilotControl(cs,field,Area);return;
         }
         if (!m_plugin || ObjectType != SCREEN_OBJECT_SETTINGS || Button != BUTTON_LEFT || !sObjectId)
