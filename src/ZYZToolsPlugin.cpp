@@ -2294,7 +2294,7 @@ public:
         const std::string trainingResult=m_trainingCommands.Tick(trainingSelected,GetConnectionType()==CONNECTION_TYPE_DIRECT&&trainingSelf.IsValid()?trainingSelf.GetCallsign():"");
         RefreshPilotAircraftList();
         if(!trainingResult.empty()) DisplayUserMessage("ZYZTools","TRAINING",trainingResult.c_str(),true,true,false,false,false);
-        if (m_conflict) m_conflict->OnTimer(Counter);
+        if (m_conflict) {m_conflict->trainingVerified=m_trainingCommands.ConflictTelemetry(m_conflict->trainingAircraft);m_conflict->OnTimer(Counter);}
         UpdateStatisticsConnectionState();
         if (Counter % 5 == 0) WriteDiscordPresence();
         if (Counter % 2 == 0)

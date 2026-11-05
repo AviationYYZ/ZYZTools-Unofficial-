@@ -22,7 +22,7 @@ function normalize(value){
 class ControlPresets{
  constructor(folder){this.file=path.join(folder,'TrainingControlPresets.json');}
  get(){if(!fs.existsSync(this.file))return normalize(defaults);return normalize(JSON.parse(fs.readFileSync(this.file,'utf8')).fields);}
- set(fields){const saved=normalize(fields);fs.mkdirSync(path.dirname(this.file),{recursive:true});fs.writeFileSync(this.file+'.tmp',JSON.stringify({version:1,fields:saved},null,2));fs.renameSync(this.file+'.tmp',this.file);return saved;}
+ set(fields){const saved=normalize(fields&&typeof fields==='object'&&!Array.isArray(fields)&&Object.keys(fields).length?{...this.get(),...fields}:fields);fs.mkdirSync(path.dirname(this.file),{recursive:true});fs.writeFileSync(this.file+'.tmp',JSON.stringify({version:1,fields:saved},null,2));fs.renameSync(this.file+'.tmp',this.file);return saved;}
  choices(field,choices){const picks=this.get()[field]||[];return [...picks.filter(v=>field==='DCT'||!['ADV','APP'].includes(field)||choices.includes(v)),...choices.filter(v=>!picks.includes(v))];}
 }
 module.exports={ControlPresets,normalize,defaults};

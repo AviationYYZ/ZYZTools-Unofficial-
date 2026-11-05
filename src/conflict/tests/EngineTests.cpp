@@ -13,6 +13,7 @@ int main(){int passed=0,failed=0;auto test=[&](const char*name,std::function<voi
  test("15 second urgent",[]{require(check(plane("A",{0,0}),plane("B",{4.5,0},270)).stage==Stage::Urgent,"wrong stage");});
  test("outside 45 seconds",[]{require(check(plane("A",{0,0}),plane("B",{7.6,0},270)).stage==Stage::None,"too early");});
  test("existing loss",[]{require(check(plane("A",{0,0}),plane("B",{2,0})).stage==Stage::Urgent,"no present loss");});
+ test("private simulator approach clearance excludes either aircraft and cancel restores detection",[]{for(bool early:{false,true})for(bool first:{false,true}){auto a=plane("A",{0,0}),b=plane("B",{1,0});a.arrival=b.arrival=true;require(check(a,b,early).stage!=Stage::None,"baseline missing");(first?a:b).approachCleared=true;require(check(a,b,early).stage==Stage::None,"private approach still alerts");(first?a:b).approachCleared=false;require(check(a,b,early).stage!=Stage::None,"cancel did not restore");}});
  test("exact lateral separation equal velocity",[]{require(check(plane("A",{0,0}),plane("B",{3,0})).stage==Stage::None,"equality is not loss");});
  test("exact vertical separation",[]{auto a=plane("A",{0,0}),b=plane("B",{1,0});b.altitude=11000;require(check(a,b).stage==Stage::None,"equality is not loss");});
  test("vertical convergence",[]{auto a=plane("A",{0,0}),b=plane("B",{1,0});b.altitude=11500;b.vs=-1000;auto v=check(a,b);require(v.stage==Stage::Red&&std::abs(v.seconds-30)<.01,"vertical ETA");});

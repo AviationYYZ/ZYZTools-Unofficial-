@@ -3,6 +3,10 @@
 ## Recommended: the independent All Aircraft list
 
 Test 1.2.63 adds configurable quick choices at the top of native pilot menus.
+From test 1.2.64, use **Add** to append each new choice without replacing existing
+ones. Each saved choice has an individual **×** removal button. Click **Save quick
+control presets** after adding/removing choices; pending text is appended on Save
+too. Existing choices stay intact across saves and app restarts.
 In the app, expand Instructor > Scenario and session > Speed restriction presets,
 then Quick control presets. Use comma-separated choices (up to 12 per category),
 for example ALT `030, 050, 080, 110`, IAS `170, 210, 250`, or DCT `LINNG, KIREX`.

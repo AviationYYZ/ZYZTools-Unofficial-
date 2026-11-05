@@ -47,6 +47,9 @@ public:
  std::map<std::string,double> restrictions;std::map<std::string,char> wakeTypes;
  double lastEarly=-100,lastScan=-100,lastLoud=-100;
  bool enabled=false,muted=false,dirty=true,hookEnabled=true,hookReported=false;
+ // Supplied only by the fresh, authenticated private instructor bridge.
+ std::vector<ca::Aircraft> trainingAircraft;
+ bool trainingVerified=false;
  bool lightOpen=false,loudOpen=false;UINT_PTR refreshTimer=0;
  HANDLE adapterLock=nullptr;
  ConflictModule(CPlugIn& owner,const fs::path& directory):host(owner),dir(directory){
@@ -120,7 +123,9 @@ public:
 
  void message(const std::string&s){host.DisplayUserMessage("CZYZ CA","",s.c_str(),true,true,false,false,false);}
  bool currentlyCorrelated(const std::string&id){
+  if(trainingVerified){auto found=std::find_if(trainingAircraft.begin(),trainingAircraft.end(),[&](const auto&a){return a.id==id;});if(found!=trainingAircraft.end()){auto fp=host.FlightPlanSelect(id.c_str());int cleared=fp.IsValid()?fp.GetControllerAssignedData().GetClearedAltitude():0;return !found->approachCleared&&cleared!=1&&cleared!=2;}}
   auto fp=host.FlightPlanSelect(id.c_str());if(!fp.IsValid())return false;
+  int cleared=fp.GetControllerAssignedData().GetClearedAltitude();if(cleared==1||cleared==2)return false;
   auto rt=fp.GetCorrelatedRadarTarget();if(!correlatedPair(fp,rt))return false;
   auto pos=rt.GetPosition();return pos.IsValid()&&!pos.IsFPTrackPosition();
  }
@@ -177,6 +182,16 @@ public:
  }
  void collect(){
   aircraft.clear();double t=now();
+  if(trainingVerified){
+   for(auto a:trainingAircraft){
+    auto fp=host.FlightPlanSelect(a.id.c_str());if(fp.IsValid()){
+     auto assigned=fp.GetControllerAssignedData();int clearance=assigned.GetClearedAltitude();if(clearance==1||clearance==2)a.approachCleared=true;a.owned=fp.GetTrackingControllerIsMe();a.direct=safe(assigned.GetDirectToPointName());
+     auto route=fp.GetExtractedRoute();int count=route.GetPointsNumber(),start=std::max(0,route.GetPointsCalculatedIndex()+1);
+     for(int i=start;i<count;++i){auto p=route.GetPointPosition(i);if(std::abs(p.m_Latitude)>90||std::abs(p.m_Longitude)>180||(p.m_Latitude==0&&p.m_Longitude==0))break;a.route.push_back({safe(route.GetPointName(i)),ca::project(p.m_Latitude,p.m_Longitude),0});}
+    }
+    a.arrival=std::find(config.arrivals.begin(),config.arrivals.end(),a.destination)!=config.arrivals.end();a.vectored=vectors.update(a,t,config);aircraft.push_back(std::move(a));
+   }vectors.prune(t);return;
+  }
   for(auto rt=host.RadarTargetSelectFirst();rt.IsValid();rt=host.RadarTargetSelectNext(rt)){
    auto fp=rt.GetCorrelatedFlightPlan();auto pos=rt.GetPosition();if(!correlatedPair(fp,rt)||!pos.IsValid()||pos.IsFPTrackPosition())continue;
    auto data=fp.GetFlightPlanData();auto assigned=fp.GetControllerAssignedData();ca::Aircraft a;
@@ -263,7 +278,7 @@ public:
    if(urgent&&(newUrgent||t-lastLoud>=5)){play(true);lastLoud=t;}else if(!urgent&&newRed)play(false);
    if(!urgent&&loudOpen)closeSound(true);
    if(alerts.empty())stopAudio();
-   status=std::string("Active; SiTu adapter ")+(draw::installed()?"attached":"unavailable")+"; "+std::to_string(aircraft.size())+" targets";
+   status=std::string("Active; ")+(trainingVerified?"private simulator":"EuroScope radar")+"; SiTu adapter "+(draw::installed()?"attached":"unavailable")+"; "+std::to_string(aircraft.size())+" targets";
    if(t-lastRecommendations>=5){
     recommendations.clear();recommendationStatus="Enable sequencing and select the aircraft to place first and second.";
     if(sequencing){

@@ -3,7 +3,7 @@ namespace ca {
 bool eligible(const Aircraft&a,const Config&c){
  // EuroScope cleared-altitude values: 1 = ILS, 2 = visual approach.
  // Apply to every scan and cached-alert eligibility, independent of geometry.
- return a.ifr&&a.correlated&&a.cleared!=1&&a.cleared!=2&&a.altitude>=2000
+ return a.ifr&&a.correlated&&!a.approachCleared&&a.cleared!=1&&a.cleared!=2&&a.altitude>=2000
   &&a.age<=c.stale&&a.age>=0&&a.gs>=40
   &&std::isfinite(a.p.x)&&std::isfinite(a.p.y)&&std::isfinite(a.altitude);
 }

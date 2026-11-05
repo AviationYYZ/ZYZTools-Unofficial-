@@ -12,6 +12,7 @@ test('all control categories persist independently and prioritize choices withou
   assert(saved.choices('IAS',['170']).includes('175'));assert(saved.choices('DCT',[]).includes('KIREX'));
   const before=fs.readFileSync(p.file,'utf8');for(const bad of [{ALT:['085']},{IAS:['999']},{HDG:['361']},{MACH:['1']},{DCT:['FIX, ALT 0']},{SQ:['8888']},{RATE:['9999']},{ADV:['arbitrary command']},{ALT:Array(13).fill('080')}])assert.throws(()=>p.set(bad));assert.equal(fs.readFileSync(p.file,'utf8'),before);
   assert.deepEqual(normalize({ALT:[]}).ALT,[]);
+  p.set({ALT:['070','090']});assert.deepEqual(p.get().DCT,['KIREX','LINNG']);assert.deepEqual(p.get().IAS,['175','210']);assert.deepEqual(new ControlPresets(path.join(dir,'test')).get().ALT,['070','090']);
  }finally{fs.rmSync(dir,{recursive:true,force:true});}
 });
 test('native radar navigation buttons are direct left / heading right; presets remain visible on opening',()=>{

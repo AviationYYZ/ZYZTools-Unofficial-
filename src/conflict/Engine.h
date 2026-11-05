@@ -35,7 +35,7 @@ struct Aircraft {
  Vec p; double altitude=0,gs=0,heading=0,vs=0,age=0;
  int cleared=0; double assignedIas=0,assignedMach=0,assignedRate=0;
  double climbRate=1500,descentRate=1500,estimatedIas=0;
- bool ifr=true,correlated=false,arrival=false,vectored=false,owned=false;
+ bool ifr=true,correlated=false,arrival=false,vectored=false,owned=false,approachCleared=false;
  char wake='M'; std::vector<Waypoint> route;
 };
 struct State { Vec p; double altitude=0,heading=0; };

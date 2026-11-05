@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.2.65 — Local test, awaiting approval
+
+- Private instructor conflict scans use fresh authenticated simulator telemetry instead of depending on EuroScope radar/flight-plan correlation being available. Public/live radar scans retain strict SDK correlation checks. Status identifies the active data source; user enable/mute settings remain unchanged.
+- Suppress conflicts involving either aircraft cleared for approach in the actual private simulator state or Situ's ILS/visual cleared-altitude status. Exclusion applies to current, predicted, wake and cached/displayed alerts. Cancel restores eligibility.
+- Added VERKO Challenge C: 65 arrivals, prior west-flow/SFI/15NM/bedpost/instructor-ownership rules, new callsigns and the screenshot's speed profile embedded explicitly. Native replay verifies all five deliberate pairs alert, and approach suppression works.
+- Saved the supplied profile in project instructions for future generated scenarios. No server update required; nothing published.
+
+## 1.2.64 — Local test, awaiting approval
+
+- Quick-control preset editor now has explicit Add buttons and individual removable choices. Adding/saving a second preset preserves the first, including when saving directly without pressing Add. Existing saved presets load unchanged.
+- Partial category saves preserve other categories instead of resetting them to defaults. Inputs remain disabled until initial loading completes, and during saves.
+- Presets remain in their respective native dropdowns. No server update required; nothing published.
+
 ## 1.2.63 — Local test, awaiting approval
 
 - Added configurable quick choices for every instructor control category, with useful defaults and up to 12 choices per category. Edit under Instructor > Scenario and session > Speed restriction presets > Quick control presets. Native tag and list dropdowns open at the top, with the full choices retained below.
