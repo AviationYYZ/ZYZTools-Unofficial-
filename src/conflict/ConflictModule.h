@@ -4,7 +4,6 @@
 #include "../../SDK/EuroScopePlugIn.h"
 #include "Engine.h"
 #include "SituDraw.h"
-#include "Sequencing.h"
 #include <fstream>
 #include <sstream>
 #include <set>
@@ -29,14 +28,6 @@ class ConflictModule {
 public:
  inline static ConflictModule* plugin=nullptr;
  std::string status="Disabled";
- bool sequencing=false,ownedOnly=true;
- std::string leader,follower,mergeFix;
- double lastRecommendations=-100;
- std::vector<ca::Recommendation> recommendations;
- std::vector<ca::Recommendation> aiRecommendations;
- std::string aiRequestId,aiStatus="No AI request.";
- double lastAIScan=-100;
- std::string recommendationStatus;
  FILETIME settingsTime{};
 
 public:
@@ -49,7 +40,6 @@ public:
  bool enabled=false,muted=false,dirty=true,hookEnabled=true,hookReported=false;
  // Supplied only by the fresh, authenticated private instructor bridge.
  std::vector<ca::Aircraft> trainingAircraft;
- std::vector<ca::Waypoint> locationFixes;
  std::map<std::string,std::string> locationLabels;
  bool trainingVerified=false;
  bool lightOpen=false,loudOpen=false;UINT_PTR refreshTimer=0;
@@ -87,43 +77,8 @@ public:
   }
   out<<"],\"alerts\":[";first=true;
   for(const auto&[id,v]:alerts){if(!first)out<<",";first=false;out<<"{\"callsign\":\""<<escape(id)<<"\",\"other\":\""<<escape(v.other)<<"\",\"stage\":"<<int(v.stage)<<",\"seconds\":"<<v.seconds<<",\"reason\":\""<<escape(v.reason)<<"\"}";}
-  out<<"],\"recommendationStatus\":\""<<escape(recommendationStatus)<<"\",\"recommendations\":[";first=true;
-  for(const auto&r:recommendations){if(!first)out<<",";first=false;out<<"{\"text\":\""<<escape(r.text)<<"\",\"leaderEta\":"<<r.leaderEta<<",\"followerEta\":"<<r.followerEta<<",\"savingNm\":"<<r.savingNm<<"}";}
-  out<<"],\"aiRequestId\":\""<<escape(aiRequestId)<<"\",\"aiStatus\":\""<<escape(aiStatus)<<"\",\"aiRecommendations\":[";
-  first=true;for(const auto&r:aiRecommendations){if(!first)out<<",";first=false;out<<"{\"text\":\""<<escape(r.text)<<"\",\"leaderEta\":"<<r.leaderEta<<",\"followerEta\":"<<r.followerEta<<"}";}
   out<<"]}";out.close();if(out)MoveFileExW((dir/"ZYZToolsConflictStatus.json.tmp").c_str(),(dir/"ZYZToolsConflictStatus.json").c_str(),MOVEFILE_REPLACE_EXISTING);
  }
- void processAI(){
-  const auto file=(dir/"ZYZToolsAIRequest.ini").string();
-  auto value=[&](const std::string&section,const char*key){char text[256];GetPrivateProfileStringA(section.c_str(),key,"",text,sizeof(text),file.c_str());return std::string(text);};
-  const auto id=value("Request","Id");
-  if(id.empty()){aiRequestId.clear();aiRecommendations.clear();aiStatus="No pending AI request.";return;}
-  if(id==aiRequestId&&now()-lastAIScan<5)return;
-  aiRequestId=id;lastAIScan=now();aiRecommendations.clear();
-  if(id.size()!=36||std::any_of(id.begin(),id.end(),[](unsigned char c){return !std::isalnum(c)&&c!='-';})){aiStatus="Invalid AI request identifier.";return;}
-  if(std::abs(double(std::time(nullptr)-_atoi64(value("Request","Generated").c_str())))>60){aiStatus="AI proposal expired. Request a fresh analysis.";return;}
-  if(!enabled||!sequencing||value("Request","Leader")!=leader||value("Request","Follower")!=follower){aiStatus="Settings/order changed; AI proposal discarded.";return;}
-  const auto lead=std::find_if(aircraft.begin(),aircraft.end(),[&](const auto&a){return a.id==leader;});
-  const auto trail=std::find_if(aircraft.begin(),aircraft.end(),[&](const auto&a){return a.id==follower;});
-  if(lead==aircraft.end()||trail==aircraft.end()||(ownedOnly&&(!lead->owned||!trail->owned))){aiStatus="Selected aircraft unavailable or no longer owned.";return;}
-  const int count=GetPrivateProfileIntA("Request","Count",0,file.c_str());
-  if(count<1||count>3){aiStatus="Invalid AI candidate count.";return;}
-  std::ostringstream rejected;
-  for(int i=0;i<count;++i){
-   const auto section="Proposal"+std::to_string(i);ca::AIProposal p;
-   p.leaderDirect=value(section,"leader_direct");p.rejoinFix=value(section,"rejoin_fix");p.mergeFix=value(section,"merge_fix");
-   p.leaderIas=static_cast<int>(GetPrivateProfileIntA(section.c_str(),"leader_ias",0,file.c_str()));
-   p.followerIas=static_cast<int>(GetPrivateProfileIntA(section.c_str(),"follower_ias",0,file.c_str()));
-   p.followerOffset=static_cast<int>(GetPrivateProfileIntA(section.c_str(),"follower_offset",0,file.c_str()));
-   p.delaySeconds=static_cast<int>(GetPrivateProfileIntA(section.c_str(),"delay_seconds",0,file.c_str()));
-   std::string why;ca::Recommendation recommendation;
-   if(!mergeFix.empty()&&p.mergeFix!=mergeFix)why="Does not honor the selected merge fix.";
-   else if(ca::validateAIProposal(*lead,*trail,aircraft,config,runways,p,recommendation,why)){aiRecommendations.push_back(recommendation);continue;}
-   rejected<<"Candidate "<<i+1<<": "<<why<<" ";
-  }
-  aiStatus=std::to_string(aiRecommendations.size())+"/"+std::to_string(count)+" AI candidates pass current native checks. "+rejected.str();
- }
-
  void message(const std::string&s){host.DisplayUserMessage("CZYZ CA","",s.c_str(),true,true,false,false,false);}
  bool currentlyCorrelated(const std::string&id){
   if(trainingVerified){auto found=std::find_if(trainingAircraft.begin(),trainingAircraft.end(),[&](const auto&a){return a.id==id;});if(found!=trainingAircraft.end()){auto fp=host.FlightPlanSelect(id.c_str());int cleared=fp.IsValid()?fp.GetControllerAssignedData().GetClearedAltitude():0;return !found->approachCleared&&cleared!=1&&cleared!=2;}}
@@ -158,25 +113,16 @@ public:
   std::ifstream pairs(dir/"parallel_approaches.txt");if(pairs){config.parallel.clear();while(std::getline(pairs,line)){if(!line.empty()&&line.back()=='\r')line.pop_back();if(!line.empty()&&line[0]!='#')config.parallel.push_back(line);}}
   auto control=(dir/"ZYZToolsConflict.ini").string();
   enabled=GetPrivateProfileIntA("Settings","Enabled",0,control.c_str())!=0;
-  sequencing=GetPrivateProfileIntA("Settings","Sequencing",0,control.c_str())!=0;
-  ownedOnly=GetPrivateProfileIntA("Settings","OwnedOnly",1,control.c_str())!=0;
   hookEnabled=GetPrivateProfileIntA("Settings","SituAdapter",1,control.c_str())!=0;
   muted=GetPrivateProfileIntA("Settings","Muted",0,control.c_str())!=0;
-  char selected[128];
-  GetPrivateProfileStringA("Settings","Leader","",selected,sizeof(selected),control.c_str());leader=selected;
-  GetPrivateProfileStringA("Settings","Follower","",selected,sizeof(selected),control.c_str());follower=selected;
-  GetPrivateProfileStringA("Settings","MergeFix","",selected,sizeof(selected),control.c_str());mergeFix=selected;
   GetPrivateProfileStringA("Settings","ArrivalAirports","CYYZ,CYTZ,CYHM,CYKF,CYOO,CYXU,CYQG,CYSB,CYYB,CYAM",b,sizeof(b),control.c_str());config.arrivals=split(b,',');
   if(!hookEnabled||!enabled)draw::uninstall();
   if(muted||!enabled)stopAudio();
-  lastRecommendations=-100;
-  lastAIScan=-100;
   dirty=true;
  }
  void readRunways(){
   host.SelectActiveSectorfile();
   runways.clear();
-  locationFixes.clear();for(auto fix=host.SectorFileElementSelectFirst(SECTOR_ELEMENT_FIX);fix.IsValid();fix=host.SectorFileElementSelectNext(fix,SECTOR_ELEMENT_FIX)){CPosition p;if(fix.GetPosition(&p,0))locationFixes.push_back({safe(fix.GetName()),ca::project(p.m_Latitude,p.m_Longitude),0});}
   for(auto r=host.SectorFileElementSelectFirst(SECTOR_ELEMENT_RUNWAY);r.IsValid();r=host.SectorFileElementSelectNext(r,SECTOR_ELEMENT_RUNWAY)){
    CPosition p,q;if(!r.GetPosition(&p,0)||!r.GetPosition(&q,1))continue;
    auto a=ca::project(p.m_Latitude,p.m_Longitude),b=ca::project(q.m_Latitude,q.m_Longitude);if(ca::norm(b-a)<.1)continue;
@@ -191,8 +137,7 @@ public:
    for(auto a:trainingAircraft){
     auto fp=host.FlightPlanSelect(a.id.c_str());if(fp.IsValid()){
      auto assigned=fp.GetControllerAssignedData();int clearance=assigned.GetClearedAltitude();if(clearance==1||clearance==2)a.approachCleared=true;a.owned=fp.GetTrackingControllerIsMe();a.direct=safe(assigned.GetDirectToPointName());
-     auto route=fp.GetExtractedRoute();int count=route.GetPointsNumber(),start=std::max(0,route.GetPointsCalculatedIndex()+1);
-     for(int i=start;i<count;++i){auto p=route.GetPointPosition(i);if(std::abs(p.m_Latitude)>90||std::abs(p.m_Longitude)>180||(p.m_Latitude==0&&p.m_Longitude==0))break;a.route.push_back({safe(route.GetPointName(i)),ca::project(p.m_Latitude,p.m_Longitude),0});}
+     if(!a.navigationKnown){auto route=fp.GetExtractedRoute();int count=route.GetPointsNumber(),start=std::max(0,route.GetPointsCalculatedIndex()+1);for(int i=0;i<count;++i){auto p=route.GetPointPosition(i);if(std::abs(p.m_Latitude)>90||std::abs(p.m_Longitude)>180||(p.m_Latitude==0&&p.m_Longitude==0))break;ca::Waypoint w{safe(route.GetPointName(i)),ca::project(p.m_Latitude,p.m_Longitude),0};a.filedRoute.push_back(w);if(i>=start)a.route.push_back(w);}}
     }
     a.arrival=std::find(config.arrivals.begin(),config.arrivals.end(),a.destination)!=config.arrivals.end();a.vectored=vectors.update(a,t,config);aircraft.push_back(std::move(a));
    }vectors.prune(t);return;
@@ -205,6 +150,7 @@ public:
    a.id=safe(fp.GetCallsign());a.ifr=safe(data.GetPlanType())=="I";a.type=safe(data.GetAircraftFPType());
    auto p=pos.GetPosition();a.p=ca::project(p.m_Latitude,p.m_Longitude);a.altitude=pos.GetPressureAltitude();
    a.gs=rt.GetGS();a.heading=ca::projectedHeading(p.m_Latitude,p.m_Longitude,rt.GetTrackHeading());a.age=pos.GetReceivedTime();a.vs=rt.GetVerticalSpeed();
+   const int heading=assigned.GetAssignedHeading();if(heading>0){CPosition north=p;north.m_Latitude=std::min(89.,p.m_Latitude+.01);a.assignedHeading=std::fmod(ca::projectedHeading(p.m_Latitude,p.m_Longitude,heading-p.DirectionTo(north))+360,360);}
    // Prefer a measured multi-report altitude trend to the SDK's noisy single delta.
    auto old=rt.GetPreviousPosition(pos);
    for(int i=0;i<8&&old.IsValid();++i){double dt=old.GetReceivedTime()-pos.GetReceivedTime();if(dt>=8&&dt<=45){a.vs=(a.altitude-old.GetPressureAltitude())*60/dt;break;}old=rt.GetPreviousPosition(old);}
@@ -219,6 +165,7 @@ public:
    // Performance IAS is used only to estimate wind offset, never substituted for measured GS.
    a.estimatedIas=data.PerformanceGetIas(int(a.altitude),a.vs>200?1:a.vs<-200?-1:0);
    auto route=fp.GetExtractedRoute();int n=route.GetPointsNumber(),start=route.GetPointsCalculatedIndex();
+   for(int i=0;i<n;++i){auto q=route.GetPointPosition(i);if(std::abs(q.m_Latitude)>90||std::abs(q.m_Longitude)>180||(q.m_Latitude==0&&q.m_Longitude==0))continue;a.filedRoute.push_back({safe(route.GetPointName(i)),ca::project(q.m_Latitude,q.m_Longitude),0});}
    if(start>=0)++start;else start=0;
    int direct=route.GetPointsAssignedIndex();if(!a.direct.empty()&&direct>=0&&direct<n&&route.GetPointDistanceInMinutes(direct)>=0)start=direct;
    std::map<std::string,double> filedLimits;
@@ -255,7 +202,7 @@ public:
  void OnTimer(int){
   WIN32_FILE_ATTRIBUTE_DATA file{};const auto control=(dir/"ZYZToolsConflict.ini").wstring();
   if(GetFileAttributesExW(control.c_str(),GetFileExInfoStandard,&file)&&CompareFileTime(&file.ftLastWriteTime,&settingsTime)!=0){settingsTime=file.ftLastWriteTime;loadConfig();}
-  if(GetModuleHandleW(L"CZYZConflictAlert.dll")){alerts.clear();early.clear();recommendations.clear();aiRecommendations.clear();aiStatus="AI validation paused while the standalone plugin is loaded.";recommendationStatus="Analysis paused while the standalone plugin is loaded.";stopAudio();draw::uninstall();status="Unload the standalone CZYZConflictAlert DLL to enable the united module.";writeSnapshot();return;}
+  if(GetModuleHandleW(L"CZYZConflictAlert.dll")){alerts.clear();early.clear();stopAudio();draw::uninstall();status="Unload the standalone CZYZConflictAlert DLL to enable the united module.";writeSnapshot();return;}
 
   if(enabled)draw::setLookup([this](const std::string&id){return displayStage(id);});
   if((!enabled||!hookEnabled)&&adapterLock){ReleaseMutex(adapterLock);CloseHandle(adapterLock);adapterLock=nullptr;}
@@ -265,16 +212,17 @@ public:
    if(adapterLock&&m&&draw::install(m)){log("SiTu DrawTextA adapter attached");message("SiTu tag adapter attached. Use .ca status for diagnostics.");}
    else if(m&&!hookReported){message("SiTu tag adapter unavailable or used by another ZYZTools copy; native CA list items still work.");hookReported=true;}
   }
-  if(!enabled){alerts.clear();early.clear();aircraft.clear();recommendations.clear();aiRecommendations.clear();aiStatus="Conflict module disabled.";recommendationStatus="Enable conflict alerts and sequencing to analyze a pair.";status="Disabled";writeSnapshot();return;}
+  if(!enabled){alerts.clear();early.clear();aircraft.clear();status="Disabled";stopAudio();writeSnapshot();return;}
   double t=now();if(t-lastScan<.9)return;lastScan=t;
   try{
    collect();auto previous=alerts;
-   if(dirty||t-lastEarly>=10){readRunways();early=ca::scan(aircraft,config,runways,true);lastEarly=t;dirty=false;}
+   if(dirty||t-lastEarly>=10){readRunways();lastEarly=t;dirty=false;}
+   early=ca::scan(aircraft,config,runways,true);
    alerts=ca::scan(aircraft,config,runways,false);
    std::set<std::string>valid;for(auto&a:aircraft)if(ca::eligible(a,config))valid.insert(a.id);
    for(auto i=early.begin();i!=early.end();)if(!valid.count(i->first)||!valid.count(i->second.other))i=early.erase(i);else ++i;
    for(auto&[id,v]:early)if(valid.count(id)&&valid.count(v.other)&&!alerts.count(id))alerts[id]=v;
-   locationLabels.clear();for(const auto&[id,v]:alerts)locationLabels[id]=ca::conflictLocation(v,locationFixes);
+   locationLabels.clear();for(const auto&[id,v]:alerts){const auto found=std::find_if(aircraft.begin(),aircraft.end(),[&](const auto&a){return a.id==id;});if(found!=aircraft.end())locationLabels[id]=ca::conflictLocation(v,found->filedRoute);}
    bool urgent=false,newRed=false,newUrgent=false;
    for(auto&[id,v]:alerts){auto old=previous.find(id);auto before=old==previous.end()?ca::Stage::None:old->second.stage;
     urgent|=v.stage==ca::Stage::Urgent;newUrgent|=v.stage==ca::Stage::Urgent&&before<ca::Stage::Urgent;newRed|=v.stage==ca::Stage::Red&&before<ca::Stage::Red;
@@ -285,20 +233,8 @@ public:
    if(!urgent&&loudOpen)closeSound(true);
    if(alerts.empty())stopAudio();
    status=std::string("Active; ")+(trainingVerified?"private simulator":"EuroScope radar")+"; SiTu adapter "+(draw::installed()?"attached":"unavailable")+"; "+std::to_string(aircraft.size())+" targets";
-   if(t-lastRecommendations>=5){
-    recommendations.clear();recommendationStatus="Enable sequencing and select the aircraft to place first and second.";
-    if(sequencing){
-     auto lead=std::find_if(aircraft.begin(),aircraft.end(),[&](const auto&a){return a.id==leader;});
-     auto trail=std::find_if(aircraft.begin(),aircraft.end(),[&](const auto&a){return a.id==follower;});
-     if(lead==aircraft.end()||trail==aircraft.end())recommendationStatus="Select two current correlated aircraft.";
-     else if(ownedOnly&&(!lead->owned||!trail->owned))recommendationStatus="Both selected aircraft must be tracked by you (or disable owned-only analysis).";
-     else recommendations=ca::recommend(*lead,*trail,aircraft,config,runways,mergeFix,recommendationStatus);
-    }
-    lastRecommendations=t;
-   }
-   processAI();
    writeSnapshot();
-  }catch(const std::exception&e){alerts.clear();early.clear();stopAudio();log(std::string("Scan failed: ")+e.what());status=std::string("Scan failed: ")+e.what();recommendations.clear();aiRecommendations.clear();aiStatus="Native scan failed; AI validation unavailable.";writeSnapshot();}
+  }catch(const std::exception&e){alerts.clear();early.clear();stopAudio();log(std::string("Scan failed: ")+e.what());status=std::string("Scan failed: ")+e.what();writeSnapshot();}
  }
  void OnFlightPlanFlightPlanDataUpdate(CFlightPlan){dirty=true;}
  void OnFlightPlanControllerAssignedDataUpdate(CFlightPlan,int){dirty=true;}

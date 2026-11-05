@@ -5809,6 +5809,7 @@ public:
             return;
         RefreshTheme();
         DrawTrainingPrediction(hDC);
+        DrawConflictPoints(hDC);
         DrawPilotControls(hDC);
         if (m_plugin->m_settingsVisible)
         {
@@ -5856,6 +5857,11 @@ public:
         RestoreDC(dc,saved);if(font)DeleteObject(font);
     }
 
+    void DrawConflictPoints(HDC dc){
+        if(!m_plugin||!m_plugin->m_conflict)return;auto&module=*m_plugin->m_conflict;if(!module.enabled)return;const int saved=SaveDC(dc);if(!saved)return;const RECT radar=GetRadarArea();IntersectClipRect(dc,radar.left,radar.top,radar.right,radar.bottom);SelectObject(dc,GetStockObject(DC_PEN));SelectObject(dc,GetStockObject(DC_BRUSH));SetDCPenColor(dc,RGB(255,230,0));SetDCBrushColor(dc,RGB(255,230,0));std::set<std::string> drawn;
+        for(const auto&[id,alert]:module.alerts){if(!alert.hasPoint||module.displayStage(id)==ca::Stage::None)continue;const auto key=id<alert.other?id+"|"+alert.other:alert.other+"|"+id;if(!drawn.insert(key).second)continue;const auto geo=ca::unproject(alert.point);CPosition position;position.m_Latitude=geo.first;position.m_Longitude=geo.second;const POINT point=ConvertCoordFromPositionToPixel(position);Ellipse(dc,point.x-3,point.y-3,point.x+4,point.y+4);}
+        RestoreDC(dc,saved);
+    }
     void DrawTrainingPrediction(HDC hDC)
     {
         if(m_plugin->GetConnectionType()!=CONNECTION_TYPE_DIRECT)return;

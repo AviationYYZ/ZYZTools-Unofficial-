@@ -392,7 +392,7 @@
     <nav>
       <button data-tab="install" class="primary" aria-current="page">Install / Link</button>
       <button data-tab="operations">Operations</button>
-      <button data-tab="conflicts">Conflict &amp; Sequencing</button>
+      <button data-tab="conflicts">Conflict alerts</button>
       <button data-tab="training">Training</button>
       <button data-tab="trainingBuilder">Scenario Builder</button>
       <button data-tab="discord">Discord status</button>
@@ -504,53 +504,13 @@
           <label class="check"><input id="conflictSituAdapter" type="checkbox" />Decorate VATCANSitu tags</label>
           <label class="check"><input id="conflictMuted" type="checkbox" />Mute conflict sounds</label>
           <label for="conflictAirports">Arrival airports for five-minute prediction</label><input id="conflictAirports" />
+          <div class="buttons"><button id="saveConflictBtn">Save alert settings</button><button id="refreshConflictBtn">Refresh alerts</button></div>
           <p>Existing 3 NM / 1,000 ft detection, five-minute early warnings and 45/30/15-second escalation are retained. Below 2,000 ft, VFR, uncorrelated, stale and approach-cleared targets are excluded. Short-term alerts cover eligible aircraft, not only your owned tags.</p>
           <p>Unload the separate CZYZConflictAlert DLL first: this is now part of the ZYZTools DLL. For inbound/exit list warnings select ZYZTools → CA Callsign in the ACID display field, keeping existing click actions. SiTu tag rendering needs drawing permission. Both features are off by default until you enable and save.</p>
           <div class="buttons"><button id="conflictCautionSound">Choose caution WAV</button><button id="conflictUrgentSound">Choose urgent WAV</button></div>
           <p>Default chime and urgent tones are included. Your chosen WAV files are preserved on plugin updates.</p>
           <p id="conflictStatus" role="status">Waiting for EuroScope.</p>
-          <table><thead><tr><th>Aircraft</th><th>Conflicting aircraft</th><th>Stage</th><th>Predicted loss</th><th>Reason</th><th></th></tr></thead><tbody id="conflictAlerts"></tbody></table>
-        </div>
-        <div class="card">
-          <div class="caption">Advisory arrival sequencing</div>
-          <label class="check"><input id="conflictSequencing" type="checkbox" />Calculate sequencing recommendations</label>
-          <label class="check"><input id="conflictOwnedOnly" type="checkbox" />Only analyze a selected pair when I own both tags</label>
-          <datalist id="conflictAircraftList"></datalist>
-          <div class="grid3">
-            <div><label for="conflictLeader">Aircraft to put first</label><input id="conflictLeader" list="conflictAircraftList" maxlength="16" /></div>
-            <div><label for="conflictFollower">Aircraft to follow</label><input id="conflictFollower" list="conflictAircraftList" maxlength="16" /></div>
-            <div><label for="conflictMergeFix">Common merge waypoint (optional)</label><input id="conflictMergeFix" maxlength="16" placeholder="Auto: first shared forward fix" /></div>
-          </div>
-          <div class="buttons"><button id="swapConflictPair">Swap order</button><button id="saveConflictBtn" class="good">Save / analyze selected order</button><button id="refreshConflictBtn">Refresh</button></div>
-          <p>Choose which aircraft goes first. The local solver tries route shortcuts, speed changes and bounded delaying doglegs, checks ten minutes ahead, and reports why candidates fail. Shared geometry does not require identical waypoint names. Nothing is assigned automatically.</p>
-          <p id="conflictRecommendationStatus" role="status"></p>
-          <div id="conflictRecommendations"></div>
-          <p class="subtle">Simulation aid only—not certified separation assurance. Assumes a 10-second response and turns up to 3°/second. Model ground tracks are not magnetic heading clearances. No weather, terrain, restricted-airspace, procedure or performance validation. Review every suggestion. Recomputed about every five seconds; native alerts continue without the app.</p>
-        </div>
-        <div class="card">
-            <div class="caption">AI-assisted sequencing</div>
-          <p>AI proposes structured maneuvers; the native engine checks them against fresh traffic before displaying any as model-validated. Immediate conflict alerts stay local. No maneuver is assigned automatically.</p>
-            <label for="aiProvider">AI connection</label><select id="aiProvider"><option value="chatgpt">ChatGPT plan (sign in)</option><option value="api">API key (separate API billing)</option></select>
-            <div id="chatGPTPanel">
-              <p id="chatGPTStatus" role="status">Continue with ChatGPT to connect your account.</p>
-              <label for="chatGPTProfile">Saved account / workspace</label><select id="chatGPTProfile"></select>
-              <div class="buttons"><button id="chatGPTSignIn">Continue with ChatGPT</button><button id="chatGPTAdd">Add account / workspace</button><button id="chatGPTCancel" disabled>Cancel sign-in</button><button id="chatGPTSignOut">Sign out locally</button><button id="chatGPTUsage">Manage usage</button></div>
-              <label for="chatGPTModel">Available ChatGPT model</label><select id="chatGPTModel"></select><button id="chatGPTModels">Refresh models</button>
-              <p>Uses your eligible ChatGPT plan allowance, shared with other apps—not API credits. Availability and limits depend on your account. No automatic API-key fallback. Sign-in alone does not verify inference access. Tokens stay in Windows-encrypted storage. Local sign-out removes tokens; disconnect this app in ChatGPT settings to revoke access remotely.</p>
-              <p>Each manual request allows at most two AI rounds: propose, then revise once if native checks reject every proposal. Each round uses plan allowance and can take up to 45 seconds. No background agent or automatic clearances.</p>
-            </div>
-            <div id="aiAPISettings" hidden>
-            <p id="aiKeyStatus" role="status">Checking local API key…</p>
-          <div class="buttons"><button id="importAIKeyBtn">Import local .env key</button><button id="forgetAIKeyBtn">Forget saved key</button></div>
-          <p>The key stays in the main process and Windows-encrypted user storage, never the plugin config, source upload or installer. Each user needs their own key; your key is not shared with other installations.</p>
-          <label for="aiModel">OpenAI model ID</label><input id="aiModel" value="gpt-5-mini" maxlength="80" />
-            </div>
-            <label class="check"><input id="aiConsent" type="checkbox" /><span id="aiConsentLabel">I agree to send this anonymized traffic snapshot to OpenAI and use my ChatGPT plan allowance</span></label>
-          <p>Only sends on request: selected pair and up to 24 nearby targets, relative positions, altitude/speed/track, clearance intent, wake and route fix geometry. Callsigns are replaced with LEADER/FOLLOWER/T1…; no pilot names, CIDs, remarks, recordings, logs or API credentials are included in the prompt. Network latency means suggestions are never instantaneous. An API request can take up to 45 seconds.</p>
-          <div class="buttons"><button id="analyzeAIBtn" class="good">Ask AI for this order</button><button id="cancelAIBtn" disabled>Cancel AI request</button></div>
-          <p id="aiStatus" role="status">AI is manual; no background requests.</p>
-          <div id="aiRecommendations"></div>
-          <p class="subtle">AI proposals are rechecked locally about every five seconds and expire after one minute. A rejected or expired proposal is not a clearance. Check the named aircraft and live situation; even a passing model check cannot establish real-world safety.</p>
+          <table><thead><tr><th>Aircraft</th><th>Conflicting aircraft</th><th>Stage</th><th>Predicted loss</th><th>Reason</th></tr></thead><tbody id="conflictAlerts"></tbody></table>
         </div>
       </section>
         <section id="training">

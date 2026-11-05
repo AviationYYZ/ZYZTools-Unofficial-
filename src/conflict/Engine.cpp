@@ -8,6 +8,8 @@ bool eligible(const Aircraft&a,const Config&c){
   &&std::isfinite(a.p.x)&&std::isfinite(a.p.y)&&std::isfinite(a.altitude);
 }
 bool VectorTracker::update(Aircraft&a,double now,const Config&c){
+ if(a.navigationKnown)return a.vectored;
+ if(a.assignedHeading>=0)return true;
  auto&m=memory[a.id]; m.lastSeen=now;
  if(a.route.empty()){m.vectored=true;m.divergent=-1;m.aligned=-1;m.direct=a.direct;return true;}
  bool newDirect=!a.direct.empty()&&a.direct!=m.direct;
@@ -61,17 +63,20 @@ Trajectory predict(const Aircraft&a,double seconds,bool intent){
    else if(a.assignedMach>0)desired=a.assignedMach*661.47*std::sqrt(std::max(.75,1-6.87535e-6*s.altitude))+wind;
    if(!a.vectored&&next<a.route.size()&&a.route[next].maxIas>0)desired=std::min(desired,a.route[next].maxIas*tasFactor(s.altitude)+wind);
    gs+=std::clamp(desired-gs,-1.0,1.0);gs=std::clamp(gs,40.,700.);
-   if(a.cleared>2&&!movingAway&&std::abs(target-s.altitude)>100&&t>=10){
-    double desiredRate=(target>s.altitude?std::abs(a.climbRate):-std::abs(a.descentRate));
+   if(a.cleared>2&&!movingAway&&std::abs(target-s.altitude)>100&&t>=(a.navigationKnown?0:10)){
+    double desiredRate=std::abs(rate)>300?rate:(target>s.altitude?std::abs(a.climbRate):-std::abs(a.descentRate));
     if(a.assignedRate!=0)desiredRate=std::copysign(std::abs(a.assignedRate),target-s.altitude);
     rate+=std::clamp(desiredRate-rate,-150.,150.);
    }
-   if(!a.vectored&&next<a.route.size()){
+   auto turn=[&](double desired){double error=angle(desired,s.heading);if(a.turnDirection>0&&error<0)error+=360;if(a.turnDirection<0&&error>0)error-=360;const double maxRate=std::min(3.,1091*std::tan(25*pi/180)/std::max(60.,gs));s.heading+=std::clamp(error,-maxRate,maxRate);};
+   if(a.assignedHeading>=0)turn(a.assignedHeading);
+   else if(!a.vectored&&next<a.route.size()){
     Vec delta=a.route[next].p-s.p;
-    if(norm(delta)<std::max(.15,gs*2/3600)){
+    double lead=std::max(.15,gs*2/3600);if(next+1<a.route.size()){const Vec outbound=a.route[next+1].p-a.route[next].p;const double bend=std::abs(angle(bearing(outbound),bearing(delta))),rate=std::min(3.,1091*std::tan(25*pi/180)/std::max(60.,gs)),radius=gs/3600/(rate*pi/180);lead=std::max(lead,std::min(norm(outbound)*.45,radius*std::tan(std::min(170.,bend)*pi/360)));}
+    if(norm(delta)<lead){
      out.etas.push_back({a.route[next].name,double(t)+norm(delta)/gs*3600});++next;
     }
-    if(next<a.route.size())s.heading+=std::clamp(angle(bearing(a.route[next].p-s.p),s.heading),-3.,3.);
+    if(next<a.route.size())turn(bearing(a.route[next].p-s.p));
    }
   }
   s.p=s.p+unit(s.heading)*(gs/3600);
@@ -137,7 +142,7 @@ double firstLoss(const Aircraft&a,const Aircraft&b,const Trajectory&ta,const Tra
 Stage stageFor(double t,const Config&c){if(t<=c.urgent+1e-7)return Stage::Urgent;if(t<=c.red+1e-7)return Stage::Red;if(t<=c.yellow+1e-7)return Stage::Yellow;if(t<=c.horizon)return Stage::Early;return Stage::None;}
 std::map<std::string,Alert> scan(const std::vector<Aircraft>&all,const Config&c,const std::vector<Runway>&r,bool early){
  std::vector<const Aircraft*> a;std::vector<Trajectory> paths;
- for(auto&x:all)if(eligible(x,c)){a.push_back(&x);paths.push_back(predict(x,(early?c.horizon:c.yellow)+1,early));}
+ for(auto&x:all)if(eligible(x,c)){a.push_back(&x);paths.push_back(predict(x,(early?c.horizon:c.yellow)+1,true));}
  struct Bounds{double x0=1e9,x1=-1e9,y0=1e9,y1=-1e9,z0=1e9,z1=-1e9;};
  std::vector<Bounds> bounds;
  for(auto&path:paths){Bounds b;for(auto&s:path.points){b.x0=std::min(b.x0,s.p.x);b.x1=std::max(b.x1,s.p.x);b.y0=std::min(b.y0,s.p.y);b.y1=std::max(b.y1,s.p.y);b.z0=std::min(b.z0,s.altitude);b.z1=std::max(b.z1,s.altitude);}bounds.push_back(b);}

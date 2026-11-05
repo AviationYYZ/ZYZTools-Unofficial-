@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.67 — Local test, awaiting approval
+
+- CA tags use only the affected aircraft's filed route fixes within an inclusive 3 NM of the predicted loss midpoint. No unrelated sector fix or coordinate fallback appears in the tag. A small yellow radar dot marks the actual predicted point, once per pair; approach suppression removes both labels and dots.
+- Both short-term and five-minute scans account for route turns, assigned vectors/directs, speed/Mach and altitude level-offs. Private instructor telemetry supplies actual remaining/filed route geometry and pilot targets rather than student annotations. Predictions refresh each scan; stale early warnings are not carried through a changed instruction.
+- Removed sequencing/recommendation controls, order selection, AI sign-in/request IPC, native recommendation execution and compiled sequencing implementation. Conflict alerts and settings remain. Historical helper source and existing encrypted credentials are preserved, but retired AI modules are excluded from installed app code.
+- App/plugin update only; server 0.4.15 remains compatible. Local tests only; nothing published.
+
 ## 1.2.66 — Local test, awaiting approval
 
 - Server 0.4.15 owns each slot's speed profile in servers.json. Configure from the server dashboard or paired instructor panel before import or while running; imports cannot override it, and reset/restart retains it. Existing saved server/scenario settings seed the profile once on migration. Scenario files no longer control the server profile.

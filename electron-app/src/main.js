@@ -19,8 +19,6 @@ app.setPath('userData', path.join(process.env.APPDATA || path.join(os.homedir(),
 
 let mainWindow = null;
 let discordPresence = null;
-let sequencingAI=null;
-let chatGPTPlan=null;
 // EuroScope's classic direct connection uses fixed port 6809. Distinct loopback
 // addresses keep production and test training sources separate without custom ports.
 const localTraining=new (require('./local-training').LocalTraining)(channel.test?'127.0.0.1':'127.0.0.2');
@@ -43,17 +41,6 @@ function prepareTraining(value){return require('./training-sector').resolveScena
 localTraining.planResolver=a=>require('./training-routes').expandRoute(a,getTrainingSector(),localTraining.runtimeWaypoints||localTraining.scenario.waypoints);
 const instructorClient=new (require('./training-instructor').InstructorClient)(app.getPath('userData'),safeStorage);
 const trainingCommandBridge=new (require('./training-command-bridge').TrainingCommandBridge)(path.join(app.getPath('userData'),'TrainingCommands'),channel.test?'test':'production',instructorClient,trainingConnector);
-function getChatGPTPlan(){
-  if(!chatGPTPlan){const {ChatGPTPlan}=require('./chatgpt-plan');chatGPTPlan=new ChatGPTPlan(app.getPath('userData'),safeStorage,url=>shell.openExternal(url),app.getName());}
-  return chatGPTPlan;
-}
-function getSequencingAI(){
-  if(!sequencingAI){
-    const {KeyStore,AISequencing}=require('./ai-sequencing');
-    sequencingAI=new AISequencing(new KeyStore(app.getPath('userData'),safeStorage),fetch,getChatGPTPlan());
-  }
-  return sequencingAI;
-}
 function ensureDiscordPresence(folder) {
   if (!discordPresence) {
     const { PresenceService } = require('./discord-presence');
@@ -872,7 +859,7 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-app.on('before-quit', () => { trainingCommandBridge.close();instructorClient.disconnect();trainingTunnel.stop();trainingConnector.stop();trainingMultiplayer.stop();localTraining.stop();chatGPTPlan?.cancel();sequencingAI?.cancel();discordPresence?.stop().catch(() => {}); });
+app.on('before-quit', () => { trainingCommandBridge.close();instructorClient.disconnect();trainingTunnel.stop();trainingConnector.stop();trainingMultiplayer.stop();localTraining.stop();discordPresence?.stop().catch(() => {}); });
 ipcMain.handle('discord:load', async (_event, folder) => {
   const service = ensureDiscordPresence(folder);
   return { config: service.config, status: service.status, preview: service.preview };
@@ -990,26 +977,6 @@ ipcMain.handle('training:instructor',async(event,action,value={})=>{
  if(action==='studentInvite'){const result=await instructorClient.action(value.slot,'studentInvite',value.epoch);require('electron').clipboard.writeText(result.invite);return {copied:true};}
  if(action==='action')return instructorClient.action(value.slot,value.action,value.epoch,value.payload);
  throw Error('Unknown instructor action.');
-});
-ipcMain.handle('ai:status',async()=>getSequencingAI().keys.status());
-ipcMain.handle('chatgpt:status',async()=>getChatGPTPlan().status());
-ipcMain.handle('chatgpt:signin',async(_event,newProfile)=>{if(getSequencingAI().busy)throw Error('Cancel the AI request before changing accounts.');return getChatGPTPlan().signIn(newProfile===true);});
-ipcMain.handle('chatgpt:cancel',async()=>{getChatGPTPlan().cancel();return true;});
-ipcMain.handle('chatgpt:signout',async()=>{getSequencingAI().cancel();return getChatGPTPlan().signOut();});
-ipcMain.handle('chatgpt:select',async(_event,id)=>{getSequencingAI().cancel();return getChatGPTPlan().select(id);});
-ipcMain.handle('chatgpt:models',async()=>getChatGPTPlan().models());
-ipcMain.handle('chatgpt:usage',async()=>shell.openExternal('https://chatgpt.com/settings/usage'));
-ipcMain.handle('ai:import',async()=>{
-  const result=await dialog.showOpenDialog(mainWindow,{title:'Import OpenAI key from a local .env file',properties:['openFile'],filters:[{name:'Environment files',extensions:['env']},{name:'All files',extensions:['*']}]});
-  if(result.canceled)return {canceled:true};
-  return getSequencingAI().keys.import(result.filePaths[0]);
-});
-ipcMain.handle('ai:forget',async()=>getSequencingAI().keys.clear());
-ipcMain.handle('ai:cancel',async()=>{getSequencingAI().cancel();return true;});
-ipcMain.handle('ai:analyze',async(_event,folder,model,consent,provider='chatgpt')=>{
-  const target=installDestination(folder);
-  assertDestination(target,readJsonIfExists(configPathForInstall(target)));
-  return getSequencingAI().analyze(target,model,consent,provider);
 });
 ipcMain.handle('conflict:load', async (_event, folder) => {
   const target=installDestination(folder);

@@ -27,6 +27,7 @@ inline double projectedHeading(double lat,double lon,double heading){
  double r=l+std::atan2(std::sin(h)*std::sin(d)*std::cos(p),std::cos(d)-std::sin(p)*std::sin(q));
  return bearing(project(q*180/pi,r*180/pi)-project(lat,lon));
 }
+inline std::pair<double,double> unproject(Vec p){const double rho=norm(p),lat0=43.68*pi/180,lon0=-79.63*pi/180;if(rho<1e-10)return {43.68,-79.63};const double c=rho/3440.065,lat=std::asin(std::cos(c)*std::sin(lat0)+p.y*std::sin(c)*std::cos(lat0)/rho),lon=lon0+std::atan2(p.x*std::sin(c),rho*std::cos(lat0)*std::cos(c)-p.y*std::sin(lat0)*std::sin(c));return {lat*180/pi,lon*180/pi};}
 enum class Stage { None, Early, Yellow, Red, Urgent };
 struct Waypoint { std::string name; Vec p; double maxIas=0; };
 struct Runway { std::string airport,name; Vec threshold; double heading=0; bool active=true; };
@@ -34,9 +35,10 @@ struct Aircraft {
  std::string id,type,destination,runway,direct;
  Vec p; double altitude=0,gs=0,heading=0,vs=0,age=0;
  int cleared=0; double assignedIas=0,assignedMach=0,assignedRate=0;
+ double assignedHeading=-1,bank=0;int turnDirection=0;bool navigationKnown=false;
  double climbRate=1500,descentRate=1500,estimatedIas=0;
  bool ifr=true,correlated=false,arrival=false,vectored=false,owned=false,approachCleared=false;
- char wake='M'; std::vector<Waypoint> route;
+ char wake='M'; std::vector<Waypoint> route,filedRoute;
 };
 struct State { Vec p; double altitude=0,heading=0; };
 struct Trajectory { std::vector<State> points; std::vector<std::pair<std::string,double>> etas; };
@@ -48,7 +50,7 @@ struct Config {
  std::vector<std::string> parallel={"CYYZ/05/06L","CYYZ/05/06R","CYYZ/06L/06R","CYYZ/23/24L","CYYZ/23/24R","CYYZ/24L/24R","CYYZ/15L/15R","CYYZ/33L/33R"};
 };
 struct Alert { Stage stage=Stage::None; double seconds=1e9; std::string other,reason; Vec point; bool hasPoint=false; };
-inline std::string conflictLocation(const Alert&a,const std::vector<Waypoint>&fixes){if(!a.hasPoint)return "";double nearest=5;std::string name;for(const auto&w:fixes){double d=norm(w.p-a.point);if(d<nearest){nearest=d;name=w.name;}}if(!name.empty())return name;static const char*dirs[]={"N","NE","E","SE","S","SW","W","NW"};int direction=(static_cast<int>(std::lround((bearing(a.point)+360)/45))%8+8)%8;return std::to_string(static_cast<int>(std::lround(norm(a.point))))+dirs[direction];}
+inline std::string conflictLocation(const Alert&a,const std::vector<Waypoint>&fixes){if(!a.hasPoint)return "";double nearest=3+1e-9;std::string name;for(const auto&w:fixes){double d=norm(w.p-a.point);if(d<nearest){nearest=d;name=w.name;}}return name;}
 struct VectorMemory { bool vectored=false; double divergent=-1,aligned=-1,lastSeen=0; std::string direct,rejoinedFix; };
 class VectorTracker {
  std::map<std::string,VectorMemory> memory;

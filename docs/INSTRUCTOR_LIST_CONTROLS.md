@@ -25,11 +25,13 @@ is available if you want the six requested defaults instead of custom values.
 Native instructor dropdowns no longer scroll merely from moving the mouse.
 Use the wheel to scroll and click to select; no Next/Previous pages.
 
-CA tags include the predicted loss location. A fix label means the predicted
-midpoint is within 5 NM of that named sector fix, not necessarily exactly over
-it. Without a nearby fix the short distance/compass label is measured from the
-Toronto projection reference (43.68N, 79.63W). It is a prediction, not a clearance.
-Approach-clearance suppression remains active and removes the location label.
+From test 1.2.67, CA tags show a named fix only when the predicted loss midpoint
+is within 3 NM of a waypoint on that aircraft's filed route. Otherwise the tag
+shows CA without a coordinate label. A yellow dot marks the predicted point on
+the radar, once per pair. These are predictions, not clearances. Both alert
+horizons consider filed turns and assigned vectors/directs/altitude/speed intent.
+Approach-clearance suppression removes both the label and dot. Sequencing and
+AI recommendation features have been removed; the Conflicts page is alert-only.
 
 Test 1.2.63 adds configurable quick choices at the top of native pilot menus.
 From test 1.2.64, use **Add** to append each new choice without replacing existing

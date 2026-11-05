@@ -1,6 +1,6 @@
 {
   "name": "zyztools-test",
-  "version": "1.2.66",
+  "version": "1.2.67",
   "zyzBuildChannel": "test",
   "displayName": "ZYZTools test",
   "description": "ZYZTools EuroScope controller tools and plugin installer",
@@ -26,6 +26,8 @@
     },
     "files": [
       "src/**/*",
+      "!src/ai-sequencing.js",
+      "!src/chatgpt-plan.js",
       "!**/.env*",
       "!**/*.env",
       "!**/*.env.*",
