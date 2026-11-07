@@ -33,9 +33,9 @@ if(fs.existsSync(file)&&fs.existsSync(sct)){
  const points=new Map(imported.scenario.waypoints.map(w=>[w.name,w])),verko=points.get('VERKO'),course=geometry(points.get('SEGOD'),verko).bearing,linng=imported.scenario.aircraft.find(a=>a.callsign==='ACA101');
  for(const altitude of [3000,6000,9000]){
   const model=new LocalTraining();model.load({...imported.scenario,aircraft:[{...linng,initialDescent:undefined,...move(verko,10,course+180),heading:course,altitude,speed:250,route:linng.route.slice(linng.route.indexOf('VERKO'))}]});let corner=false,done=false,downwind=false;
-  for(let t=0;t<2000;t+=.25){model.tick(.25);const a=model.aircraft[0];if(!downwind&&Math.abs(((a.heading-course+540)%360)-180)>2){assert(a.ias<=flight.publishedIAS(a,[],[],geometry,[runway])+.5,'LINNG downwind at 210 IAS');downwind=true;}if(a.flyBy?.next==='LOBKO')corner=true;if(corner&&!a.flyBy&&a.remaining[0]==='LOBKO'){const leg=geometry(points.get('YZDW06'),points.get('LOBKO')),g=geometry(points.get('YZDW06'),a),cross=g.distance*Math.sin((g.bearing-leg.bearing)*Math.PI/180);assert(Math.abs(cross)<.08,'LINNG 172-degree rollout cross-track: '+cross+' at '+altitude);console.log('LINNG sharp-turn rollout cross-track at '+altitude+' ft: '+cross.toFixed(3)+' NM');done=true;break;}}
-  assert(downwind&&done,'Exercise both actual LINNG downwind and near-reversal');
+  for(let t=0;t<2000;t+=.25){model.tick(.25);const a=model.aircraft[0];if(!downwind&&Math.abs(((a.heading-course+540)%360)-180)>2){assert(a.ias<=flight.publishedIAS(a,[],[],geometry,[runway])+.5,'LINNG downwind at 210 IAS');downwind=true;}if(a.navigationNotice?.startsWith('Route discontinuity')){assert.equal(a.navigation,'heading');assert.equal(a.remaining[0],'LOBKO');assert(!a.flyBy);done=true;break;}}
+  assert(downwind&&done,'Exercise actual LINNG downwind and the discontinuity before LOBKO');
  }
- console.log('PASS actual ARR - 06 Hard: 44/44 import, unique valid squawks, all scheduled targets activated with position and flight plan; actual LINNG turns at three altitudes.');
+ console.log('PASS actual ARR - 06 Hard: 44/44 import, unique valid squawks, all scheduled targets activated with position and flight plan; LINNG discontinuity at three altitudes.');
 }
 console.log('PASS altitude/downwind profile, IAS overrides, comma batches/atomic failures, assignment queries, bounded turn overshoot, directed wraps, reported legacy repairs.');

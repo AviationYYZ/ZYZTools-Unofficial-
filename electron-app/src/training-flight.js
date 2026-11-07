@@ -2,6 +2,8 @@
 const rad=Math.PI/180,wrap=n=>(n%360+360)%360,delta=(a,b)=>(a-b+540)%360-180;
 const performance=require('./training-performance');
 const jetProfile=require('./training-jet-profile');
+const weather=require('./training-weather');
+const courseHeading=(a,course)=>weather.crab(course,a.speed,a.wind);
 function density(altitude){const h=Math.min(11000,Math.max(0,altitude)*.3048);return Math.pow(1-2.25577e-5*h,4.25588);}
 const iasToTas=(ias,altitude)=>ias/Math.sqrt(density(altitude)),tasToIas=(tas,altitude)=>tas*Math.sqrt(density(altitude));
 const machToTas=(mach,altitude)=>mach*Math.sqrt(1.4*287.05*(288.15-.0065*Math.min(11000,Math.max(0,altitude)*.3048)))/.514444;
@@ -34,18 +36,41 @@ function turnShape(speed,angle){
  const shape={lead,x,y};if(leadCache.size>=2048)leadCache.delete(leadCache.keys().next().value);leadCache.set(key,shape);return shape;
 }
 const turnLead=(speed,angle)=>turnShape(speed,angle).lead;
-function guideRoute(a,fixes,geometry,move){
+function endsDownwind(start,fix,next,runway,geometry){
+ if(!runway)return false;
+ const axis=geometry(runway.threshold,runway.opposite).bearing,inbound=geometry(start,fix);
+ if(inbound.distance<.05||Math.abs(delta(inbound.bearing,axis+180))>25)return false;
+ const offset=geometry(runway.threshold,fix),angle=delta(offset.bearing,axis)*rad;
+ const lateral=Math.abs(offset.distance*Math.sin(angle)),along=offset.distance*Math.cos(angle);
+ return lateral>=1&&lateral<=12&&along>=-35&&along<=15&&(!next||Math.abs(delta(geometry(fix,next).bearing,inbound.bearing))>=30);
+}
+function isApproachFix(fix,runway,geometry){
+ if(!fix||!runway)return false;
+ const axis=geometry(runway.threshold,runway.opposite).bearing,g=geometry(runway.threshold,fix),angle=delta(g.bearing,axis)*rad;
+ const along=g.distance*Math.cos(angle),cross=Math.abs(g.distance*Math.sin(angle));
+ return along<0&&along>=-35&&cross<=.4;
+}
+function guideRoute(a,fixes,geometry,move,runway){
  if(a.flyBy){
   if(a.flyBy.next===a.remaining[0]){
-   if(!a.flyBy.intercepting&&Math.abs(delta(a.heading,a.flyBy.course))>.5){a.targetHeading=a.flyBy.course;return;}
+   if(!a.flyBy.intercepting&&Math.abs(delta(a.heading,courseHeading(a,a.flyBy.course)))>.5){a.targetHeading=courseHeading(a,a.flyBy.course);return;}
    const anchor=a.flyBy.anchor;if(anchor){const g=geometry(anchor,a),cross=g.distance*Math.sin(delta(g.bearing,a.flyBy.course)*rad);
-    if(Math.abs(cross)>.035||Math.abs(delta(a.heading,a.flyBy.course))>1){a.flyBy.intercepting=true;const along=g.distance*Math.cos(delta(g.bearing,a.flyBy.course)*rad),look=Math.max(.5,turnRadius(a.speed)*1.5);a.targetHeading=geometry(a,move(anchor,Math.max(0,along)+look,a.flyBy.course)).bearing;return;}
+    if(Math.abs(cross)>.035||Math.abs(delta(a.groundTrack??a.heading,a.flyBy.course))>1){a.flyBy.intercepting=true;const along=g.distance*Math.cos(delta(g.bearing,a.flyBy.course)*rad),look=Math.max(.5,turnRadius(a.speed)*1.5);a.targetHeading=courseHeading(a,geometry(a,move(anchor,Math.max(0,along)+look,a.flyBy.course)).bearing);return;}
    }
   }a.flyBy=null;
  }
  let count=0;while(a.remaining.length&&count++<10){
   const fix=fixes.find(w=>w.name===a.remaining[0]);if(!fix){a.navigation='heading';a.navigationNotice='Missing route fix '+a.remaining[0];return;}
-  const g=geometry(a,fix),start=a.legStart||a,leg=geometry(start,fix),next=fixes.find(w=>w.name===a.remaining[1]);
+  const g=geometry(a,fix),start=a.legStart||a,leg=geometry(start,fix),following=fixes.find(w=>w.name===a.remaining[1]);
+  const approachFix=isApproachFix(fix,runway,geometry);
+  if(approachFix&&a.explicitDirectFix!==fix.name){
+   a.navigation='heading';a.flyBy=null;a.turnDirection=0;a.routeCompleted=false;a.targetHeading=a.heading;
+   a.navigationNotice='Approach discontinuity before '+fix.name+'; awaiting vectors or direct-to.';
+   return;
+  }
+  const discontinuity=endsDownwind(start,fix,following,runway,geometry)||
+   isApproachFix(following,runway,geometry)||approachFix;
+  const next=discontinuity?null:following;
   const passed=leg.distance>.05&&g.distance*Math.cos(delta(g.bearing,leg.bearing)*rad)<-.01;
   let lead=.08,anticipated=false;
   if(next){
@@ -57,13 +82,13 @@ function guideRoute(a,fixes,geometry,move){
    if(angle>5&&g.distance<=available){
     // Test where the rolling turn will finish against the actual outbound
     // great-circle line. This also handles convergence on long near-reversals.
-    const signed=delta(outgoing.bearing,a.heading),shape=turnShape(a.speed,Math.abs(signed));
+    const targetHeading=courseHeading(a,outgoing.bearing),signed=delta(targetHeading,a.heading),shape=turnShape(a.speed,Math.abs(signed));
     let end=move(a,Math.hypot(shape.x,shape.y),a.heading+Math.atan2(Math.sign(signed)*shape.x,shape.y)/rad);
-    if(angle>120&&g.distance<=required+3){
+    if((angle>120||a.wind)&&g.distance<=required+3){
      // Refine near-reversals on the sphere, including existing bank. Small
      // planar/convergence errors are amplified by long, nearly parallel legs.
-     const probe={...a,targetHeading:outgoing.bearing,turnDirection:0};
-     for(let i=0;i<4000;i++){turnMotion(probe,.1);Object.assign(probe,move(probe,probe.speed/36000,probe.heading));if(probe.heading===probe.targetHeading)break;}
+     const probe={...a,targetHeading,turnDirection:0};
+     for(let i=0;i<4000;i++){turnMotion(probe,.1);const g=weather.motion(probe.heading,probe.speed,probe.wind);Object.assign(probe,move(probe,g.speed/36000,g.track));if(probe.heading===probe.targetHeading)break;}
      end=probe;
     }
     const from=geometry(fix,a),to=geometry(fix,end),cross=from.distance*Math.sin(delta(from.bearing,outgoing.bearing)*rad),endCross=to.distance*Math.sin(delta(to.bearing,outgoing.bearing)*rad);
@@ -74,9 +99,17 @@ function guideRoute(a,fixes,geometry,move){
    if(required>available&&angle>90)a.navigationNotice='Turn space limited at '+fix.name+'; reduce speed or vector.';
   }
   const projected=g.distance*Math.cos(delta(g.bearing,leg.bearing)*rad);
-  if(anticipated||projected<=lead||passed){a.remaining.shift();(a.passedFixes||(a.passedFixes=[])).push(fix.name);a.legStart={lat:fix.lat,lon:fix.lon};if(!a.remaining.length){a.routeCompleted=true;a.navigation='heading';a.targetHeading=leg.distance>.05?leg.bearing:a.heading;}else if(next&&Math.abs(delta(geometry(fix,next).bearing,leg.bearing))>5){a.flyBy={course:geometry(fix,next).bearing,next:next.name,anchor:{lat:fix.lat,lon:fix.lon}};a.targetHeading=a.flyBy.course;return;}continue;}
+  if(discontinuity&&(projected<=.08||passed)){
+   a.remaining.shift();(a.passedFixes||(a.passedFixes=[])).push(fix.name);
+   a.navigation='heading';a.flyBy=null;a.turnDirection=0;a.routeCompleted=false;
+   a.targetHeading=courseHeading(a,wrap(geometry(fix,start).bearing+180));
+   a.explicitDirectFix=null;
+   a.navigationNotice='Route discontinuity at '+fix.name+'; awaiting vectors or direct-to.';
+   return;
+  }
+  if(anticipated||projected<=lead||passed){a.remaining.shift();(a.passedFixes||(a.passedFixes=[])).push(fix.name);a.legStart={lat:fix.lat,lon:fix.lon};if(!a.remaining.length){a.routeCompleted=true;a.navigation='heading';a.targetHeading=leg.distance>.05?courseHeading(a,leg.bearing):a.heading;}else if(next&&Math.abs(delta(geometry(fix,next).bearing,leg.bearing))>5){a.flyBy={course:geometry(fix,next).bearing,next:next.name,anchor:{lat:fix.lat,lon:fix.lon}};a.targetHeading=courseHeading(a,a.flyBy.course);return;}continue;}
   const fromStart=geometry(start,a),along=fromStart.distance*Math.cos(delta(fromStart.bearing,leg.bearing)*rad),look=Math.max(.4,turnRadius(a.speed)*1.5,a.speed/3600*12),aim=move(start,Math.max(0,Math.min(leg.distance,along+look)),leg.bearing);
-  a.targetHeading=geometry(a,aim).bearing;return;
+  a.targetHeading=courseHeading(a,geometry(a,aim).bearing);return;
  }
 }
 function guideApproach(a,runways,geometry){
@@ -88,19 +121,19 @@ function guideApproach(a,runways,geometry){
  const course=geometry(r.threshold,r.opposite).bearing,g=geometry(r.threshold,a),outbound=wrap(course+180),angle=delta(g.bearing,outbound),along=g.distance*Math.cos(angle*rad),cross=g.distance*Math.sin(angle*rad);
  a.approachDistance=along;
  if(along<0){if(a.approachState==='glideslope captured'&&Math.abs(cross)<.15){a.altitude=r.elevation;a.targetAltitude=r.elevation;a.speed=0;a.targetSpeed=0;a.ias=0;a.targetIAS=0;a.landed=true;a.paused=true;a.approachState='touchdown';}return;}
- const intercept=delta(a.heading,course),closing=cross*Math.sin(intercept*rad)>0,lead=turnRadius(a.speed)*(1-Math.cos(intercept*rad))+a.speed/3600*2.5*Math.abs(Math.sin(intercept*rad));
+ const intercept=delta(a.groundTrack??a.heading,course),closing=cross*Math.sin(intercept*rad)>0,lead=turnRadius(a.speed)*(1-Math.cos(intercept*rad))+(a.groundSpeed??a.speed)/3600*2.5*Math.abs(Math.sin(intercept*rad));
  if(a.approachState==='armed'&&along<=35&&along>.15&&Math.abs(intercept)<=80&&((closing&&Math.abs(cross)<=lead+.06)||Math.abs(cross)<.06))a.approachState='localizer captured';
  if(a.approachState==='armed')a.approachNotice=along>35?'Outside 35 NM simulated localizer capture range':'Localizer armed: maintain assigned intercept heading';
  if(['localizer captured','glideslope captured'].includes(a.approachState)){
   a.flyBy=null;
   const look=Math.max(.6,turnRadius(a.speed)*1.6,a.speed/3600*15);
-  a.targetHeading=wrap(course+Math.max(-30,Math.min(30,Math.atan2(cross,look)/rad)));a.navigation='approach';a.turnDirection=0;
+  a.targetHeading=courseHeading(a,wrap(course+Math.max(-30,Math.min(30,Math.atan2(cross,look)/rad))));a.navigation='approach';a.turnDirection=0;
   const glide=r.elevation+50+Math.tan(3*rad)*along*6076.12;
   a.glidepathAltitude=glide;
   a.approachNotice=a.altitude>glide+60?'Above simulated glidepath ('+Math.round(glide)+' ft here): descend below the beam before capture':a.altitude<glide-100?'Localizer captured; waiting for glidepath from below':'Glidepath capture window';
   // Capture only from below/near the beam, never dive down from above to "catch" it.
-  if(a.approachState==='localizer captured'&&Math.abs(cross)<.15&&Math.abs(delta(a.heading,course))<15&&a.altitude<=glide+60&&a.altitude>=glide-100)a.approachState='glideslope captured';
-  if(a.approachState==='glideslope captured'){a.approachNotice='Glideslope captured';a.targetAltitude=Math.max(r.elevation,Math.min(a.altitude,glide));a.approachRate=Math.max(500,Math.min(2500,a.speed*6));}
+  if(a.approachState==='localizer captured'&&Math.abs(cross)<.15&&Math.abs(delta(a.groundTrack??a.heading,course))<15&&a.altitude<=glide+60&&a.altitude>=glide-100)a.approachState='glideslope captured';
+  if(a.approachState==='glideslope captured'){a.approachNotice='Glideslope captured';a.targetAltitude=Math.max(r.elevation,Math.min(a.altitude,glide));a.approachRate=Math.max(500,Math.min(2500,(a.groundSpeed??a.speed)*6));}
  }
 }
 function normalizeSpeedRules(rows){if(!Array.isArray(rows)||rows.length>2000)throw Error('Limit: 2,000 speed rules.');return rows.map(r=>{if(!/^[A-Z]{4}$/.test(r.airport)||!(/^[A-Z0-9]+$/).test(r.procedure)||!/^\d{2}[LRC]?$/.test(r.runway)||!(/^[A-Z0-9_-]{1,16}$/).test(r.fix)||!['at','max','min'].includes(r.kind)||!Number.isFinite(Number(r.knots))||r.knots<80||r.knots>400||typeof r.source!=='string'||!r.source.trim()||r.source.length>300)throw Error('Invalid published-speed rule; airport/procedure/runway/fix/kind/IAS/source required.');return {...r,knots:Number(r.knots)};});}

@@ -1,7 +1,8 @@
-// Isolated classic-FSD traffic source. No outbound sockets, DNS, HTTP or credentials.
+// Isolated classic-FSD traffic source. Optional outbound HTTPS is weather-only.
 const net=require('node:net');
 const crypto=require('node:crypto');
 const flight=require('./training-flight');
+const weather=require('./training-weather');
 const restrictions=require('./training-restrictions');
 const jetProfiles=require('./training-jet-profile');
 const nm=3440.065,rad=Math.PI/180,wrap=n=>(n%360+360)%360;
@@ -39,13 +40,13 @@ function normalize(raw){
 function geometry(a,b){const p=a.lat*rad,q=b.lat*rad,d=(b.lon-a.lon)*rad;const h=Math.sin((q-p)/2)**2+Math.cos(p)*Math.cos(q)*Math.sin(d/2)**2;return {distance:2*nm*Math.asin(Math.sqrt(Math.min(1,h))),bearing:wrap(Math.atan2(Math.sin(d)*Math.cos(q),Math.cos(p)*Math.sin(q)-Math.sin(p)*Math.cos(q)*Math.cos(d))/rad)};}
 function move(a,distance,heading){const p=a.lat*rad,l=a.lon*rad,t=heading*rad,d=distance/nm;const q=Math.asin(Math.sin(p)*Math.cos(d)+Math.cos(p)*Math.sin(d)*Math.cos(t));return {lat:q/rad,lon:((l+Math.atan2(Math.sin(t)*Math.sin(d)*Math.cos(p),Math.cos(d)-Math.sin(p)*Math.sin(q)))/rad+540)%360-180};}
 function approach(v,target,step){return v+Math.sign(target-v)*Math.min(Math.abs(target-v),step);}
-function position(a){return '@'+(a.identActive?'Y':a.squawkMode||'N')+':'+a.callsign+':'+a.squawk+':1:'+a.lat.toFixed(7)+':'+a.lon.toFixed(7)+':'+Math.round(a.altitude)+':'+Math.round(a.speed)+':'+((Math.round(wrap(a.heading)*1024/360)&1023)<<2)+':0';}
+function position(a){return '@'+(a.identActive?'Y':a.squawkMode||'N')+':'+a.callsign+':'+a.squawk+':1:'+a.lat.toFixed(7)+':'+a.lon.toFixed(7)+':'+Math.round(a.groundSpeed??a.speed)+':'+((Math.round(wrap(a.groundTrack??a.heading)*1024/360)&1023)<<2)+':0';}
 // Delete-pilot's second field is a certificate ID, not a receiver/server name.
 // Local synthetic pilots have no network identity; use numeric dummy ID 0.
 function deletion(a){return '#DP'+a.callsign+':0';}
 function flightPlan(a,recipient='*A'){const type=(['H','J'].includes(a.wake)?a.wake+'/':'')+a.type+'/'+a.equipment;const filed=a.arrivalRunway?[...String(a.flightPlanRoute).split(/\s+/).filter(t=>t&&!new RegExp('^'+a.destination+'(?:/\\d{2}[LRC]?)?$','i').test(t)),a.destination+'/'+a.arrivalRunway].join(' '):a.flightPlanRoute;return '$FP'+a.callsign+':'+recipient+':'+a.flightRules+':'+type+':'+Math.round(a.cruiseSpeed)+':'+a.origin+':'+a.departureTime+':'+a.actualDepartureTime+':'+Math.round(a.cruiseAltitude)+':'+a.destination+':'+a.enrouteHours+':'+a.enrouteMinutes+':'+a.fuelHours+':'+a.fuelMinutes+':'+a.alternate+':'+a.remarks+':'+filed;}
 class LocalTraining{
- constructor(host='127.0.0.1'){if(!['127.0.0.1','127.0.0.2'].includes(host))throw Error('Only fixed loopback addresses are supported.');this.host=host;this.scenario=normalize({format:'ZYZTools-training',version:1,name:'New scenario',waypoints:[],aircraft:[]});this.clients=new Set();this.aircraft=[];this.running=false;this.elapsed=0;this.scale=1;this.reset();}
+ constructor(host='127.0.0.1',{liveWeather=false}={}){if(!['127.0.0.1','127.0.0.2'].includes(host))throw Error('Only fixed loopback addresses are supported.');this.host=host;this.liveWeather=liveWeather;this.scenario=normalize({format:'ZYZTools-training',version:1,name:'New scenario',waypoints:[],aircraft:[]});this.clients=new Set();this.aircraft=[];this.running=false;this.elapsed=0;this.scale=1;this.reset();}
  load(raw){if(this.server||this.starting)throw Error('Stop the local server before editing or loading a scenario.');this.scenario=normalize(raw);this.reset();return this.status();}
  reset(){
   for(const a of this.aircraft||[])if(a.active)this.broadcast(deletion(a));
@@ -58,7 +59,7 @@ class LocalTraining{
    if(a.active)this.announce(a);
   }return this.status();
  }
- status(){return {positionUpdateHz:this.scenario.positionUpdateHz,magneticVariationWest:this.scenario.magneticVariationWest,sessionId:this.sessionId,listening:!!this.server,host:this.host,port:this.port||6809,running:this.running,elapsed:this.elapsed,scale:this.scale,sockets:this.clients.size,clients:[...this.clients].filter(c=>c.callsign).length,lastEvent:this.lastEvent||'No local connection received yet.',scenario:this.scenario,aircraft:this.aircraft.map(a=>({...a,magneticHeading:wrap(a.heading+this.scenario.magneticVariationWest),targetMagneticHeading:wrap(a.targetHeading+this.scenario.magneticVariationWest)})),error:this.error||''};}
+ status(){const p=weather.usable(this.weatherData),label=[p?.metar&&(this.weatherData.metarFresh?'METAR':'cached METAR'),p?.aloft.length&&(this.weatherData.upperFresh?'upper winds':'cached upper winds')].filter(Boolean).join(' + ');return {weatherLabel:this.weatherTimer?'CYYZ weather: '+(label||'standard atmosphere / calm winds'):'',positionUpdateHz:this.scenario.positionUpdateHz,magneticVariationWest:this.scenario.magneticVariationWest,sessionId:this.sessionId,listening:!!this.server,host:this.host,port:this.port||6809,running:this.running,elapsed:this.elapsed,scale:this.scale,sockets:this.clients.size,clients:[...this.clients].filter(c=>c.callsign).length,lastEvent:this.lastEvent||'No local connection received yet.',scenario:this.scenario,aircraft:this.aircraft.map(({wind,...a})=>({...a,trueAirspeed:a.speed,speed:a.groundSpeed??a.speed,magneticHeading:wrap(a.heading+this.scenario.magneticVariationWest),targetMagneticHeading:wrap(a.targetHeading+this.scenario.magneticVariationWest)})),error:this.error||''};}
  write(c,line){if(!c.socket.destroyed){if(c.socket.writableLength>1024*1024){c.socket.destroy();return;}c.socket.write(line+'\r\n');}}
  broadcast(line){for(const c of this.clients)if(c.callsign)this.write(c,line);}
  broadcastAll(){for(const a of this.aircraft)if(a.active){a.identActive=this.elapsed<a.identUntil;this.broadcast(position(a));}}
@@ -113,6 +114,10 @@ class LocalTraining{
   // Physics stays at 10 Hz. Publication uses wall time, independent of scale.
   // One batch per frame at most: a delayed timer never creates catch-up bursts.
   // 1 Hz remains available for plugins that timestamp samples in whole seconds.
+  if(this.liveWeather&&this.scenario.aircraft.some(a=>a.destination==='CYYZ'||a.origin==='CYYZ')){
+   const refresh=()=>weather.refresh().then(data=>{if(this.server===server)this.weatherData=data;}).catch(()=>{});
+   this.weatherTimer=setInterval(refresh,weather.refreshMs+1000);this.weatherTimer.unref();refresh();
+  }
   this.last=performance.now();this.publishElapsed=0;this.timer=setInterval(()=>{const now=performance.now(),dt=Math.max(0,(now-this.last)/1000);this.last=now;this.frame(dt);},100);return this.status();
  }
  updateRate(value){const hz=positionRate(value);if(hz===this.scenario.positionUpdateHz)return this.status();this.scenario={...this.scenario,positionUpdateHz:hz};this.publishElapsed=0;return this.status();}
@@ -120,12 +125,12 @@ class LocalTraining{
  initialOwner(a){if(this.scenario.initialOwnership!=='instructor'||!a.active||a.initialOwnershipAssigned||!this.instructorCallsign||![...this.clients].some(c=>c.callsign===this.instructorCallsign&&!c.socket.destroyed))return; a.initialOwnershipAssigned=true;if(!a.trackingController)a.trackingController=this.instructorCallsign;}
  registerInstructor(callsign){if(this.scenario.initialOwnership!=='instructor')throw Error('This scenario does not request instructor ownership.');const present=cs=>[...this.clients].some(c=>c.callsign===cs&&!c.socket.destroyed);if(!/^[A-Z0-9_]{2,16}$/.test(callsign)||!present(callsign))throw Error('Connect instructor EuroScope before assigning ownership.');if(this.instructorCallsign&&this.instructorCallsign!==callsign&&present(this.instructorCallsign))throw Error('A different instructor is already registered.');this.instructorCallsign=callsign;for(const a of this.aircraft){const owner=a.trackingController;this.initialOwner(a);if(a.active&&a.trackingController!==owner)this.broadcast('$CQ'+a.trackingController+':*A:IT:'+a.callsign);}return this.status();}
  frame(seconds){if(this.running)this.tick(Math.min(1,seconds)*this.scale);const interval=1/this.scenario.positionUpdateHz;this.publishElapsed=(this.publishElapsed||0)+seconds;if(this.publishElapsed+1e-9>=interval){this.publishElapsed=Math.max(0,this.publishElapsed-Math.floor((this.publishElapsed+1e-9)/interval)*interval);this.broadcastAll();}}
- stop(){this.running=false;clearInterval(this.timer);for(const c of this.clients){for(const a of this.aircraft)this.write(c,deletion(a));c.socket.destroy();}this.clients.clear();this.server?.close();this.server=null;return this.status();}
+ stop(){this.running=false;clearInterval(this.timer);clearInterval(this.weatherTimer);this.weatherTimer=null;this.weatherData=null;for(const c of this.clients){for(const a of this.aircraft)this.write(c,deletion(a));c.socket.destroy();}this.clients.clear();this.server?.close();this.server=null;return this.status();}
  run(){if(!this.server)throw Error('Start the local server first.');this.running=true;this.last=performance.now();return this.status();}
  pause(){this.running=false;return this.status();}
  tick(seconds){for(let remaining=seconds;remaining>0;remaining-=0.25)this.step(Math.min(0.25,remaining));}
  step(dt){
-  const before=this.elapsed;this.elapsed+=dt;
+  const before=this.elapsed,profile=weather.usable(this.weatherData);this.elapsed+=dt;
   for(const a of this.aircraft){
    if(this.elapsed<a.spawnTime)continue;const step=Math.max(0,this.elapsed-Math.max(before,a.spawnTime));if(!a.active){a.active=true;this.announce(a);}a.identActive=this.elapsed<a.identUntil;
    if(a.paused)continue;
@@ -133,14 +138,19 @@ class LocalTraining{
    flight.initialVerticalGuidance(a,fixes,geometry);
    const crossingRate=restrictions.update(a,fixes,geometry);
    if(a.speedMode==='published')a.targetIAS=flight.publishedIAS(a,this.scenario.speedRules,fixes,geometry,this.scenario.runways);
-   if(a.speedMode==='mach')a.targetIAS=flight.tasToIas(flight.machToTas(a.targetMach,a.altitude),a.altitude);
-   if(a.speedMode==='published'||a.speedBasis==='IAS'||a.iasCommand){a.ias=approach(a.ias,a.targetIAS,2*step);a.speed=flight.iasToTas(a.ias,a.altitude);a.targetSpeed=flight.iasToTas(a.targetIAS,a.altitude);}else{a.speed=approach(a.speed,a.targetSpeed,2*step);a.ias=flight.tasToIas(a.speed,a.altitude);}
-   if(a.navigation==='route'&&a.remaining.length)flight.guideRoute(a,fixes,geometry,move);
+   const inArea=Math.abs(a.lat-43.6777)<2&&Math.abs(a.lon+79.6248)<2.75;
+   const w=a.wind=inArea?weather.sample(profile,a.altitude):null;
+   const toTas=ias=>w?weather.iasToTas(ias,w):flight.iasToTas(ias,a.altitude),toIas=tas=>w?weather.tasToIas(tas,w):flight.tasToIas(tas,a.altitude);
+   if(a.speedMode==='mach')a.targetIAS=toIas(w?a.targetMach*weather.sound(w.kelvin):flight.machToTas(a.targetMach,a.altitude));
+   if(a.speedMode==='published'||a.speedBasis==='IAS'||a.iasCommand){a.ias=approach(a.ias,a.targetIAS,2*step);a.speed=toTas(a.ias);a.targetSpeed=toTas(a.targetIAS);}else{a.speed=approach(a.speed,a.targetSpeed,2*step);a.ias=toIas(a.speed);}
+   ({speed:a.groundSpeed,track:a.groundTrack}=weather.motion(a.heading,a.speed,w));
+   if(a.navigation==='route'&&a.remaining.length&&!['localizer captured','glideslope captured'].includes(a.approachState))flight.guideRoute(a,fixes,geometry,move,this.scenario.runways.find(r=>r.airport===a.destination&&r.name===a.arrivalRunway));
    if(a.approachState!=='off')flight.guideApproach(a,this.scenario.runways,geometry);
    if(a.paused)continue;
    const previousAltitude=a.altitude;a.altitude=approach(a.altitude,a.targetAltitude,(a.approachState==='glideslope captured'?a.approachRate:crossingRate??a.rate)/60*step);a.verticalSpeed=step>0?(a.altitude-previousAltitude)*60/step:0;
    flight.turnMotion(a,step);
-   Object.assign(a,move(a,a.speed/3600*step,a.heading));
+   ({speed:a.groundSpeed,track:a.groundTrack}=weather.motion(a.heading,a.speed,w));
+   Object.assign(a,move(a,a.groundSpeed/3600*step,a.groundTrack));
   }
   const finished=this.aircraft.filter(a=>a.active&&(a.landed||a.routeCompleted&&a.approachState==='off'));
   for(const a of finished)this.broadcast(deletion(a));
@@ -167,6 +177,7 @@ class LocalTraining{
   if(parts[0]==='RESTRICTIONS'){if(parts[1]==='SPEED'){restrictions.clearSpeed(a);a.targetIAS=flight.publishedIAS(a,this.scenario.speedRules,this.runtimeWaypoints||this.scenario.waypoints,geometry,this.scenario.runways);}else restrictions.clearCross(a);a.revision=(a.revision||0)+1;return this.status();}
   if(parts[0]==='IDENT'&&parts.length===1){a.revision=(a.revision||0)+1;a.identUntil=this.elapsed+18;a.identActive=true;return this.status();}if(parts.length!==2)throw Error('Use ALT, RATE, SPD, HDG/LHDG/RHDG, DCT, SQ, MODE, IDENT or ROUTE RESUME.');
   const [verb,arg]=parts;
+  if(['HDG','LHDG','RHDG','ROUTE','APP'].includes(verb))a.explicitDirectFix=null;
   if(verb==='HDG'&&arg==='PRESENT'){a.targetHeading=a.heading;a.turnDirection=0;a.bank=0;a.navigation='heading';a.flyBy=null;if(a.approachState!=='off'){a.approachState='armed';a.approachVectorTarget=a.targetHeading;}a.revision=(a.revision||0)+1;return this.status();}
   if(verb==='ALT'){const target=number(arg,0,60000,'Target altitude (feet)');if(a.approachState!=='off'&&target>a.altitude+50){a.approachState='off';a.approachVectorTarget=null;a.approachNotice='Go-around: climb to assigned altitude; approach guidance cancelled.';a.navigation='heading';a.flyBy=null;a.targetHeading=a.heading;a.turnDirection=0;a.routeCompleted=false;}a.targetAltitude=target;a.initialDescentActive=false;restrictions.clearCross(a);}
   else if(verb==='RATE'){if(a.approachState==='glideslope captured')throw Error('ILS glidepath controls vertical rate (ground speed × 6). Use APP CANCEL, then ALT and RATE for a manual climb/descent.');a.rate=number(arg,100,6000,'Climb/descent rate magnitude (feet/min)');a.manualRate=true;}
@@ -181,7 +192,7 @@ class LocalTraining{
   else if(verb==='MODE'){if(!['C','STBY'].includes(arg))throw Error('Use MODE C or MODE STBY.');a.squawkMode=arg==='C'?'N':'S';a.identUntil=0;a.identActive=false;}
   else if(verb==='DCT'){
    if(!(this.runtimeWaypoints?.length?this.runtimeWaypoints:this.scenario.waypoints).some(w=>w.name===arg))throw Error('Waypoint is not defined in this scenario.');
-   const i=a.remaining.indexOf(arg),filed=a.route.split(' ').filter(Boolean),j=filed.indexOf(arg);a.remaining=i>=0?a.remaining.slice(i):j>=0?filed.slice(j):[arg];a.navigation='route';a.routeCompleted=false;a.flyBy=null;a.legStart={lat:a.lat,lon:a.lon};a.approachState='off';a.turnDirection=0;
+   const i=a.remaining.indexOf(arg),filed=a.route.split(' ').filter(Boolean),j=filed.indexOf(arg);a.remaining=i>=0?a.remaining.slice(i):j>=0?filed.slice(j):[arg];a.explicitDirectFix=arg;a.navigationNotice='';a.navigation='route';a.routeCompleted=false;a.flyBy=null;a.legStart={lat:a.lat,lon:a.lon};a.approachState='off';a.turnDirection=0;
   }
   else if(verb==='ROUTE'&&arg==='RESUME'){if(!a.remaining.length)throw Error('No remaining route. Use DCT FIX.');a.approachVectorTarget=null;a.navigation='route';}
   else throw Error('Unknown command. Use ALT, RATE, SPD, HDG, DCT or ROUTE RESUME.');

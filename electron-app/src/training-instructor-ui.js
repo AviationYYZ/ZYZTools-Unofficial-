@@ -12,7 +12,7 @@ function draw(){
  for(const s of state.slots){const b=document.createElement('button');b.textContent=s.name+' · '+s.state;b.setAttribute('aria-pressed',String(s.id===slot));b.disabled=busy;b.onclick=()=>{slot=s.id;aircraft=null;editing=null;generation++;draw();refresh();};$('instructorSlots').append(b);}
  const s=state.slots.find(s=>s.id===slot);if(!s)return;const live=['paused','running'].includes(s.state),ready=!!s.code;
  $('instructorUpdateRate').value=String(s.positionUpdateHz??0.2);$('instructorUpdateRate').disabled=true;
- $('instructorSlotStatus').textContent=[s.name,s.scenarioName||'No scenario loaded',s.state,'+'+Math.floor(s.elapsed||0)+'s',s.clients||0,'EuroScope connection(s)',s.error||''].join(' · ');
+ $('instructorSlotStatus').textContent=[s.name,s.scenarioName||'No scenario loaded',s.state,'+'+Math.floor(s.elapsed||0)+'s',s.clients||0,'EuroScope connection(s)',aircraft?.weatherLabel,s.error].filter(x=>x!==undefined&&x!=='').join(' · ');
  for(const id of ['instructorUpload','instructorDemo','instructorStart','instructorRun','instructorPause','instructorReset','instructorStop','instructorStudentInvite']){$(id).disabled=busy||(['starting','stopping','recovering'].includes(s.state));}
  $('instructorStart').disabled=busy||!s.hasScenario||!['stopped','error'].includes(s.state);for(const id of ['instructorRun','instructorPause','instructorReset'])$(id).disabled=busy||!live;$('instructorStop').disabled=busy||s.state==='stopped';$('instructorStudentInvite').disabled=busy||!ready;$('instructorEuroScope').disabled=busy||!ready;
  const selected=$('instructorSelected').value;$('instructorSelected').replaceChildren();$('instructorAircraft').replaceChildren();

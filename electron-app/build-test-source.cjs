@@ -20,6 +20,8 @@ add('electron-app/test-training-control-presets.cjs');
 add('electron-app/test-training-conflict-telemetry.cjs');
 add('electron-app/test-training-control-slots.cjs');
 add('electron-app/test-training-go-around.cjs');
+add('electron-app/test-training-downwind.cjs');
+add('electron-app/test-training-weather.cjs');
 for(const name of ['test-conflict-settings.cjs','test-conflict-ui.cjs','test-conflict-ui-preload.cjs','test-conflict-retirement.cjs']) add('electron-app/'+name);
 for (const name of ['rework','mobile','command-bridge','native-command','connector','flight','guidance','sweatbox','speed-profiles','update-rate','tag-controls','navdata','pilot-tags','pilot-secondary','restrictions','tag-workflow','profile-ui','sfi-scenario','initial-owner','list-controls','heading-ils','speed-presets','all-aircraft-list','speed-altitude-basis','browser-pilots','pilot-invite']) add(`electron-app/test-training-${name}.cjs`);
 if (files.some(file => /\bsk-(?:proj-|svcacct-)?[A-Za-z0-9_-]{24,}\b/.test(file.content))) throw new Error('A possible API secret was found in source; refusing to bundle it.');

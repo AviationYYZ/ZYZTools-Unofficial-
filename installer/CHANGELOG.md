@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.68 / server 0.4.16
+
+- Simulated arrivals continue straight at the downwind discontinuity instead of flying the filed base turn. Runway-aligned approach fixes require an explicit direct-to, one fix at a time. Filed routes are unchanged; an instructor can still vector aircraft or clear them for ILS capture.
+
 ## 1.2.67 — Local test, awaiting approval
 
 - CA tags use only the affected aircraft's filed route fixes within an inclusive 3 NM of the predicted loss midpoint. No unrelated sector fix or coordinate fallback appears in the tag. A small yellow radar dot marks the actual predicted point, once per pair; approach suppression removes both labels and dots.

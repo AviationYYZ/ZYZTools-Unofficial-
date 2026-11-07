@@ -21,7 +21,7 @@ let mainWindow = null;
 let discordPresence = null;
 // EuroScope's classic direct connection uses fixed port 6809. Distinct loopback
 // addresses keep production and test training sources separate without custom ports.
-const localTraining=new (require('./local-training').LocalTraining)(channel.test?'127.0.0.1':'127.0.0.2');
+const localTraining=new (require('./local-training').LocalTraining)(channel.test?'127.0.0.1':'127.0.0.2',{liveWeather:process.env.ZYZTOOLS_CALM_WEATHER!=='1'});
 const trainingMultiplayer=new (require('./training-multiplayer').TrainingMultiplayer)(localTraining,channel.test?6811:6812);
 const trainingConnector=new (require('./training-fsd-tunnel').FsdConnector)(channel.test?'127.0.0.1':'127.0.0.2');
 const tunnelCache=path.join(app.getPath('userData'),'managed-tunnel');
