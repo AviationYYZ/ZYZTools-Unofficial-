@@ -1,4 +1,4 @@
-// One instructor connection manages all three slots. Student keys never authorize
+// One instructor connection manages all six slots. Student keys never authorize
 // these endpoints. No arbitrary path, URL, shell command or filesystem API exists.
 const http=require('node:http'),crypto=require('node:crypto'),path=require('node:path'),fs=require('node:fs'),engine=require('./engine.cjs');
 const {TrainingTunnel}=engine('training-tunnel'),{DirectoryLease}=engine('training-directory');
@@ -32,7 +32,7 @@ class InstructorHub{
    if(!this.token||!equal(req.headers.authorization||'','Bearer '+this.token))return this.reply(res,401,{error:'Instructor pairing is required.'});
    if(req.headers['sec-fetch-site']==='cross-site')return this.reply(res,403,{error:'Cross-site requests are not allowed.'});
    if(req.method==='GET'&&req.url==='/api/instructor/status')return this.reply(res,200,{service:'ZYZTools Instructor',role:'instructor',apiVersion:1,...this.manager.status()});
-   const match=req.url.match(/^\/api\/instructor\/aircraft\/([123])$/);
+   const match=req.url.match(/^\/api\/instructor\/aircraft\/([1-6])$/);
    if(req.method==='GET'&&match)return this.reply(res,200,await this.manager.call(Number(match[1]),'instructor',{operation:'snapshot'}));
    if(req.method!=='POST'||req.url!=='/api/instructor/action')return this.reply(res,404,{error:'Not found.'});
    if(!/^application\/json(?:;|$)/i.test(req.headers['content-type']||''))return this.reply(res,415,{error:'JSON required.'});

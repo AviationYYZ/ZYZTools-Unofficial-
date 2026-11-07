@@ -14,6 +14,8 @@ let customTheme = window.ZyzCustomTheme.normalize();
 const customFields = { background: 'customBackground', header: 'customHeader', navigation: 'customNavigation', panel: 'customPanel', text: 'customText', muted: 'customMuted', accent: 'customAccent', title: 'customTitle', font: 'customFont', layout: 'customLayout', titleSize: 'customTitleSize', radius: 'customRadius', titleCase: 'customTitleCase' };
 
 const $ = (id) => document.getElementById(id);
+const workspaceThemes = window.ZYZWorkspaceThemes;
+for (const [id, { label }] of Object.entries(workspaceThemes)) $("workspaceThemeOptions").append(new Option(label,id));
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -39,6 +41,7 @@ function setInstalled(value) {
 
 function normalizeTheme(value) {
   const theme = String(value || "current").trim().toLowerCase();
+  if (Object.hasOwn(workspaceThemes,theme)) return theme;
   if (theme === "vatcan" || theme === "vatcansitu") return "vatcan";
   if (theme === "navcan" || theme === "navcanada") return "navcan";
   if (theme === "custom") return "custom";
@@ -49,11 +52,21 @@ function normalizeTheme(value) {
 function applyTheme(value) {
   const theme = normalizeTheme(value);
   document.body.dataset.theme = theme;
+  const workspace = workspaceThemes[theme];
+  for (const key of Object.keys(workspaceThemes.spaces.variables)) document.body.style.removeProperty(key);
   for (const key of Object.keys(window.ZyzCustomTheme.variables(customTheme))) document.body.style.removeProperty(key);
   if (theme === 'custom') {
     for (const [key, value] of Object.entries(window.ZyzCustomTheme.variables(customTheme))) document.body.style.setProperty(key, value);
     document.body.dataset.customLayout = customTheme.layout;
   } else delete document.body.dataset.customLayout;
+  if (workspace) {
+    document.body.dataset.workspaceLayout = workspace.layout;
+    document.body.toggleAttribute('data-workspace-dark',workspace.dark);
+    for (const [key,value] of Object.entries(workspace.variables)) document.body.style.setProperty(key,value);
+  } else {
+    delete document.body.dataset.workspaceLayout;
+    document.body.removeAttribute('data-workspace-dark');
+  }
   $('customThemeEditor').hidden = theme !== 'custom';
   updateThemeTitle();
   if ($("uiTheme")) $("uiTheme").value = theme;
@@ -396,6 +409,8 @@ async function boot() {
 
 document.querySelectorAll("nav button[data-tab]").forEach((button) => {
   button.addEventListener("click", async () => {
+    const policyBlock = window.zyzPolicyBlockTab?.(button.dataset.tab);
+    if (policyBlock) { setStatus(policyBlock,"error"); return; }
     const group = button.closest("details");
     if (group) group.open = true;
     document.querySelectorAll("nav button[data-tab]").forEach((item) => {

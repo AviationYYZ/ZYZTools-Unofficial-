@@ -1,6 +1,6 @@
 {
   "name": "zyztools-test",
-  "version": "1.2.78",
+  "version": "2.0.0",
   "zyzBuildChannel": "test",
   "displayName": "ZYZTools test",
   "description": "ZYZTools EuroScope controller tools and plugin installer",
@@ -38,8 +38,14 @@
       "package.json"
     ],
     "extraResources": [
-      { "from": "../docs/INSTRUCTOR_LIST_CONTROLS.md", "to": "plugin/INSTRUCTOR_LIST_CONTROLS.md" },
-      { "from": "../build/TestSourceSnapshot.json", "to": "TestSourceSnapshot.json" },
+      {
+        "from": "../docs/INSTRUCTOR_LIST_CONTROLS.md",
+        "to": "plugin/INSTRUCTOR_LIST_CONTROLS.md"
+      },
+      {
+        "from": "../build/TestSourceSnapshot.json",
+        "to": "TestSourceSnapshot.json"
+      },
       {
         "from": "../build",
         "to": "plugin",
@@ -101,5 +107,8 @@
       "createStartMenuShortcut": true,
       "shortcutName": "ZYZTools test"
     }
+  },
+  "dependencies": {
+    "ws": "8.22.0"
   }
 }

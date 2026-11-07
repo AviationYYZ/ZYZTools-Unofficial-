@@ -1,0 +1,35 @@
+body[data-workspace-layout] { color-scheme: light; }
+body[data-workspace-dark] { color-scheme: dark; }
+body[data-workspace-layout] header { color:#fff; padding:22px 26px; }
+body[data-workspace-layout] header .subtle { color:#e0e8f1; }
+body[data-workspace-layout] h1 { font-family:var(--font); color:inherit; font-size:25px; letter-spacing:-.035em; }
+body[data-workspace-layout] .brand-name span { color:inherit; }
+body[data-workspace-layout] .caption { font-size:15px; letter-spacing:.025em; color:var(--text); }
+body[data-workspace-layout] .card { border-radius:7px; padding:18px; box-shadow:0 2px 4px #0000000c; }
+body[data-workspace-layout] button.primary { color:#fff; background:var(--accent); }
+body[data-workspace-layout]:not([data-workspace-dark]) button.good { background:#e6f1e9; color:#225433; }
+body[data-workspace-layout]:not([data-workspace-dark]) button.warn { background:#fff0d6; color:#684610; }
+body[data-workspace-layout="portal"] main { display:block; }
+body[data-workspace-layout="portal"] nav { display:flex; flex-wrap:wrap; gap:8px; padding:10px 22px; }
+body[data-workspace-layout="portal"] nav summary { color:#fff; border-color:#ffffff62; }
+body[data-workspace-layout="portal"] nav .menu-pages { flex-direction:row; flex-wrap:wrap; }
+body[data-workspace-layout="portal"] nav button { width:auto; }
+body[data-workspace-layout="portal"] main>div { max-width:1200px; margin:auto; }
+body[data-workspace-layout="sidebar"] main { grid-template-columns:210px minmax(0,1fr); }
+body[data-workspace-layout="sidebar"] .card { border-left:3px solid var(--accent); }
+body[data-workspace-layout="rail"] main { grid-template-columns:170px minmax(0,1fr); }
+body[data-workspace-layout="rail"] .card { border-radius:2px; padding:12px; }
+body[data-workspace-layout="rail"] header { padding:14px 20px; }
+body[data-workspace-layout="document"] main { grid-template-columns:175px minmax(0,1fr); }
+body[data-workspace-layout="document"] main>div { width:100%; max-width:1060px; margin:0 auto; }
+body[data-workspace-layout="document"] section { padding:26px; }
+body[data-theme="paper"] header { color:#35291f; }
+body[data-theme="paper"] header .subtle { color:#665e51; }
+body[data-theme="spaces"] header { border-bottom:3px solid #005cb2; }
+body[data-theme="spaces"] .card { border-radius:4px; }
+@media(max-width:680px){
+  body[data-workspace-layout] main { display:block; }
+  body[data-workspace-layout] nav { display:flex; flex-wrap:wrap; gap:6px; padding:10px; }
+  body[data-workspace-layout] .menu-pages { flex-direction:row; flex-wrap:wrap; }
+  body[data-workspace-layout] nav button { width:auto; }
+}

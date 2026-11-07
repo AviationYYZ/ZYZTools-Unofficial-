@@ -1,0 +1,21 @@
+{
+  "name": "zyztools-room-directory",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --local",
+    "check": "tsc --noEmit",
+    "dry-run": "wrangler deploy --dry-run",
+    "test": "node --test test/core.test.mjs",
+    "test:runtime": "node test/runtime.test.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "4.152.0",
+    "@cloudflare/workers-types": "5.20261025.1",
+    "typescript": "7.0.2",
+    "@types/node": "24.19.2",
+    "miniflare": "5.20261019.2-beta"
+  },
+  "engines": { "node": ">=24" }
+}
