@@ -395,6 +395,8 @@ async function boot() {
 
 document.querySelectorAll("nav button[data-tab]").forEach((button) => {
   button.addEventListener("click", async () => {
+    const group = button.closest("details");
+    if (group) group.open = true;
     document.querySelectorAll("nav button[data-tab]").forEach((item) => {
       item.classList.toggle("primary", item === button);
       if (item === button) item.setAttribute("aria-current", "page");

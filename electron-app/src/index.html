@@ -375,6 +375,16 @@
       body[data-theme="navcan"] main > div { padding: 18px 14px; }
       body[data-theme="navcan"] .card { padding: 18px; }
     }
+    .menu-group { min-width: 0; margin-bottom: 6px; }
+    .menu-group summary { cursor: pointer; padding: 9px 10px; color: var(--text); border: 1px solid var(--line); border-radius: 4px; }
+    .menu-group:has([aria-current="page"]) summary { border-color: var(--accent); font-weight: 700; }
+    .menu-group summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .menu-pages { display: flex; flex-direction: column; gap: 4px; padding: 5px 0 2px 9px; }
+    nav .menu-pages button { margin: 0; }
+    body[data-theme="current"] .menu-pages, body[data-theme="navcan"] .menu-pages { flex-direction: row; flex-wrap: wrap; }
+    body[data-theme="navcan"] .menu-group { margin: 6px; }
+    body[data-theme="navcan"] .menu-group summary { color: white; border-color: #ffffff70; }
+    body[data-theme="navcan"] .menu-group:has([aria-current="page"]) summary { border-color: white; }
   </style>
   <link rel="stylesheet" href="vatcan-theme.css" />
   <link rel="stylesheet" href="custom-theme.css" />
@@ -389,19 +399,29 @@
   </header>
 
   <main>
-    <nav>
-      <button data-tab="install" class="primary" aria-current="page">Install / Link</button>
-      <button data-tab="operations">Operations</button>
-      <button data-tab="conflicts">Conflict alerts</button>
-      <button data-tab="training">Training</button>
-      <button data-tab="trainingBuilder">Scenario Builder</button>
-      <button data-tab="discord">Discord status</button>
-      <button data-tab="hoppie">Hoppie</button>
-      <button data-tab="sids">SID Matrix</button>
-      <button data-tab="replay">Replay & Recordings</button>
-      <button data-tab="statistics">Statistics</button>
-      <button data-tab="appearance">Appearance</button>
-      <button data-tab="advanced">Advanced</button>
+    <nav aria-label="ZYZTools menu">
+      <details class="menu-group" name="zyz-menu" open><summary>App settings</summary><div class="menu-pages">
+        <button data-tab="install" class="primary" aria-current="page">Install / Link</button>
+        <button data-tab="appearance">Appearance</button>
+        <button data-tab="advanced">Advanced</button>
+      </div></details>
+      <details class="menu-group" name="zyz-menu"><summary>Controller tools</summary><div class="menu-pages">
+        <button data-tab="operations">Operations</button>
+        <button data-tab="hoppie">Hoppie</button>
+        <button data-tab="sids">SID Matrix</button>
+        <button data-tab="conflicts">Conflict alerts</button>
+      </div></details>
+      <details class="menu-group" name="zyz-menu"><summary>Sweatbox</summary><div class="menu-pages">
+        <button data-tab="training">Training</button>
+        <button data-tab="trainingBuilder">Scenario Builder</button>
+      </div></details>
+      <details class="menu-group" name="zyz-menu"><summary>Session history</summary><div class="menu-pages">
+        <button data-tab="replay">Replay &amp; Recordings</button>
+        <button data-tab="statistics">Statistics</button>
+      </div></details>
+      <details class="menu-group" name="zyz-menu"><summary>Integrations</summary><div class="menu-pages">
+        <button data-tab="discord">Discord status</button>
+      </div></details>
     </nav>
 
     <div>
