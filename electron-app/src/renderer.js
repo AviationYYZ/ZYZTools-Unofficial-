@@ -566,6 +566,13 @@ boot().catch((error) => setStatus(error.message, "error"));
 
 let offeredUpdate, updateCheckRunning = false, updateDownloading = false;
 const dismissedUpdates = new Set(), downloadedUpdates = new Set();
+function updateDownloadProgress(percent) {
+  $("updateDownloadRing").style.setProperty('--progress', percent + '%');
+  $("updateDownloadPercent").textContent = percent + '%';
+}
+api.onUpdateProgress?.(({tag,percent}) => {
+  if (updateDownloading && offeredUpdate?.tag === tag && Number.isInteger(percent) && percent >= 0 && percent <= 100) updateDownloadProgress(percent);
+});
 function renderUpdateNotice() {
   const release = offeredUpdate;
   $("updateNotice").hidden = !release || dismissedUpdates.has(release.tag);
@@ -626,6 +633,8 @@ async function downloadOfferedUpdate() {
   }
   updateDownloading = true;
   renderUpdateNotice();
+  updateDownloadProgress(0);
+  $("updateDownloadProgress").hidden = false;
   $("updateStatus").textContent = 'Downloading the latest installer…';
   $("updateNoticeText").textContent = release.essential ? 'Downloading now. Installation waits until the next launch.' : 'Downloading the update. ZYZTools will close when the installer opens.';
   let failure;
@@ -636,6 +645,7 @@ async function downloadOfferedUpdate() {
   } catch (error) { failure = error.message; $("updateStatus").textContent = failure; }
   finally {
     updateDownloading = false;
+    $("updateDownloadProgress").hidden = true;
     renderUpdateNotice();
     if (failure) $("updateNoticeText").textContent += ' Download failed: ' + failure;
   }

@@ -842,10 +842,10 @@ async function startEssentialUpdate() {
     let notice;
     try {
       notice = await require('./essential-update-notice').showEssentialUpdateNotice(BrowserWindow, null, channel.name);
-      const installer = await updates.download(release, updateFolder(release));
+      const installer = await updates.download(release, updateFolder(release), undefined, notice.progress);
       await notice.beforeInstall();
       await new Promise((resolve, reject) => {
-        const child = childProcess.spawn(installer, ['/S'], { detached: true, stdio: 'ignore', windowsHide: true });
+        const child = childProcess.spawn(installer, updates.essentialInstallerArgs(release.tag), { detached: true, stdio: 'ignore' });
         child.once('error', reject);
         child.once('spawn', () => { child.unref(); resolve(); });
       });
@@ -1066,7 +1066,16 @@ ipcMain.handle("updates:check", async (_event, stream) => {
 });
 let updateDownloadInProgress = false;
 let stagedEssentialUpdate;
-async function openUpdateInstaller(installer) {
+async function openUpdateInstaller(installer, essentialTag) {
+  if (essentialTag) {
+    await new Promise((resolve, reject) => {
+      const child = childProcess.spawn(installer, updates.essentialInstallerArgs(essentialTag), { detached: true, stdio: 'ignore' });
+      child.once('error', reject);
+      child.once('spawn', () => { child.unref(); resolve(); });
+    });
+    setImmediate(() => app.quit());
+    return;
+  }
   const error = await shell.openPath(installer);
   if (error) throw new Error(error);
   setImmediate(() => app.quit());
@@ -1077,7 +1086,9 @@ ipcMain.handle("updates:download", async (_event, tag) => {
   if (updateDownloadInProgress) throw new Error('An update is already downloading.');
   updateDownloadInProgress = true;
   try {
-    const installer = await updates.download(release, updateFolder(release));
+    const installer = await updates.download(release, updateFolder(release), undefined, percent => {
+      if (!_event.sender.isDestroyed()) _event.sender.send('updates:progress', {tag,percent});
+    });
     if (release.essential) stagedEssentialUpdate = release;
     else await openUpdateInstaller(installer);
     return { essential: release.essential };
@@ -1095,7 +1106,7 @@ ipcMain.handle("updates:installStaged", async (_event, tag) => {
       buttons: ['Later', 'Install now'], defaultId: 0, cancelId: 0
     });
     if (response !== 1) return { installing: false };
-    await openUpdateInstaller(await updates.download(checkedRelease, updateFolder(release)));
+    await openUpdateInstaller(await updates.download(checkedRelease, updateFolder(release)), release.tag);
     return { installing: true };
   } finally { updateDownloadInProgress = false; }
 });
