@@ -12,7 +12,7 @@ test('directory validates code, managed URL, registration, heartbeat, expiry and
 test('three real child simulators: independent clocks, sockets, delay, pause, crash recovery, shutdown and persistence',{timeout:45000},async()=>{
  const folder=fs.mkdtempSync(path.join(os.tmpdir(),'zyz-servers-test-')),manager=new ServerManager(folder,folder),sockets=[];
  try{
-  assert.deepEqual(manager.status().slots.map(s=>s.autostart),Array(6).fill(false));assert.throws(()=>manager.slot(7));
+  assert.deepEqual(manager.status().slots.map(s=>s.autostart),[false,false,false]);assert.throws(()=>manager.slot(4));
   for(let id=1;id<=3;id++){const raw=structuredClone(require('../../electron-app/src/training-demo.json'));raw.name='Scenario '+id;raw.aircraft[1].spawnTime=60;manager.import(id,raw);}
   manager.configure(2,{name:'East flow',autostart:true});await Promise.all([1,2,3].map(id=>manager.start(id)));assert.equal(manager.status().slots[1].name,'East flow');assert.equal(manager.status().slots[1].scenarioName,'Scenario 2');assert.throws(()=>manager.import(1,{}),/Stop/);
   const received=[];for(let id=1;id<=3;id++){const socket=net.connect({host:'127.0.0.1',port:16800+id});sockets.push(socket);received[id]='';socket.on('error',()=>{});socket.on('data',b=>received[id]+=b);await once(socket,'connect');socket.write('#AATOR_APP:SERVER:Dummy:0000000:dummy:1:100\r\n');}

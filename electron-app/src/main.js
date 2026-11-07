@@ -244,7 +244,6 @@ function normalizeReplayCommand(value) {
 
 function normalizeTheme(value) {
   const theme = String(value || "current").trim().toLowerCase();
-  if (Object.hasOwn(require('./workspace-themes'),theme)) return theme;
   if (theme === "vatcan" || theme === "vatcansitu") return "vatcan";
   if (theme === "navcan" || theme === "navcanada") return "navcan";
   if (theme === "custom") return "custom";
@@ -335,8 +334,8 @@ function configPathForInstall(installFolder) {
 function loadConfig(installFolder) {
   const installed = readJsonIfExists(configPathForInstall(installFolder));
   assertDestination(installFolder, installed);
+  if (installed) return normalizeConfig(installed);
   const local = readJsonIfExists(localSettingsPath());
-  if (installed) return normalizeConfig({...installed,...(Object.hasOwn(require('./workspace-themes'),local?.ui_theme)?{ui_theme:local.ui_theme}:{})});
   if (local) return normalizeConfig(local);
   return normalizeConfig(loadPayloadDefaultConfig());
 }
@@ -833,7 +832,6 @@ function selectedUpdateStream() {
   catch { return 'stable'; }
 }
 let checkingStartupUpdate = false;
-let appPolicy;
 const updateFolder = release => path.join(app.getPath('userData'), 'updates', release.tag);
 async function startEssentialUpdate() {
   // The development app must never replace itself with the consumer installer.
@@ -873,27 +871,18 @@ app.whenReady().then(async () => {
   if (installing) { app.quit(); return; }
   createWindow();
   ensureDiscordPresence();
-  appPolicy = new (require('./app-policy').AppPolicyClient)({
-    file:path.join(app.getPath('userData'),'app-policy-cache.json'),
-    onChange: value => { if(mainWindow && !mainWindow.isDestroyed())mainWindow.webContents.send('appPolicy:changed',value); }
-  });
-  appPolicy.start();
 });
 
 app.on("window-all-closed", () => {
   if (!checkingStartupUpdate && process.platform !== "darwin") app.quit();
 });
 
-app.on('before-quit', () => { appPolicy?.stop();trainingCommandBridge.close();instructorClient.disconnect();trainingTunnel.stop();trainingConnector.stop();trainingMultiplayer.stop();localTraining.stop();discordPresence?.stop().catch(() => {}); });
-ipcMain.handle('appPolicy:state',()=>appPolicy?.snapshot());
-ipcMain.handle('appPolicy:redeem',(_event,code)=>appPolicy.redeem(code));
-ipcMain.handle('appPolicy:admin',(_event,key,action)=>appPolicy.admin(key,action));
+app.on('before-quit', () => { trainingCommandBridge.close();instructorClient.disconnect();trainingTunnel.stop();trainingConnector.stop();trainingMultiplayer.stop();localTraining.stop();discordPresence?.stop().catch(() => {}); });
 ipcMain.handle('discord:load', async (_event, folder) => {
   const service = ensureDiscordPresence(folder);
   return { config: service.config, status: service.status, preview: service.preview };
 });
 ipcMain.handle('discord:save', async (_event, folder, value) => {
-  appPolicy?.assert('discord');
   const target = installDestination(folder);
   assertDestination(target, readJsonIfExists(configPathForInstall(target)));
   const service = ensureDiscordPresence();
@@ -904,8 +893,6 @@ ipcMain.handle('discord:save', async (_event, folder, value) => {
 
 ipcMain.handle("app:initialState", async () => getInitialState());
 ipcMain.handle('training:action',async(_event,action,value)=>{
-  if(['load','demo','start'].includes(action))appPolicy?.assert('localTraining');
-  if(['routePreview','speedRules'].includes(action))appPolicy?.assert('scenarioBuilder');
   if(action==='status')return localTraining.status();
   if(action==='updateRate')return localTraining.updateRate(value);
   if(action==='speedProfile')return localTraining.speedProfile(value.profile);
@@ -927,21 +914,18 @@ ipcMain.handle('training:action',async(_event,action,value)=>{
   throw Error('Unknown local training action.');
 });
 ipcMain.handle('training:save',async(_event,value)=>{
-  appPolicy?.assert('scenarioBuilder');
   const scenario=require('./local-training').normalize(prepareTraining(value));
   const result=await dialog.showSaveDialog(mainWindow,{title:'Export initial training scenario',defaultPath:path.join(app.getPath('documents'),scenario.name.replace(/[^A-Za-z0-9_-]/g,'_')+'.zyztraining.json'),filters:[{name:'ZYZTools training',extensions:['json']}]});
   if(result.canceled||!result.filePath)return false;
   fs.writeFileSync(result.filePath,JSON.stringify(scenario,null,2),'utf8');return true;
 });
 ipcMain.handle('training:load',async()=>{
-  appPolicy?.assert('localTraining');
   if(localTraining.server)throw Error('Stop the local server before importing a scenario.');
   const result=await dialog.showOpenDialog(mainWindow,{title:'Import training / EuroScope SweatBox scenario',properties:['openFile'],filters:[{name:'Training scenarios',extensions:['json','txt']}]});
   if(result.canceled)return null;
   const scenario=await readTrainingImport(result.filePaths[0]);return scenario?localTraining.load(scenario):null;
 });
 ipcMain.handle('training:sector',async(_event,choose=false)=>{
-  if(choose)appPolicy?.assert('scenarioBuilder');
   if(choose==='clearAsr'){const data={...getTrainingSector()};delete data.profile;fs.writeFileSync(sectorFile(),JSON.stringify(data),'utf8');trainingSector=data;}
   else if(choose==='asr'){
     if(!getTrainingSector().geometry?.length)throw Error('Import your sector file again first so named display layers are available.');
@@ -1019,14 +1003,12 @@ ipcMain.handle('conflict:load', async (_event, folder) => {
   return {config:settings.load(target),snapshot:settings.snapshot(target)};
 });
 ipcMain.handle('conflict:save', async (_event, folder, config) => {
-  appPolicy?.assert('conflictSettings');
   const target=installDestination(folder);
   assertDestination(target, readJsonIfExists(configPathForInstall(target)));
   const settings=require('./conflict-settings');
   return {config:settings.save(target,config),snapshot:settings.snapshot(target)};
 });
 ipcMain.handle('conflict:sound', async (_event, folder, kind) => {
-  appPolicy?.assert('conflictSettings');
   if(!['caution','urgent'].includes(kind))throw Error('Unknown alert sound.');
   const target=installDestination(folder);
   assertDestination(target, readJsonIfExists(configPathForInstall(target)));
@@ -1273,7 +1255,4 @@ ipcMain.handle("statistics:open", async (_event, filePath) => {
 
 ipcMain.handle("statistics:saveLatest", async (_event, installFolder) => saveLatestStatistics(installFolder));
 
-ipcMain.handle("audioReplay:command", async (_event, command) => {
-  if(!['status','stop'].includes(String(command).trim().toLowerCase()))appPolicy?.assert('replay');
-  return sendAudioReplayCommand(command);
-});
+ipcMain.handle("audioReplay:command", async (_event, command) => sendAudioReplayCommand(command));

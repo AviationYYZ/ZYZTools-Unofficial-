@@ -1,12 +1,5 @@
 # ZYZTools — instructor, student and server PC
 
-## ZYZTools 2.0: six hosted slots
-
-Update the server on the spare PC and the desktop app on instructor PCs.
-Slots 1–3 keep their scenarios and settings; slots 4–6 start empty.
-One instructor pairing can manage all six. The global announcement service
-is separate from the simulation host and does not need the spare PC online.
-
 ## Speed profiles and go-arounds (app 1.2.66 / server 0.4.15)
 
 Automatic speed profiles belong to each server slot, not the imported scenario.
@@ -33,7 +26,7 @@ Reviewed EuroScope SweatBox `.txt` import and **Connect my EuroScope** are under
 ## Pair the instructor once for this server-app run
 
 1. On the spare PC open the server app and click **Enable instructor access**. No aircraft slots need to be started first.
-2. Wait for its single **instructor pairing code**, then copy it privately to the instructor. This grants management of **all six slots** in 2.0. Never give it to a student.
+2. Wait for its single **instructor pairing code**, then copy it privately to the instructor. This grants management of **all three slots**. Never give it to a student.
 3. On your own PC open **Training → Instructor · server PC**, enter the code and Pair with server PC. Optionally select Remember to store this connection encrypted for this Windows account. Reconnect saved server retrieves it later; nothing is stored without opt-in.
 4. Keep the server app running, or close its window to the tray. Enabling instructor access is remembered and starts it again at the next server-app launch. Enable/disable remote access on the server PC; all normal scenario/aircraft work can now be done from the instructor client.
 
@@ -41,7 +34,7 @@ The instructor connection is independent of individual scenarios and workers. St
 
 ## Instructor workflow — from your own PC
 
-1. Select a server slot. Each has an independent scenario, clock and aircraft.
+1. Select Server 1, 2 or 3. Each has an independent scenario, clock and aircraft.
 2. Click **Load scenario from this PC**, or Load demo. Uploads are validated before replacing the selected slot. Replacement stops/disconnects that slot only; the others continue. The scenario is transferred to the server PC without Remote Desktop or server-side file copying.
 3. Scenarios built/exported by Scenario Builder include resolved waypoints and routes. If importing a scenario requiring sector data, import the corresponding sector/navdata into the instructor client first. The server does not invent missing STAR coordinates.
 4. Click **Start paused**, then **Copy student invite** once that slot's internet connection is ready. Send the invite to students directly from your client. No return to the server PC to collect per-slot codes is needed.

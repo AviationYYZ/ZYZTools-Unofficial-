@@ -4,12 +4,12 @@ class ServerManager extends EventEmitter{
   super();this.folder=folder;this.helper=helper;this.launch=options.launch||fork;this.quitting=false;this.sequence=0;
   fs.mkdirSync(folder,{recursive:true});this.file=path.join(folder,'servers.json');
   let saved={};if(fs.existsSync(this.file)){try{saved=JSON.parse(fs.readFileSync(this.file,'utf8'));}catch{throw Error('Server settings are unreadable. Preserve servers.json and restore a backup before continuing.');}}
-  this.config={startup:saved.startup===true,instructorEnabled:saved.instructorEnabled===true,slots:[1,2,3,4,5,6].map(id=>({id,name:String(saved.slots?.[id-1]?.name||'Server '+id).slice(0,80),autostart:saved.slots?.[id-1]?.autostart===true,engineMode:'zyztools',positionUpdateHz:0.2}))};
+  this.config={startup:saved.startup===true,instructorEnabled:saved.instructorEnabled===true,slots:[1,2,3].map(id=>({id,name:String(saved.slots?.[id-1]?.name||'Server '+id).slice(0,80),autostart:saved.slots?.[id-1]?.autostart===true,engineMode:'zyztools',positionUpdateHz:0.2}))};
   this.slots=this.config.slots.map(c=>({id:c.id,epoch:require('node:crypto').randomUUID(),child:null,pending:new Map(),state:'stopped',info:{},attempts:0,desired:false,log:[]}));
   for(const s of this.slots){let prior=saved.slots?.[s.id-1]?.jetSpeedProfile;if(prior===undefined){try{prior=JSON.parse(fs.readFileSync(path.join(folder,'server-'+s.id,'scenario.json'),'utf8')).jetSpeedProfile;}catch{}}s.jetSpeedProfile=engine('training-jet-profile').normalize(prior);this.config.slots[s.id-1].jetSpeedProfile=s.jetSpeedProfile;}
  }
  save(){const tmp=this.file+'.tmp';fs.writeFileSync(tmp,JSON.stringify(this.config,null,2));fs.renameSync(tmp,this.file);}
- slot(id){const s=this.slots.find(s=>s.id===id);if(!s)throw Error('Choose server 1 through 6.');return s;}
+ slot(id){const s=this.slots.find(s=>s.id===id);if(!s)throw Error('Choose server 1, 2 or 3.');return s;}
  dir(id){return path.join(this.folder,'server-'+this.slot(id).id);}
  log(s,message){const entry={time:new Date().toISOString(),message};s.log.push(entry);if(s.log.length>100)s.log.shift();fs.mkdirSync(this.dir(s.id),{recursive:true});const file=path.join(this.dir(s.id),'events.log');if(fs.existsSync(file)&&fs.statSync(file).size>128000)fs.renameSync(file,file+'.previous');fs.appendFileSync(file,entry.time+' '+message+'\n');}
  status(){return {instructorTagControls:false,instructorPilotControls:true,startup:this.config.startup,slots:this.slots.map(s=>({id:s.id,epoch:s.epoch,autostart:this.config.slots[s.id-1].autostart,engineMode:'zyztools',positionUpdateHz:this.config.slots[s.id-1].positionUpdateHz,hasScenario:fs.existsSync(path.join(this.dir(s.id),'scenario.json')),state:s.state,...s.info,jetSpeedProfile:s.jetSpeedProfile,scenarioName:s.info.name||'',name:this.config.slots[s.id-1].name,log:s.log.slice(-8)}))};}

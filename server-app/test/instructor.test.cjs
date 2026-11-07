@@ -11,9 +11,8 @@ test('instructor controls all slots remotely; student keys denied; uploads valid
  async function act(slot,action,payload,epoch=manager.slot(slot).epoch,requestId=crypto.randomUUID()){return req('/api/instructor/action',{requestId,slot,action,epoch,payload});}
  try{
   await hub.start();base='http://127.0.0.1:'+hub.port;assert.equal((await req('/api/instructor/status',undefined,'bad')).status,401);assert.equal((await req('/api/instructor/status')).data.role,'instructor');
-  for(const id of [1,2,3,4,5,6]){const raw=demo();raw.name='Uploaded '+id;raw.aircraft[1].spawnTime=60;assert.equal((await act(id,'import',{scenario:raw})).status,200);assert.equal((await act(id,'start')).status,200);}
-  const snapshots=[];for(const id of [1,2,3,4,5,6])snapshots[id]=(await req('/api/instructor/aircraft/'+id)).data;
-  assert.equal(snapshots[6].name,'Uploaded 6');
+  for(const id of [1,2,3]){const raw=demo();raw.name='Uploaded '+id;raw.aircraft[1].spawnTime=60;assert.equal((await act(id,'import',{scenario:raw})).status,200);assert.equal((await act(id,'start')).status,200);}
+  const snapshots=[];for(const id of [1,2,3])snapshots[id]=(await req('/api/instructor/aircraft/'+id)).data;
   assert(snapshots[1].aircraft.length===2);assert.notEqual(snapshots[1].sessionId,snapshots[2].sessionId);
   assert.equal(snapshots[1].role,'student-pilot');assert.equal(snapshots[1].readOnly,false);assert.equal(snapshots[1].allowPausedCommands,true);assert.equal(snapshots[1].capabilities.sessionAdministration,false);
   assert.equal((await act(1,'initialOwner',{sessionId:snapshots[1].sessionId,callsign:'TEACHER_CTR'})).status,400,'Old scenarios do not silently auto-assume');
