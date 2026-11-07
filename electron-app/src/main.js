@@ -1065,6 +1065,12 @@ ipcMain.handle("updates:check", async (_event, stream) => {
   return { tag: checkedRelease.tag, available: checkedRelease.available, essential: checkedRelease.essential, message: checkedRelease.message, currentVersionPublished: checkedRelease.currentVersionPublished };
 });
 let updateDownloadInProgress = false;
+let stagedEssentialUpdate;
+async function openUpdateInstaller(installer) {
+  const error = await shell.openPath(installer);
+  if (error) throw new Error(error);
+  setImmediate(() => app.quit());
+}
 ipcMain.handle("updates:download", async (_event, tag) => {
   const release = checkedRelease;
   if (channel.test || !release?.available || release.tag !== tag) throw new Error('Check again for the current update.');
@@ -1072,8 +1078,25 @@ ipcMain.handle("updates:download", async (_event, tag) => {
   updateDownloadInProgress = true;
   try {
     const installer = await updates.download(release, updateFolder(release));
-    if (!release.essential) shell.showItemInFolder(installer);
+    if (release.essential) stagedEssentialUpdate = release;
+    else await openUpdateInstaller(installer);
     return { essential: release.essential };
+  } finally { updateDownloadInProgress = false; }
+});
+ipcMain.handle("updates:installStaged", async (_event, tag) => {
+  const release = stagedEssentialUpdate;
+  if (channel.test || !release || release.tag !== tag || checkedRelease?.tag !== tag || !checkedRelease.essential) throw new Error('Download the current essential update first.');
+  if (updateDownloadInProgress) throw new Error('An update action is already in progress.');
+  updateDownloadInProgress = true;
+  try {
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: 'warning', message: 'Install the essential update now?',
+      detail: 'ZYZTools will close. If you are controlling or running training, choose Later and install after your session.',
+      buttons: ['Later', 'Install now'], defaultId: 0, cancelId: 0
+    });
+    if (response !== 1) return { installing: false };
+    await openUpdateInstaller(await updates.download(checkedRelease, updateFolder(release)));
+    return { installing: true };
   } finally { updateDownloadInProgress = false; }
 });
 ipcMain.handle("plugin:action", async (_event, folder, action, callsign) => {

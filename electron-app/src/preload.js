@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld("preferredCyyzPdc", {
   saveCustomTheme: (theme) => ipcRenderer.invoke('theme:saveCustom', theme),
   checkUpdates: (stream) => ipcRenderer.invoke("updates:check", stream),
   downloadUpdate: (tag) => ipcRenderer.invoke("updates:download", tag),
+  installStagedUpdate: (tag) => ipcRenderer.invoke("updates:installStaged", tag),
   publishTest: (options = {}) => ipcRenderer.invoke("test:publish", options),
   openTokenSettings: () => ipcRenderer.invoke("test:tokenSettings"),
   pluginAction: (folder, action, callsign) => ipcRenderer.invoke("plugin:action", folder, action, callsign),
