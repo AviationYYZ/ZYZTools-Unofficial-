@@ -388,7 +388,6 @@
     #updateNotice { margin: 10px 14px; padding: 10px 12px; border: 1px solid var(--accent); background: var(--panel); border-radius: 5px; }
     #updateNotice .buttons { margin-top: 6px; }
     #updateDownloadProgress { text-align:center; margin-top:8px; }
-    #updateDownloadRing { --progress:0%; width:42px; height:42px; margin:0 auto 4px; border-radius:50%; background:conic-gradient(var(--accent) var(--progress),var(--line) 0); mask:radial-gradient(transparent 55%,#000 58%); }
   </style>
   <link rel="stylesheet" href="vatcan-theme.css" />
   <link rel="stylesheet" href="custom-theme.css" />
@@ -432,7 +431,7 @@
       <div id="status" class="status">Loading...</div>
       <aside id="updateNotice" aria-label="App update" hidden>
         <div id="updateNoticeText" role="status"></div>
-        <div id="updateDownloadProgress" hidden><div id="updateDownloadRing" aria-hidden="true"></div><span id="updateDownloadPercent">0%</span></div>
+        <div id="updateDownloadProgress" hidden><span id="updateDownloadPercent">0%</span></div>
         <div class="buttons"><button id="updateNoticeDownload">Download now</button><button id="updateNoticeDismiss">Dismiss</button></div>
       </aside>
       <section id="install" class="active">

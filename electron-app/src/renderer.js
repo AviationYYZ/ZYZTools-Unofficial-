@@ -567,7 +567,6 @@ boot().catch((error) => setStatus(error.message, "error"));
 let offeredUpdate, updateCheckRunning = false, updateDownloading = false;
 const dismissedUpdates = new Set(), downloadedUpdates = new Set();
 function updateDownloadProgress(percent) {
-  $("updateDownloadRing").style.setProperty('--progress', percent + '%');
   $("updateDownloadPercent").textContent = percent + '%';
 }
 api.onUpdateProgress?.(({tag,percent}) => {
