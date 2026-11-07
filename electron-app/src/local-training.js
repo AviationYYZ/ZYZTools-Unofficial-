@@ -40,7 +40,7 @@ function normalize(raw){
 function geometry(a,b){const p=a.lat*rad,q=b.lat*rad,d=(b.lon-a.lon)*rad;const h=Math.sin((q-p)/2)**2+Math.cos(p)*Math.cos(q)*Math.sin(d/2)**2;return {distance:2*nm*Math.asin(Math.sqrt(Math.min(1,h))),bearing:wrap(Math.atan2(Math.sin(d)*Math.cos(q),Math.cos(p)*Math.sin(q)-Math.sin(p)*Math.cos(q)*Math.cos(d))/rad)};}
 function move(a,distance,heading){const p=a.lat*rad,l=a.lon*rad,t=heading*rad,d=distance/nm;const q=Math.asin(Math.sin(p)*Math.cos(d)+Math.cos(p)*Math.sin(d)*Math.cos(t));return {lat:q/rad,lon:((l+Math.atan2(Math.sin(t)*Math.sin(d)*Math.cos(p),Math.cos(d)-Math.sin(p)*Math.sin(q)))/rad+540)%360-180};}
 function approach(v,target,step){return v+Math.sign(target-v)*Math.min(Math.abs(target-v),step);}
-function position(a){return '@'+(a.identActive?'Y':a.squawkMode||'N')+':'+a.callsign+':'+a.squawk+':1:'+a.lat.toFixed(7)+':'+a.lon.toFixed(7)+':'+Math.round(a.groundSpeed??a.speed)+':'+((Math.round(wrap(a.groundTrack??a.heading)*1024/360)&1023)<<2)+':0';}
+function position(a){return '@'+(a.identActive?'Y':a.squawkMode||'N')+':'+a.callsign+':'+a.squawk+':1:'+a.lat.toFixed(7)+':'+a.lon.toFixed(7)+':'+Math.round(a.altitude)+':'+Math.round(a.groundSpeed??a.speed)+':'+((Math.round(wrap(a.groundTrack??a.heading)*1024/360)&1023)<<2)+':0';}
 // Delete-pilot's second field is a certificate ID, not a receiver/server name.
 // Local synthetic pilots have no network identity; use numeric dummy ID 0.
 function deletion(a){return '#DP'+a.callsign+':0';}

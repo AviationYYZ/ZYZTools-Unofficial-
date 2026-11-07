@@ -23,7 +23,12 @@ test('assigned IAS and heading stay fixed, radar gets actual ground speed and tr
  const a=s.aircraft[0],published=s.status().aircraft[0];
  assert.equal(a.ias,210);assert.equal(a.heading,0);assert(a.groundTrack>5);assert(a.lon>start.lon);
  assert.equal(published.speed,a.groundSpeed);assert.equal(published.trueAirspeed,a.speed);
- assert.equal(Number(position(a).split(':')[6]),Math.round(a.groundSpeed));
+ const fields=position(a).split(':');
+ assert.equal(fields.length,10,'FSD radar packets must keep altitude and speed in separate fields');
+ assert.deepEqual(fields.slice(0,4),['@N','TEST100','2001','1']);
+ assert.equal(Number(fields[6]),6000);
+ assert.equal(Number(fields[7]),Math.round(a.groundSpeed));
+ assert.equal(Number(fields[8]),(Math.round(a.groundTrack*1024/360)&1023)<<2);
 });
 test('crosswind-corrected localizer captures glide slope and lands on assigned runway',()=>{
  const r=require('../scenarios/CYYZ-West-65-Random-Close-15NM.json').runways.find(r=>r.name==='23'&&r.airport==='CYYZ');
