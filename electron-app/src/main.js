@@ -13,12 +13,27 @@ const buildInfo = require("../package.json");
 const { channel, destination, assertDestination } = require('./channel');
 let publicationInProgress = false;
 let checkedRelease = null;
-const { app, BrowserWindow, dialog, ipcMain, shell, safeStorage } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, shell, safeStorage, screen } = require("electron");
 app.setName(channel.name);
 app.setPath('userData', path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), channel.userDataName));
 
 let mainWindow = null;
 let discordPresence = null;
+let runtimeFolder, runtimeTimer, lastRuntimeNotice='';
+const dllGuard=new (require('./euroscope-runtime').DllGuard)({payload:payloadFolder,version:buildInfo.version});
+const runtimeState=()=>dllGuard.check(runtimeFolder||(runtimeFolder=installDestination(commandLinePluginFolder()||discoveredInstalledPluginFolder()||defaultParentFolder())));
+const recoveryChannels=new Set(['runtime:status','app:initialState','folder:browseParent','config:load','plugin:install','folder:open','appPolicy:state']);
+function guarded(channelName,handler){
+  ipcMain.handle(channelName,async(event,...args)=>{
+    if(!recoveryChannels.has(channelName)){
+      const safeStop=(channelName==='training:action'&&['pause','stop'].includes(args[0]))||
+        (channelName==='training:multiplayer'&&['stop','hostStop','connectorStop','tunnelStop'].includes(args[0]))||
+        (channelName==='training:instructor'&&args[0]==='disconnect');
+      if(!safeStop&&(await runtimeState()).blocked)throw Error('Close EuroScope and install the matching ZYZTools plugin DLL before using this feature.');
+    }
+    return handler(event,...args);
+  });
+}
 // EuroScope's classic direct connection uses fixed port 6809. Distinct loopback
 // addresses keep production and test training sources separate without custom ports.
 const localTraining=new (require('./local-training').LocalTraining)(channel.test?'127.0.0.1':'127.0.0.2',{liveWeather:process.env.ZYZTOOLS_CALM_WEATHER!=='1'});
@@ -244,6 +259,7 @@ function normalizeReplayCommand(value) {
 
 function normalizeTheme(value) {
   const theme = String(value || "current").trim().toLowerCase();
+  if (Object.hasOwn(require('./workspace-themes'),theme)) return theme;
   if (theme === "vatcan" || theme === "vatcansitu") return "vatcan";
   if (theme === "navcan" || theme === "navcanada") return "navcan";
   if (theme === "custom") return "custom";
@@ -334,8 +350,8 @@ function configPathForInstall(installFolder) {
 function loadConfig(installFolder) {
   const installed = readJsonIfExists(configPathForInstall(installFolder));
   assertDestination(installFolder, installed);
-  if (installed) return normalizeConfig(installed);
   const local = readJsonIfExists(localSettingsPath());
+  if (installed) return normalizeConfig({...installed,...(Object.hasOwn(require('./workspace-themes'),local?.ui_theme)?{ui_theme:local.ui_theme}:{})});
   if (local) return normalizeConfig(local);
   return normalizeConfig(loadPayloadDefaultConfig());
 }
@@ -357,14 +373,16 @@ function appExecutablePath() {
   return process.execPath;
 }
 
-function getInitialState() {
+function getInitialState(readOnly=false) {
   const launchFolder = commandLinePluginFolder();
   const discoveredFolder = launchFolder ? "" : discoveredInstalledPluginFolder();
   const initialFolder = launchFolder || discoveredFolder || defaultParentFolder();
   const installFolder = installDestination(initialFolder);
   const startupConfig = normalizeConfig({ ...loadConfig(installFolder), runway_assignment_config: "off" });
-  if (fs.existsSync(configPathForInstall(installFolder))) saveInstalledConfig(installFolder, startupConfig);
-  saveLocalConfig(startupConfig);
+  if(!readOnly){
+    if (fs.existsSync(configPathForInstall(installFolder))) saveInstalledConfig(installFolder, startupConfig);
+    saveLocalConfig(startupConfig);
+  }
   return {
     isTestBuild: buildInfo.zyzBuildChannel === 'test',
     appDisplayName: channel.name,
@@ -832,6 +850,38 @@ function selectedUpdateStream() {
   catch { return 'stable'; }
 }
 let checkingStartupUpdate = false;
+let appPolicy;
+let policyAdminPassword;
+let policyAdminSession=0;
+function policyAnnouncement(value) {
+  const folder=path.join(app.getPath('appData'),'ZYZTools','Announcements');
+  const target=path.join(folder,channel.test?'test.txt':'regular.txt');
+  try{
+    fs.mkdirSync(folder,{recursive:true});
+    const announcement=value.announcement;
+    const raw=announcement?require('node:crypto').createHash('sha256').update(JSON.stringify(announcement)).digest('hex')+'\n'+Math.floor(announcement.until/1000)+'\n'+announcement.message.replace(/[\u0000-\u001f\u007f]/g,' '):'';
+    if(fs.existsSync(target)&&fs.readFileSync(target,'utf8')===raw)return;
+    fs.writeFileSync(target+'.tmp',raw,'utf8');fs.renameSync(target+'.tmp',target);
+  }catch{/* An unavailable local bridge must not interrupt controlling. */}
+}
+function windowsPolicyAdminPassword(){
+  const saved=path.join(app.getPath('userData'),'admin-enrollment.bin');
+  if(fs.existsSync(saved)){
+    try{
+      if(!safeStorage.isEncryptionAvailable())throw Error();
+      const key=safeStorage.decryptString(fs.readFileSync(saved));
+      if(!/^[a-f0-9]{64}$/i.test(key))throw Error();
+      return Promise.resolve(key);
+    }catch{return Promise.reject(Error('This saved Windows enrollment cannot be read. Forget it and enroll again.'));}
+  }
+  const ps=path.join(process.env.SystemRoot||'C:\\Windows','System32','WindowsPowerShell','v1.0','powershell.exe');
+  const command="$ProgressPreference='SilentlyContinue'; $ErrorActionPreference='Stop'; $file=Join-Path $env:LOCALAPPDATA 'ZYZTools/Private/global-admin-key.clixml'; if(Test-Path -LiteralPath $file -PathType Leaf){(Import-Clixml -LiteralPath $file).GetNetworkCredential().Password}";
+  return new Promise((resolve,reject)=>childProcess.execFile(ps,['-NoProfile','-NonInteractive','-Command',command],{windowsHide:true,timeout:5000,maxBuffer:2048},(error,stdout)=>{
+    const key=stdout.trim();
+    if(error||!/^[a-f0-9]{64}$/i.test(key))reject(Error('This Windows account has not been enrolled for administration.'));
+    else resolve(key);
+  }));
+}
 const updateFolder = release => path.join(app.getPath('userData'), 'updates', release.tag);
 async function startEssentialUpdate() {
   // The development app must never replace itself with the consumer installer.
@@ -870,19 +920,83 @@ app.whenReady().then(async () => {
   checkingStartupUpdate = false;
   if (installing) { app.quit(); return; }
   createWindow();
-  ensureDiscordPresence();
+  if(!(await runtimeState()).blocked)ensureDiscordPresence();
+  runtimeTimer=setInterval(async()=>{
+    const value=await runtimeState(),signature=JSON.stringify(value);
+    if(signature!==lastRuntimeNotice&&mainWindow&&!mainWindow.isDestroyed()){
+      lastRuntimeNotice=signature;mainWindow.webContents.send('runtime:changed',value);
+    }
+  },2000);
+  appPolicy = new (require('./app-policy').AppPolicyClient)({
+    file:path.join(app.getPath('userData'),'app-policy-cache.json'),
+    onChange: value => { policyAnnouncement(value);if(mainWindow && !mainWindow.isDestroyed())mainWindow.webContents.send('appPolicy:changed',value); }
+  });
+  policyAnnouncement(appPolicy.snapshot());
+  appPolicy.start();
 });
 
 app.on("window-all-closed", () => {
   if (!checkingStartupUpdate && process.platform !== "darwin") app.quit();
 });
 
-app.on('before-quit', () => { trainingCommandBridge.close();instructorClient.disconnect();trainingTunnel.stop();trainingConnector.stop();trainingMultiplayer.stop();localTraining.stop();discordPresence?.stop().catch(() => {}); });
-ipcMain.handle('discord:load', async (_event, folder) => {
+app.on('before-quit', () => { clearInterval(runtimeTimer);appPolicy?.stop();trainingCommandBridge.close();instructorClient.disconnect();trainingTunnel.stop();trainingConnector.stop();trainingMultiplayer.stop();localTraining.stop();discordPresence?.stop().catch(() => {}); });
+guarded('runtime:status',(_event,folder)=>{
+  if(typeof folder==='string'&&folder)runtimeFolder=installDestination(folder);
+  return runtimeState();
+});
+const launchPresetsFile=()=>path.join(app.getPath('userData'),'euroscope-launch.json');
+function launchConfig(){
+  const raw=readJsonIfExists(launchPresetsFile());
+  if(raw)return require('./euroscope-launch').normalize(raw);
+  const exe=path.join(process.env['ProgramFiles(x86)']||'C:\\Program Files (x86)','EuroScope','EuroScope.exe');
+  return {exe:fs.existsSync(exe)?exe:'',presets:[],selected:''};
+}
+guarded('launch:state',()=>({config:launchConfig(),displays:screen.getAllDisplays().map((d,i)=>({id:String(d.id),label:d.label||'Monitor '+(i+1),width:d.workArea.width,height:d.workArea.height}))}));
+guarded('launch:pick',async(_event,kind)=>{
+  const types={exe:['EuroScope executable','exe'],profile:['EuroScope profile','prf'],asr:['EuroScope radar display','asr']};
+  if(!Object.hasOwn(types,kind))throw Error('Invalid file type.');
+  const [name,extension]=types[kind];
+  const result=await dialog.showOpenDialog(mainWindow,{title:'Choose '+name,properties:['openFile'],filters:[{name,extensions:[extension]}]});
+  return result.canceled?'':result.filePaths[0];
+});
+guarded('launch:save',(_event,value)=>{
+  const config=require('./euroscope-launch').normalize(value);
+  const file=launchPresetsFile();
+  fs.writeFileSync(file+'.tmp',JSON.stringify(config,null,2));fs.renameSync(file+'.tmp',file);return config;
+});
+let launchingEuroScope=false;
+guarded('launch:open',async(_event,id)=>{
+  if(launchingEuroScope)throw Error('A launch is already in progress.');
+  launchingEuroScope=true;
+  try{return await require('./euroscope-launch').launch(launchConfig(),id,{screen});}
+  finally{launchingEuroScope=false;}
+});
+guarded('appPolicy:state',()=>appPolicy?.snapshot());
+guarded('appPolicy:redeem',(_event,code)=>appPolicy.redeem(code));
+guarded('appPolicy:adminSignIn',async(_event,provided,remember=false)=>{
+  const session=++policyAdminSession;
+  const key=provided??await windowsPolicyAdminPassword();
+  const result=await appPolicy.admin(key,{action:'status'});
+  if(session!==policyAdminSession)throw Error('Admin sign-in was canceled.');
+  if(remember===true){
+    if(!safeStorage.isEncryptionAvailable())throw Error('Windows-encrypted credential storage is not available.');
+    const file=path.join(app.getPath('userData'),'admin-enrollment.bin');
+    fs.writeFileSync(file+'.tmp',safeStorage.encryptString(key));fs.renameSync(file+'.tmp',file);
+  }
+  policyAdminPassword=key;return result;
+});
+guarded('appPolicy:adminSignOut',()=>{policyAdminSession++;policyAdminPassword=undefined;});
+guarded('appPolicy:adminForget',()=>{policyAdminSession++;policyAdminPassword=undefined;const file=path.join(app.getPath('userData'),'admin-enrollment.bin');if(fs.existsSync(file))fs.unlinkSync(file);});
+guarded('appPolicy:admin',(_event,action)=>{
+  if(!policyAdminPassword)throw Error('Sign in to administer ZYZTools.');
+  return appPolicy.admin(policyAdminPassword,action);
+});
+guarded('discord:load', async (_event, folder) => {
   const service = ensureDiscordPresence(folder);
   return { config: service.config, status: service.status, preview: service.preview };
 });
-ipcMain.handle('discord:save', async (_event, folder, value) => {
+guarded('discord:save', async (_event, folder, value) => {
+  appPolicy?.assert('discord');
   const target = installDestination(folder);
   assertDestination(target, readJsonIfExists(configPathForInstall(target)));
   const service = ensureDiscordPresence();
@@ -891,8 +1005,10 @@ ipcMain.handle('discord:save', async (_event, folder, value) => {
   return { config: service.config, status: service.status, preview: service.preview };
 });
 
-ipcMain.handle("app:initialState", async () => getInitialState());
-ipcMain.handle('training:action',async(_event,action,value)=>{
+guarded("app:initialState", async () => {const status=await runtimeState();return {...getInitialState(status.blocked),runtime:status};});
+guarded('training:action',async(_event,action,value)=>{
+  if(['load','demo','start'].includes(action))appPolicy?.assert('localTraining');
+  if(['routePreview','speedRules'].includes(action))appPolicy?.assert('scenarioBuilder');
   if(action==='status')return localTraining.status();
   if(action==='updateRate')return localTraining.updateRate(value);
   if(action==='speedProfile')return localTraining.speedProfile(value.profile);
@@ -913,19 +1029,24 @@ ipcMain.handle('training:action',async(_event,action,value)=>{
   }
   throw Error('Unknown local training action.');
 });
-ipcMain.handle('training:save',async(_event,value)=>{
+guarded('training:save',async(_event,value)=>{
+  appPolicy?.assert('scenarioBuilder');
+  appPolicy?.assert('scenarioExport');
   const scenario=require('./local-training').normalize(prepareTraining(value));
   const result=await dialog.showSaveDialog(mainWindow,{title:'Export initial training scenario',defaultPath:path.join(app.getPath('documents'),scenario.name.replace(/[^A-Za-z0-9_-]/g,'_')+'.zyztraining.json'),filters:[{name:'ZYZTools training',extensions:['json']}]});
   if(result.canceled||!result.filePath)return false;
   fs.writeFileSync(result.filePath,JSON.stringify(scenario,null,2),'utf8');return true;
 });
-ipcMain.handle('training:load',async()=>{
+guarded('training:load',async()=>{
+  appPolicy?.assert('localTraining');
+  appPolicy?.assert('scenarioImport');
   if(localTraining.server)throw Error('Stop the local server before importing a scenario.');
   const result=await dialog.showOpenDialog(mainWindow,{title:'Import training / EuroScope SweatBox scenario',properties:['openFile'],filters:[{name:'Training scenarios',extensions:['json','txt']}]});
   if(result.canceled)return null;
   const scenario=await readTrainingImport(result.filePaths[0]);return scenario?localTraining.load(scenario):null;
 });
-ipcMain.handle('training:sector',async(_event,choose=false)=>{
+guarded('training:sector',async(_event,choose=false)=>{
+  if(choose)appPolicy?.assert('scenarioBuilder');
   if(choose==='clearAsr'){const data={...getTrainingSector()};delete data.profile;fs.writeFileSync(sectorFile(),JSON.stringify(data),'utf8');trainingSector=data;}
   else if(choose==='asr'){
     if(!getTrainingSector().geometry?.length)throw Error('Import your sector file again first so named display layers are available.');
@@ -938,7 +1059,9 @@ ipcMain.handle('training:sector',async(_event,choose=false)=>{
   }
   const data=getTrainingSector();return {...data,navPointCount:data.navPoints?.length||0,airwayCount:data.airways?.length||0,procedureCount:data.procedures?.length||0,navPoints:undefined,airways:undefined,procedures:undefined};
 });
-ipcMain.handle('training:multiplayer',async(_event,action,value)=>{
+guarded('training:multiplayer',async(_event,action,value)=>{
+ if(['inviteJoin','connectorStart'].includes(action))appPolicy?.assert('trainingStudent');
+ if(['hostStart','start','tunnelStart','inviteCopy'].includes(action)){appPolicy?.assert('localTraining');appPolicy?.assert('trainingHost');}
  if(action==='inviteCopy'){const t=trainingTunnel.status();if(t.state!=='ready'||!trainingMultiplayer.server)throw Error('Wait for the internet tunnel to be ready.');require('electron').clipboard.writeText(require('./training-invite').makeInvite(t.url,trainingMultiplayer.token));return {copied:true};}
  if(action==='invitePaste')return {invite:require('electron').clipboard.readText()};
  if(action==='copyConnectorAddress'){if(!trainingConnector.server)throw Error('Join the host first.');require('electron').clipboard.writeText(trainingConnector.host);return {copied:true};}
@@ -966,8 +1089,10 @@ ipcMain.handle('training:multiplayer',async(_event,action,value)=>{
  if(action==='open'){if(!trainingMultiplayer.server)throw Error('Start shared control first.');await shell.openExternal(trainingMultiplayer.status().url);return trainingMultiplayer.status();}
  throw Error('Unknown multiplayer action.');
 });
-ipcMain.handle('training:instructor',async(event,action,value={})=>{
+guarded('training:instructor',async(event,action,value={})=>{
  if(event.sender!==mainWindow?.webContents||event.senderFrame!==mainWindow.webContents.mainFrame)throw Error('Invalid sender.');
+ if(['connect','restore','upload','connectEuroScope','studentInvite','action'].includes(action))appPolicy?.assert('trainingInstructor');
+ if(action==='upload')appPolicy?.assert('scenarioImport');
  if(action==='status')return instructorClient.status();
  if(action==='connect')return instructorClient.connect(value.pairing,value.remember===true);
  if(action==='restore')return instructorClient.restore();
@@ -996,19 +1121,21 @@ ipcMain.handle('training:instructor',async(event,action,value={})=>{
  if(action==='action')return instructorClient.action(value.slot,value.action,value.epoch,value.payload);
  throw Error('Unknown instructor action.');
 });
-ipcMain.handle('conflict:load', async (_event, folder) => {
+guarded('conflict:load', async (_event, folder) => {
   const target=installDestination(folder);
   assertDestination(target, readJsonIfExists(configPathForInstall(target)));
   const settings=require('./conflict-settings');
   return {config:settings.load(target),snapshot:settings.snapshot(target)};
 });
-ipcMain.handle('conflict:save', async (_event, folder, config) => {
+guarded('conflict:save', async (_event, folder, config) => {
+  appPolicy?.assert('conflictSettings');
   const target=installDestination(folder);
   assertDestination(target, readJsonIfExists(configPathForInstall(target)));
   const settings=require('./conflict-settings');
   return {config:settings.save(target,config),snapshot:settings.snapshot(target)};
 });
-ipcMain.handle('conflict:sound', async (_event, folder, kind) => {
+guarded('conflict:sound', async (_event, folder, kind) => {
+  appPolicy?.assert('conflictSettings');
   if(!['caution','urgent'].includes(kind))throw Error('Unknown alert sound.');
   const target=installDestination(folder);
   assertDestination(target, readJsonIfExists(configPathForInstall(target)));
@@ -1025,7 +1152,7 @@ function loadCustomTheme() {
   try { return require('./custom-theme').normalize(JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'custom-theme.json'), 'utf8'))); }
   catch { return require('./custom-theme').normalize(); }
 }
-ipcMain.handle('theme:saveCustom', async (_event, value) => {
+guarded('theme:saveCustom', async (_event, value) => {
   const theme = require('./custom-theme').normalize(value);
   fs.mkdirSync(app.getPath('userData'), { recursive: true });
   const target = path.join(app.getPath('userData'), 'custom-theme.json');
@@ -1033,8 +1160,8 @@ ipcMain.handle('theme:saveCustom', async (_event, value) => {
   fs.renameSync(target + '.tmp', target);
   return theme;
 });
-ipcMain.handle("test:tokenSettings", async () => shell.openExternal('https://github.com/settings/personal-access-tokens/new'));
-ipcMain.handle("test:publish", async (_event, options = {}) => {
+guarded("test:tokenSettings", async () => shell.openExternal('https://github.com/settings/personal-access-tokens/new'));
+guarded("test:publish", async (_event, options = {}) => {
   if (!channel.test) throw new Error("Beta publishing is available only in ZYZTools test.");
   if (publicationInProgress) throw new Error("A beta publication is already running.");
   let token = String(options.token || "").trim() || publishingAuth.load(app.getPath("userData"), safeStorage);
@@ -1054,7 +1181,7 @@ ipcMain.handle("test:publish", async (_event, options = {}) => {
     return result;
   } finally { token = null; publicationInProgress = false; }
 });
-ipcMain.handle("updates:check", async (_event, stream) => {
+guarded("updates:check", async (_event, stream) => {
   stream = stream === 'beta' ? 'beta' : stream === 'stable' ? 'stable' : selectedUpdateStream();
   if (selectedUpdateStream() !== stream) {
     fs.mkdirSync(app.getPath('userData'), { recursive: true });
@@ -1080,7 +1207,7 @@ async function openUpdateInstaller(installer, essentialTag) {
   if (error) throw new Error(error);
   setImmediate(() => app.quit());
 }
-ipcMain.handle("updates:download", async (_event, tag) => {
+guarded("updates:download", async (_event, tag) => {
   const release = checkedRelease;
   if (channel.test || !release?.available || release.tag !== tag) throw new Error('Check again for the current update.');
   if (updateDownloadInProgress) throw new Error('An update is already downloading.');
@@ -1094,7 +1221,7 @@ ipcMain.handle("updates:download", async (_event, tag) => {
     return { essential: release.essential };
   } finally { updateDownloadInProgress = false; }
 });
-ipcMain.handle("updates:installStaged", async (_event, tag) => {
+guarded("updates:installStaged", async (_event, tag) => {
   const release = stagedEssentialUpdate;
   if (channel.test || !release || release.tag !== tag || checkedRelease?.tag !== tag || !checkedRelease.essential) throw new Error('Download the current essential update first.');
   if (updateDownloadInProgress) throw new Error('An update action is already in progress.');
@@ -1110,12 +1237,12 @@ ipcMain.handle("updates:installStaged", async (_event, tag) => {
     return { installing: true };
   } finally { updateDownloadInProgress = false; }
 });
-ipcMain.handle("plugin:action", async (_event, folder, action, callsign) => {
+guarded("plugin:action", async (_event, folder, action, callsign) => {
   loadConfig(folder);
   return sendPluginAction(folder, action, callsign);
 });
 
-ipcMain.handle("folder:browseParent", async (_event, currentPath) => {
+guarded("folder:browseParent", async (_event, currentPath) => {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: "Choose the EuroScope parent folder",
     defaultPath: currentPath || defaultParentFolder(),
@@ -1129,21 +1256,34 @@ ipcMain.handle("folder:browseParent", async (_event, currentPath) => {
   };
 });
 
-ipcMain.handle("config:load", async (_event, installFolder) => loadConfig(installFolder));
+guarded("config:load", async (_event, installFolder) => loadConfig(installFolder));
 
-ipcMain.handle("config:saveLocal", async (_event, config) => {
+function enforcePolicyConfig(previous,next){
+  const groups={
+    operations:['pdc_template_bridge','pdc_template_hoppie','runway_assignment_config','arrival_assignment_enabled','arrival_assignment_flow','confirm_every_pdc','pdc_sound_enabled','ifr_sound_enabled','send_sound_enabled'],
+    hoppie:['hoppie_enabled','hoppie_logon_code','station_code','poll_seconds'],
+    sidMatrix:['runway_assignments'],
+    replay:Object.keys(DEFAULT_CONFIG).filter(k=>k.startsWith('audio_replay_')||k==='trackaudio_version')
+  };
+  for(const [feature,keys] of Object.entries(groups))
+    if(keys.some(key=>JSON.stringify(previous[key])!==JSON.stringify(next[key])))appPolicy?.assert(feature);
+}
+guarded("config:saveLocal", async (_event, config) => {
   const normalized = normalizeConfig(config);
+  enforcePolicyConfig(normalizeConfig(readJsonIfExists(localSettingsPath())||{}),normalized);
   saveLocalConfig(normalized);
   return normalized;
 });
 
-ipcMain.handle("config:saveInstalled", async (_event, installFolder, config) => {
+guarded("config:saveInstalled", async (_event, installFolder, config) => {
   const previous = loadConfig(installFolder);
   const normalized = normalizeConfig({
     ...config,
     settings_app_path: appExecutablePath()
   });
+  enforcePolicyConfig(previous,normalized);
   saveInstalledConfig(installFolder, normalized);
+  try{appPolicy?.assert('replay');appPolicy?.assert('replayCapture');}catch{return normalized;}
 
   // If the user saved an installed config that toggles audio replay, try to
   // bring the replay helper in line with the saved setting so changes take
@@ -1219,11 +1359,14 @@ ipcMain.handle("config:saveInstalled", async (_event, installFolder, config) => 
   return normalized;
 });
 
-ipcMain.handle("plugin:install", async (_event, parentFolder, config) => installEuroScopePayload(parentFolder, config));
+guarded("plugin:install", async (_event, parentFolder, config) => {
+  if((await dllGuard.check(installDestination(parentFolder),true)).running)throw Error('Close EuroScope before installing the plugin DLL.');
+  const result=installEuroScopePayload(parentFolder,config);runtimeFolder=result.destination;return result;
+});
 
-ipcMain.handle("trackAudio:status", async (_event, selection) => inspectTrackAudioTap(selection));
+guarded("trackAudio:status", async (_event, selection) => inspectTrackAudioTap(selection));
 
-ipcMain.handle("trackAudio:applyTap", async (_event, selection) => {
+guarded("trackAudio:applyTap", async (_event, selection) => {
   const applyMessage = installTrackAudioTap(selection);
   return {
     ...inspectTrackAudioTap(selection),
@@ -1231,28 +1374,35 @@ ipcMain.handle("trackAudio:applyTap", async (_event, selection) => {
   };
 });
 
-ipcMain.handle("folder:open", async (_event, folder) => {
+guarded("folder:open", async (_event, folder) => {
   if (!folder) return false;
   fs.mkdirSync(folder, { recursive: true });
   await shell.openPath(folder);
   return true;
 });
 
-ipcMain.handle("recordings:list", async (_event, installFolder, config) => listRecordings(installFolder, normalizeConfig(config)));
+guarded("recordings:list", async (_event, installFolder, config) => listRecordings(installFolder, normalizeConfig(config)));
 
-ipcMain.handle("recordings:play", async (_event, filePath) => {
+guarded("recordings:play", async (_event, filePath) => {
+  appPolicy?.assert('replay');appPolicy?.assert('replayPlayback');
   if (!filePath || !fs.existsSync(filePath)) throw new Error("Recording file is missing.");
   await shell.openPath(filePath);
   return true;
 });
 
-ipcMain.handle("statistics:list", async (_event, installFolder) => listStatistics(installFolder));
-ipcMain.handle("statistics:open", async (_event, filePath) => {
+guarded("statistics:list", async (_event, installFolder) => listStatistics(installFolder));
+guarded("statistics:open", async (_event, filePath) => {
+  appPolicy?.assert('statistics');
   if (!filePath || !fs.existsSync(filePath)) throw new Error("Statistics spreadsheet is missing.");
   await shell.openPath(filePath);
   return true;
 });
 
-ipcMain.handle("statistics:saveLatest", async (_event, installFolder) => saveLatestStatistics(installFolder));
+guarded("statistics:saveLatest", async (_event, installFolder) => {appPolicy?.assert('statistics');return saveLatestStatistics(installFolder);});
 
-ipcMain.handle("audioReplay:command", async (_event, command) => sendAudioReplayCommand(command));
+guarded("audioReplay:command", async (_event, command) => {
+  const operation=String(command).trim().toLowerCase();
+  if(!['status','stop'].includes(operation))appPolicy?.assert('replay');
+  if(/^(save|start)\b/.test(operation))appPolicy?.assert('replayCapture');
+  return sendAudioReplayCommand(command);
+});

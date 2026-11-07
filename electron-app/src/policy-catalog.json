@@ -1,0 +1,18 @@
+{
+  "operations": {"label":"Operations","group":"Controller tools","target":"#operations"},
+  "hoppie": {"label":"Hoppie","group":"Controller tools","target":"#hoppie"},
+  "sidMatrix": {"label":"SID Matrix","group":"Controller tools","target":"#sids"},
+  "conflictSettings": {"label":"Conflict alerts","group":"Controller tools","target":"#conflicts"},
+  "trainingStudent": {"label":"Student connection","group":"Sweatbox","target":"[data-training-pane=student]"},
+  "trainingInstructor": {"label":"Instructor controls","group":"Sweatbox","target":"[data-training-pane=instructor]"},
+  "localTraining": {"label":"Local practice","group":"Sweatbox","target":"[data-training-pane=local]"},
+  "scenarioBuilder": {"label":"Scenario Builder","group":"Sweatbox","target":"#trainingBuilder"},
+  "scenarioImport": {"label":"Scenario import","group":"Sweatbox features","target":"#trainingLoad"},
+  "scenarioExport": {"label":"Scenario export","group":"Sweatbox features","target":"#trainingSave"},
+  "trainingHost": {"label":"Share local training","group":"Sweatbox features","target":"#trainingHostQuick"},
+  "replay": {"label":"Replay and Recordings","group":"Session history","target":"#replay"},
+  "replayCapture": {"label":"Replay capture","group":"Session history features","target":"#saveReplayBtn"},
+  "replayPlayback": {"label":"Recording playback","group":"Session history features","target":"#recordingsTable"},
+  "statistics": {"label":"Statistics","group":"Session history","target":"#statistics"},
+  "discord": {"label":"Discord status","group":"Integrations","target":"#discord"}
+}

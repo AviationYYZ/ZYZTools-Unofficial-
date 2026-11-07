@@ -33,6 +33,13 @@ try{
  assert.equal((await admin({action:'delete',id:policy.codes[0].id})).status,200);
  assert.equal((await call('POST','/v2/redeem',{code},'','192.0.2.43')).status,403);
  p=await call('GET','/v2/policy');assert.equal(p.status,200);const publicPolicy=await p.json();assert.equal(publicPolicy.rules.scenarioBuilder,'code');assert(!Object.hasOwn(publicPolicy,'codes'));
+ p=await admin({action:'createAdmin',label:'Test instructor'});assert.equal(p.status,200);const delegated=await p.json();
+ assert.match(delegated.adminCredential,/^[a-f0-9]{64}$/);assert(!Object.hasOwn(delegated.admins[0],'hash'));
+ const delegate=(action)=>call('POST','/v2/admin',{action},delegated.adminCredential,'192.0.2.44');
+ p=await delegate('status');assert.equal(p.status,200);assert.equal((await p.json()).owner,false);
+ assert.equal((await delegate('createAdmin')).status,403);
+ assert.equal((await admin({action:'revokeAdmin',id:delegated.admins[0].id})).status,200);
+ assert.equal((await delegate('status')).status,403);
  ws.close();
  let r=await call('GET','/health');assert.equal(r.status,200);assert.equal((await r.json()).service,'ZYZTools Room Directory');assert.equal(r.headers.get('cache-control'),'no-store');assert(!r.headers.has('Access-Control-Allow-Origin'));
  const value={url:'https://synthetic-room.trycloudflare.com',token:'a'.repeat(64)};

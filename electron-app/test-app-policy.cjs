@@ -8,14 +8,14 @@ test('policy gates apply in the main process, and code edits invalidate prior gr
   assert.match(opts.headers.Authorization,/^Bearer [a-f0-9]{64}$/);return Response.json({ok:true});
  }});
  await app.refresh();
- assert.throws(()=>app.assert('replay'),/access code/);
+ assert.throws(()=>app.assert('replay'),/requires access/);
  assert.throws(()=>app.assert('discord'),/disabled/);
  await assert.rejects(app.admin('67g7z28s',{action:'status'}),/private/);
  await app.redeem('A'.repeat(24));
  assert.doesNotThrow(()=>app.assert('replay'));
  state={...state,revision:1,maintenance:true};
  await app.refresh();
- assert.throws(()=>app.assert('replay'),/access code/);
+ assert.throws(()=>app.assert('replay'),/requires access/);
  assert.throws(()=>app.assert('localTraining'),/maintenance/);
  assert.equal((await app.admin('a'.repeat(64),{action:'status'})).ok,true);
 });

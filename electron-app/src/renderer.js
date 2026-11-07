@@ -14,6 +14,14 @@ let customTheme = window.ZyzCustomTheme.normalize();
 const customFields = { background: 'customBackground', header: 'customHeader', navigation: 'customNavigation', panel: 'customPanel', text: 'customText', muted: 'customMuted', accent: 'customAccent', title: 'customTitle', font: 'customFont', layout: 'customLayout', titleSize: 'customTitleSize', radius: 'customRadius', titleCase: 'customTitleCase' };
 
 const $ = (id) => document.getElementById(id);
+function setRuntimeStatus(state){
+  if(!state)return;
+  window.zyzRuntime=state;
+  window.dispatchEvent(new CustomEvent('zyz:runtime',{detail:state}));
+}
+api.onRuntimeStatus?.(setRuntimeStatus);
+const workspaceThemes = window.ZYZWorkspaceThemes;
+for (const [id, { label }] of Object.entries(workspaceThemes)) $("workspaceThemeOptions").append(new Option(label,id));
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -39,6 +47,7 @@ function setInstalled(value) {
 
 function normalizeTheme(value) {
   const theme = String(value || "current").trim().toLowerCase();
+  if (Object.hasOwn(workspaceThemes,theme)) return theme;
   if (theme === "vatcan" || theme === "vatcansitu") return "vatcan";
   if (theme === "navcan" || theme === "navcanada") return "navcan";
   if (theme === "custom") return "custom";
@@ -49,11 +58,22 @@ function normalizeTheme(value) {
 function applyTheme(value) {
   const theme = normalizeTheme(value);
   document.body.dataset.theme = theme;
+  window.dispatchEvent(new CustomEvent('zyz:theme',{detail:theme}));
+  const workspace = workspaceThemes[theme];
+  for (const key of Object.keys(workspaceThemes.spaces.variables)) document.body.style.removeProperty(key);
   for (const key of Object.keys(window.ZyzCustomTheme.variables(customTheme))) document.body.style.removeProperty(key);
   if (theme === 'custom') {
     for (const [key, value] of Object.entries(window.ZyzCustomTheme.variables(customTheme))) document.body.style.setProperty(key, value);
     document.body.dataset.customLayout = customTheme.layout;
   } else delete document.body.dataset.customLayout;
+  if (workspace) {
+    document.body.dataset.workspaceLayout = workspace.layout;
+    document.body.toggleAttribute('data-workspace-dark',workspace.dark);
+    for (const [key,value] of Object.entries(workspace.variables)) document.body.style.setProperty(key,value);
+  } else {
+    delete document.body.dataset.workspaceLayout;
+    document.body.removeAttribute('data-workspace-dark');
+  }
   $('customThemeEditor').hidden = theme !== 'custom';
   updateThemeTitle();
   if ($("uiTheme")) $("uiTheme").value = theme;
@@ -378,6 +398,7 @@ async function boot() {
   $("appTitle").textContent = state.appDisplayName;
   document.title = state.appDisplayName;
   currentAppVersion = state.appVersion;
+  setRuntimeStatus(state.runtime);
   $("testPublishPanel").hidden = !state.isTestBuild;
   parentFolder = state.defaultParentFolder;
   installFolder = state.installFolder;
@@ -396,6 +417,10 @@ async function boot() {
 
 document.querySelectorAll("nav button[data-tab]").forEach((button) => {
   button.addEventListener("click", async () => {
+    if(window.zyzRuntime?.blocked&&button.dataset.tab!=='install'){
+      setStatus('Close EuroScope, then install the matching plugin DLL.','error');
+      document.querySelector('[data-tab=install]').click();return;
+    }
     const group = button.closest("details");
     if (group) group.open = true;
     document.querySelectorAll("nav button[data-tab]").forEach((item) => {
@@ -443,6 +468,7 @@ $("browseBtn").addEventListener("click", async () => {
   if (result.canceled) return;
   parentFolder = result.parentFolder;
   installFolder = result.installFolder;
+  api.runtimeStatus?.(installFolder).then(setRuntimeStatus).catch(()=>{});
   $("parentFolder").value = parentFolder;
   $("installFolder").textContent = installFolder;
   configToForm(await api.loadConfig(installFolder));
@@ -455,6 +481,7 @@ $("installPluginBtn").addEventListener("click", async () => {
   try {
     const result = await api.installPlugin(parentFolder, formToConfig());
     installFolder = result.destination;
+    api.runtimeStatus?.(installFolder).then(setRuntimeStatus).catch(()=>{});
     $("installFolder").textContent = installFolder;
     configToForm(result.config);
     setInstalled(true);

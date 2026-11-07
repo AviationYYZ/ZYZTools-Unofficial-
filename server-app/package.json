@@ -1,7 +1,7 @@
 {
  "name":"zyztools-server-test",
- "version":"0.4.18",
- "description":"Three isolated local ZYZTools sweatbox servers",
+ "version":"2.0.0",
+ "description":"Six isolated local ZYZTools sweatbox servers",
  "author":"Charlie Yablon and Elliot Potts",
  "main":"src/main.cjs",
  "scripts":{"dist":"node build.cjs","test":"node --test --test-concurrency=1 test/*.test.cjs"},

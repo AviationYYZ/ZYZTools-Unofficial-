@@ -391,6 +391,8 @@
   </style>
   <link rel="stylesheet" href="vatcan-theme.css" />
   <link rel="stylesheet" href="custom-theme.css" />
+  <link rel="stylesheet" href="workspace-themes.css" />
+  <link rel="stylesheet" href="workspace-ui.css" />
 </head>
 <body data-theme="current">
   <header>
@@ -402,38 +404,18 @@
   </header>
 
   <main>
-    <nav aria-label="ZYZTools menu">
-      <details class="menu-group" name="zyz-menu" open><summary>App settings</summary><div class="menu-pages">
-        <button data-tab="install" class="primary" aria-current="page">Install / Link</button>
-        <button data-tab="appearance">Appearance</button>
-        <button data-tab="advanced">Advanced</button>
-      </div></details>
-      <details class="menu-group" name="zyz-menu"><summary>Controller tools</summary><div class="menu-pages">
-        <button data-tab="operations">Operations</button>
-        <button data-tab="hoppie">Hoppie</button>
-        <button data-tab="sids">SID Matrix</button>
-        <button data-tab="conflicts">Conflict alerts</button>
-      </div></details>
-      <details class="menu-group" name="zyz-menu"><summary>Sweatbox</summary><div class="menu-pages">
-        <button data-tab="training">Training</button>
-        <button data-tab="trainingBuilder">Scenario Builder</button>
-      </div></details>
-      <details class="menu-group" name="zyz-menu"><summary>Session history</summary><div class="menu-pages">
-        <button data-tab="replay">Replay &amp; Recordings</button>
-        <button data-tab="statistics">Statistics</button>
-      </div></details>
-      <details class="menu-group" name="zyz-menu"><summary>Integrations</summary><div class="menu-pages">
-        <button data-tab="discord">Discord status</button>
-      </div></details>
-    </nav>
+    <nav aria-label="ZYZTools menu"></nav>
 
     <div>
       <div id="status" class="status">Loading...</div>
+      <div id="globalMaintenance" class="status" role="status" hidden>Maintenance: starting new local training and editing scenarios may be unavailable. Running sessions are not stopped.</div>
       <aside id="updateNotice" aria-label="App update" hidden>
         <div id="updateNoticeText" role="status"></div>
         <div id="updateDownloadProgress" hidden><span id="updateDownloadPercent">0%</span></div>
         <div class="buttons"><button id="updateNoticeDownload">Download now</button><button id="updateNoticeDismiss">Dismiss</button></div>
       </aside>
+      <section id="admin"></section>
+      <section id="launchConfig"></section>
       <section id="install" class="active">
         <div class="card">
           <div class="caption">EuroScope plugin destination</div>
@@ -589,7 +571,7 @@
             <label>Host tunnel URL<input id="trainingJoinUrl" placeholder="https://example.trycloudflare.com" /></label><label>Host access key<input id="trainingJoinKey" type="password" autocomplete="off" /></label><div class="buttons"><button id="trainingJoinStart">Start EuroScope connector</button><button id="trainingJoinStop">Stop connector</button></div><p id="trainingJoinStatus" role="status">Remote connector off.</p>
           </details>
           <div class="card" id="instructorCard" data-training-pane="instructor" hidden><div class="caption">Instructor · manage your server PC</div>
-            <p>Pair once with the server app's instructor code. Manage all three slots from here; aircraft processing stays on the server. Students receive a separate student invite.</p>
+            <p>Pair once with the server app's instructor code. Manage all six slots from here; aircraft processing stays on the server. Students receive a separate student invite.</p>
             <div id="instructorPair"><label>Instructor pairing code<input id="instructorPairing" type="password" autocomplete="off" placeholder="Code from server app → Remote instructor access"></label><label class="check"><input id="instructorRemember" type="checkbox"> Remember this connection using Windows-encrypted storage</label><div class="buttons"><button id="instructorConnect">Pair with server PC</button><button id="instructorRestore">Reconnect saved server</button></div></div>
             <p id="instructorMessage" role="status">Not paired.</p><div class="buttons"><button id="instructorDisconnect">Disconnect</button><button id="instructorForget">Forget saved pairing</button></div>
             <div id="instructorControls" hidden><h3>1 · Select server</h3><div class="buttons" id="instructorSlots"></div><p id="instructorSlotStatus"></p>
@@ -599,7 +581,7 @@
             <label>Aircraft<select id="instructorSelected"></select></label><p id="instructorAircraftGuidance" class="subtle"></p><label>Manual instructions (comma-separated)<input id="instructorCommand" maxlength="512" placeholder="LHDG 330, ALT 3000"></label><div class="buttons"><button id="instructorSend">Apply commands</button><button data-instructor-command="PAUSE ON">Pause aircraft</button><button data-instructor-command="PAUSE OFF">Resume aircraft</button><button data-instructor-command="IDENT">IDENT</button><button data-instructor-command="APP CLEAR">Cleared approach</button><button data-instructor-command="APP CANCEL">Cancel approach</button><button data-instructor-command="SPEED PUBLISHED">Automatic speed profile</button><button id="instructorDeleteAircraft">Delete selected aircraft</button></div>
             <details><summary>Edit selected aircraft's flight plan</summary><button id="instructorEdit">Load selected flight plan</button><div class="instructor-fields" id="instructorFields"></div><button id="instructorSave">Apply flight plan</button></details>
             <details><summary>Command reference</summary><p>ALT feet · RATE ft/min · SPD/IAS knots · HDG/LHDG/RHDG magnetic · DCT fix · SQ code · MODE C/STBY · IDENT · ROUTE RESUME · APP CLEAR/CANCEL. Manual commands, no AI pilot or readback.</p></details>
-            </div><details><summary>Pairing and privacy</summary><p>The instructor code grants control of all three slots. Never share it with students. Remember is optional and encrypted for this Windows account. Scenario changes do not require pairing again; restarting the server app or recreating its management tunnel can require a new pairing code.</p></details>
+            </div><details><summary>Pairing and privacy</summary><p>The instructor code grants control of all six slots. Never share it with students. Remember is optional and encrypted for this Windows account. Scenario changes do not require pairing again; restarting the server app or recreating its management tunnel can require a new pairing code.</p></details>
           </div>
         </section>
         <section id="trainingBuilder">
@@ -796,12 +778,16 @@
           <div class="caption">Theme</div>
           <p>Preview a theme immediately, then save it. Themes change the colors, fonts, layout and controls for this app only.</p>
           <label for="uiTheme">Choose theme</label>
+          <div id="reactThemeGallery"></div>
           <select id="uiTheme">
+            <optgroup id="workspaceThemeOptions" label="Workspace themes"></optgroup>
+            <optgroup label="Legacy and custom">
             <option value="current">ZYZTools dark</option>
             <option value="vatcan">VATCAN website</option>
             <option value="navcan">NAV CANADA website</option>
             <option value="plugincore">Classic</option>
             <option value="custom">Custom theme</option>
+            </optgroup>
           </select>
           <div class="buttons">
             <button data-theme-choice="current">ZYZTools dark</button>
@@ -875,12 +861,15 @@
   </main>
 
   <script src="custom-theme.js"></script>
+  <script src="workspace-themes.js"></script>
+  <script src="generated-workspace-ui.js"></script>
   <script src="pdc-templates.js"></script>
   <script src="renderer.js"></script>
   <script src="training-layout.js"></script>
   <script src="training-speed-editor.js"></script>
   <script src="training-ui.js"></script>
   <script src="training-multiplayer-ui.js"></script>
+  <script src="app-policy-ui.js"></script>
   <script src="training-instructor-ui.js"></script>
   <script src="training-presets-ui.js"></script>
   <script src="training-control-presets-ui.js"></script>

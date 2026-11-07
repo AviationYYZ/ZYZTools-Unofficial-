@@ -2288,6 +2288,7 @@ public:
 
     void OnTimer(int Counter) override
     {
+        if (Counter % 2 == 0) PollGlobalAnnouncement();
         const auto trainingSelf=ControllerMyself();
         CFlightPlan trainingFp=FlightPlanSelectASEL(); CRadarTarget trainingRt=RadarTargetSelectASEL();
         const std::string trainingSelected=trainingFp.IsValid()?trainingFp.GetCallsign():trainingRt.IsValid()?trainingRt.GetCallsign():"";
@@ -2321,7 +2322,7 @@ public:
         if (!sCommandLine) return false;
         const std::string trainingCommand=Upper(CollapseWhitespace(Trim(sCommandLine)));
         if(trainingCommand==".AIRCRAFT"){
-            if(m_trainingCommands.PilotLayoutContext().empty())DisplayUserMessage("ZYZTools","PILOT","Connect my EuroScope to your private instructor session before opening All Aircraft.",true,true,false,false,false);
+            if(m_trainingCommands.PilotRosterContext().empty())DisplayUserMessage("ZYZTools","PILOT","Connect my EuroScope to your private instructor session before opening All Aircraft.",true,true,false,false,false);
             else {RefreshPilotAircraftList();if(m_pilotAircraftList.IsValid())m_pilotAircraftList.ShowFpList(true);}
             return true;
         }
@@ -2477,6 +2478,33 @@ public:
 
 private:
     friend class CSettingsScreen;
+    std::string m_globalAnnouncementId, m_globalAnnouncementText;
+    ULONGLONG m_globalAnnouncementVisibleUntil = 0;
+    void PollGlobalAnnouncement()
+    {
+        char directory[MAX_PATH]{};
+        const DWORD size=GetEnvironmentVariableA("APPDATA",directory,MAX_PATH);
+        if(!size||size>=MAX_PATH)return;
+#ifdef ZYZTOOLS_TEST_BUILD
+        const char* file="\\ZYZTools\\Announcements\\test.txt";
+#else
+        const char* file="\\ZYZTools\\Announcements\\regular.txt";
+#endif
+        std::ifstream input(std::string(directory)+file,std::ios::binary|std::ios::ate);
+        if(!input||input.tellg()>2048)return;
+        input.seekg(0);
+        std::string id,expiry,message;
+        if(!std::getline(input,id)||!std::getline(input,expiry)||!std::getline(input,message)){
+            m_globalAnnouncementVisibleUntil=0;return;
+        }
+        if(id.size()!=64||!std::all_of(id.begin(),id.end(),[](unsigned char c){return std::isxdigit(c)!=0;})||
+           expiry.empty()||expiry.size()>12||!std::all_of(expiry.begin(),expiry.end(),[](unsigned char c){return std::isdigit(c)!=0;}))return;
+        if(std::strtoll(expiry.c_str(),nullptr,10)<=std::time(nullptr)){m_globalAnnouncementVisibleUntil=0;return;}
+        if(id==m_globalAnnouncementId||message.empty())return;
+        m_globalAnnouncementId=id;m_globalAnnouncementText=message;
+        m_globalAnnouncementVisibleUntil=GetTickCount64()+15000;
+        DisplayUserMessage("ZYZTools","Announcement",message.c_str(),true,true,true,false,false);
+    }
     std::string m_pilotEditCallsign,m_pilotEditContext,m_pilotFeedback;
     std::string m_pilotMenuField,m_pilotSelected;
     std::vector<std::string> m_pilotMenuValues;
@@ -2536,8 +2564,7 @@ private:
     std::string m_pilotListContext;
     void RefreshPilotAircraftList(){
         if(!m_pilotAircraftList.IsValid())return;
-        const auto context=m_trainingCommands.PilotLayoutContext();std::set<std::string> active;
-        if(!context.empty())for(const auto &tag:m_trainingCommands.PilotTags())if(m_trainingCommands.PilotAircraft(tag.callsign))active.insert(tag.callsign);
+        const auto context=m_trainingCommands.PilotRosterContext();const auto active=m_trainingCommands.PilotRoster();
         for(auto i=m_pilotListMembers.begin();i!=m_pilotListMembers.end();){if(context!=m_pilotListContext||!active.count(i->first)||!i->second.IsValid()){if(i->second.IsValid())m_pilotAircraftList.RemoveFpFromTheList(i->second);i=m_pilotListMembers.erase(i);}else ++i;}
         if(context.empty()){if(!m_pilotListContext.empty())m_pilotAircraftList.ShowFpList(false);m_pilotListContext.clear();return;}
         for(const auto &cs:active){if(m_pilotListMembers.count(cs))continue;const auto fp=FlightPlanSelect(cs.c_str());if(fp.IsValid()){m_pilotAircraftList.AddFpToTheList(fp);m_pilotListMembers.emplace(cs,fp);}}
@@ -5811,6 +5838,7 @@ public:
         DrawTrainingPrediction(hDC);
         DrawConflictPoints(hDC);
         DrawPilotControls(hDC);
+        DrawGlobalAnnouncement(hDC);
         if (m_plugin->m_settingsVisible)
         {
             KeepSettingsRectVisible();
@@ -5855,6 +5883,30 @@ public:
             for(int i:{0,1,2,5,8}){RECT r=TrainingPilotTagDraw::Cell(left,top,i);const auto tip=tag.callsign+" "+(i==5?"Callsign: left route, right handoff":names[i])+" - pilot control; green check means student annotation matches";AddScreenObject(SCREEN_OBJECT_PILOT,(tag.callsign+"|"+std::to_string(i)).c_str(),r,i==5,tip.c_str());}
         }
         RestoreDC(dc,saved);if(font)DeleteObject(font);
+    }
+
+    void DrawGlobalAnnouncement(HDC dc)
+    {
+        if(GetTickCount64()>=m_plugin->m_globalAnnouncementVisibleUntil)return;
+        const RECT radar=GetRadarArea();
+        const LONG width=std::min<LONG>(440,radar.right-radar.left-28);
+        if(width<160||radar.bottom-radar.top<150)return;
+        const auto& message=m_plugin->m_globalAnnouncementText;
+        const int length=MultiByteToWideChar(CP_UTF8,0,message.c_str(),static_cast<int>(message.size()),nullptr,0);
+        if(length<=0)return;
+        std::wstring wide(static_cast<size_t>(length),L' ');
+        MultiByteToWideChar(CP_UTF8,0,message.c_str(),static_cast<int>(message.size()),wide.data(),length);
+        const int saved=SaveDC(dc);if(!saved)return;
+        RECT text{radar.right-width-14,radar.top+14,radar.right-14,radar.top+112};
+        HBRUSH fill=CreateSolidBrush(RGB(19,36,49));
+        if(fill){FillRect(dc,&text,fill);DeleteObject(fill);}
+        SetBkMode(dc,TRANSPARENT);SetTextColor(dc,RGB(129,224,219));
+        RECT heading{text.left+12,text.top+8,text.right-12,text.top+27};
+        DrawTextW(dc,L"ZYZTools announcement",-1,&heading,DT_SINGLELINE|DT_NOPREFIX);
+        text.left+=12;text.right-=12;text.top+=29;text.bottom-=8;
+        SetTextColor(dc,RGB(245,249,251));
+        DrawTextW(dc,wide.c_str(),length,&text,DT_WORDBREAK|DT_NOPREFIX|DT_END_ELLIPSIS);
+        RestoreDC(dc,saved);
     }
 
     void DrawConflictPoints(HDC dc){

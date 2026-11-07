@@ -1,6 +1,6 @@
 const fs=require('node:fs');
 const WebSocket=require('ws');
-const FEATURES={localTraining:'Local practice',scenarioBuilder:'Scenario Builder',replay:'Audio replay',discord:'Discord status',conflictSettings:'Conflict alert settings'};
+const FEATURES=Object.fromEntries(Object.entries(require('./policy-catalog.json')).map(([id,{label}])=>[id,label]));
 const DEFAULT='https://zyztools-room-directory-test.zyztools-room-directory.workers.dev';
 const empty=()=>({revision:0,announcement:null,maintenance:false,rules:{}});
 function normalize(raw){
@@ -22,7 +22,7 @@ class AppPolicyClient{
   const s=this.snapshot(),rule=s.rules[feature];
   if(s.maintenance&&['localTraining','scenarioBuilder'].includes(feature))throw Error('New training actions are paused for maintenance.');
   if(rule==='disabled')throw Error(FEATURES[feature]+' is disabled.');
-  if(rule==='code'&&!s.unlocked.includes(feature))throw Error('Enter a feature access code in Training to unlock '+FEATURES[feature]+'.');
+  if(rule==='code'&&!s.unlocked.includes(feature))throw Error(FEATURES[feature]+' requires access.');
  }
  accept(raw){
   const next=normalize(raw);this.connected=true;
@@ -44,8 +44,10 @@ class AppPolicyClient{
   this.grant=g;this.onChange(this.snapshot());return this.snapshot();
  }
  async admin(key,action){
-  if(typeof key!=='string'||!/^[a-f0-9]{64}$/i.test(key))throw Error('Enter the private 64-character admin key.');
-  return this.call('/v2/admin',action,key);
+  if(typeof key!=='string'||!/^[a-f0-9]{64}$/i.test(key))throw Error('Enter the private 64-character admin password.');
+  const result=await this.call('/v2/admin',action,key);
+  if(result.rules)this.accept(result);
+  return result;
  }
  async refresh(){
   try{const state=await this.call('/v2/policy');if(!this.closed&&this.socket?.readyState!==1)this.accept(state);}

@@ -76,7 +76,7 @@ export default {
           const ip=request.headers.get('CF-Connecting-IP');
           if(!ip||ip.length>64)throw new ApiError(503,'Client identity unavailable.');
           const limiter=env.LIMITERS.getByName(await digest('zyz-policy-client-v2:'+ip));
-          if(!await limiter.allow(url.pathname==='/v2/events'?'lookup':'create'))throw new ApiError(429,'Too many requests. Wait one minute.');
+          if(!await limiter.allow(url.pathname==='/v2/events'?'lookup':url.pathname==='/v2/admin'?'update':'create'))throw new ApiError(429,'Too many requests. Wait one minute.');
         }
         return env.APP_POLICY.getByName('global-v2').fetch(request);
       }

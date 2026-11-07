@@ -66,4 +66,15 @@ invalidates all outstanding feature grants, which must then be redeemed again.
 The Worker must be deployed before announcements can reach other installations.
 App policies govern the listed 2.0 desktop actions; they do not disable older
 versions, independently installed EuroScope plugins, or running server slots.
+The shared policy catalog lives in `electron-app/src/policy-catalog.json`. When
+new policy targets are added, deploy the Worker update before using them.
+
+After the administrator-management Worker update is live, the owner can sign in
+with the existing owner credential and issue a separate named administrator
+credential from the Admin console. Send it only to that administrator through
+a private channel. They can enroll it once on their Windows account and then
+use Windows sign-in; the app stores it encrypted with Windows safe storage.
+Revoking the account blocks its credential on the Worker, including credentials
+already saved on a device. The owner key remains a Worker secret and should not
+be shared with delegates.
 
