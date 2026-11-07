@@ -1,6 +1,17 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("preferredCyyzPdc", {
+  training: (action,value) => ipcRenderer.invoke('training:action',action,value),
+  trainingSave: value => ipcRenderer.invoke('training:save',value),
+  trainingLoad: () => ipcRenderer.invoke('training:load'),
+  trainingSector: (choose=false) => ipcRenderer.invoke('training:sector',choose),
+    trainingInstructor: (action,value) => ipcRenderer.invoke('training:instructor',action,value),
+  trainingMultiplayer: (action,value) => ipcRenderer.invoke('training:multiplayer',action,value),
+  loadConflict: (folder) => ipcRenderer.invoke('conflict:load', folder),
+  saveConflict: (folder,config) => ipcRenderer.invoke('conflict:save', folder,config),
+  importConflictSound: (folder,kind) => ipcRenderer.invoke('conflict:sound', folder,kind),
+  loadDiscord: (folder) => ipcRenderer.invoke('discord:load', folder),
+  saveDiscord: (folder, config) => ipcRenderer.invoke('discord:save', folder, config),
   initialState: () => ipcRenderer.invoke("app:initialState"),
   saveCustomTheme: (theme) => ipcRenderer.invoke('theme:saveCustom', theme),
   checkUpdates: (stream) => ipcRenderer.invoke("updates:check", stream),

@@ -54,6 +54,9 @@ if not exist "docs\DEPARTURE_LIST_SETUP.md" (
 )
 
 if not exist build mkdir build
+copy /Y "assets\conflict\*" "build\" >nul
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "tools\Build-ConflictSounds.ps1" -Output "build"
+if errorlevel 1 exit /b 1
 
 del /q "build\PreferredCYYZPdcPlugin.dll" 2>nul
 del /q "build\PreferredCYYZPdcPlugin.lib" 2>nul
@@ -69,8 +72,8 @@ del /q "build\PreferredCYYZAudioReplay.pdb" 2>nul
 
 cl /nologo /LD /EHsc /MD /std:c++17 ^
   /I "SDK" ^
-  /Fo"build\PreferredCYYZPdcPlugin.obj" ^
-  src\ZYZToolsPlugin.cpp ^
+  /Fo"build\\" ^
+  src\ZYZToolsPlugin.cpp src\conflict\Engine.cpp src\conflict\SituDraw.cpp src\conflict\Sequencing.cpp ^
   /link ^
   /LIBPATH:"SDK" ^
   EuroScopePlugInDll.lib ^

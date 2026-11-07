@@ -1,0 +1,23 @@
+{
+  "synthetic": true,
+  "arrivals": 65,
+  "ratePerHour": {
+    "LINNG3": 20,
+    "NUBER6": 15,
+    "BOXUM7": 10,
+    "IMEBA9": 10,
+    "RAGID6": 10
+  },
+  "runways": {
+    "BOXUM7": "23",
+    "IMEBA9": "23",
+    "LINNG3": "24R",
+    "NUBER6": "24R",
+    "RAGID6": "24R"
+  },
+  "spawnDistance": "15 route NM before the bedpost instead of 35",
+  "spawnAltitude": "14000 feet for LINNG/NUBER/BOXUM, 11000 for IMEBA/RAGID",
+  "bedpostTargets": "11000 feet for LINNG/NUBER/BOXUM, 8000 for IMEBA/RAGID",
+  "rate": 2250,
+  "notes": "Random fictional callsigns fixed in the saved file for repeatable sessions. Every aircraft has /v/. Hourly rates preserved, not fixed 10 NM separation. Issue approach clearance and subsequent altitude/vector instructions as instructor."
+}

@@ -1,0 +1,50 @@
+{
+  "synthetic": true,
+  "source": "User installed CZYZ SCT/ESE/navdata; offline training, not current navigation certification",
+  "duration": "One hour of traffic injection; allow extra time for last arrivals",
+  "streams": [
+    {
+      "star": "LINNG3",
+      "runway": "06R",
+      "count": 8,
+      "ratePerHour": 8,
+      "bedpost": "LINNG",
+      "bedpostAltitude": 11000
+    },
+    {
+      "star": "NUBER6",
+      "runway": "06R",
+      "count": 8,
+      "ratePerHour": 8,
+      "bedpost": "NUBER",
+      "bedpostAltitude": 11000
+    },
+    {
+      "star": "BOXUM7",
+      "runway": "05",
+      "count": 8,
+      "ratePerHour": 8,
+      "bedpost": "BOXUM",
+      "bedpostAltitude": 11000
+    },
+    {
+      "star": "IMEBA9",
+      "runway": "05",
+      "count": 8,
+      "ratePerHour": 8,
+      "bedpost": "IMEBA",
+      "bedpostAltitude": 8000
+    },
+    {
+      "star": "RAGID6",
+      "runway": "06R",
+      "count": 8,
+      "ratePerHour": 8,
+      "bedpost": "RAGID",
+      "bedpostAltitude": 8000
+    }
+  ],
+  "departures": 10,
+  "departureNote": "Airborne runway 05 climb-outs at 1800 ft, starting +2 min then every 6 min. ALT command starts climb. No automatic takeoff or SID claimed.",
+  "spacingNote": "Hourly rates take precedence; 10 NM cannot also be maintained with these speeds and rates."
+}

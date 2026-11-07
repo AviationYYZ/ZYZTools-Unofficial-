@@ -1,0 +1,7 @@
+{
+  "version": "2026.10.3",
+  "file": "cloudflared.exe",
+  "sha256": "84be6271133004dc103d71b1a2b6b80cf204685ebf277e2504082793507922cf",
+  "url": "https://github.com/cloudflare/cloudflared/releases/download/2026.10.3/cloudflared-windows-386.exe",
+  "source": "https://github.com/cloudflare/cloudflared/tree/2026.10.3"
+}

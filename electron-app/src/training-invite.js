@@ -1,0 +1,4 @@
+// Fragment is not sent in HTTP requests. Treat the entire invite as a password.
+function makeInvite(url,token){if(!/^[a-f0-9]{64}$/.test(token||''))throw Error('Host access key missing.');const u=new URL(url);if(u.protocol!=='https:')throw Error('Public HTTPS tunnel required.');u.hash='zyz='+token;return u.toString();}
+function parseInvite(value){let u;try{u=new URL(String(value||'').trim());}catch{throw Error('Paste the complete invite link copied by the host.');}const token=new URLSearchParams(u.hash.slice(1)).get('zyz');if(u.protocol!=='https:'||u.username||u.password||u.pathname!=='/'||u.search||!/^\w[\w.-]*$/.test(u.hostname)||!/^[a-f0-9]{64}$/.test(token||''))throw Error('Invalid invite. Ask the host to Copy invite again.');return {url:u.origin,token};}
+module.exports={makeInvite,parseInvite};

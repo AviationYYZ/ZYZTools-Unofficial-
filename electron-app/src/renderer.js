@@ -404,7 +404,10 @@ document.querySelectorAll("nav button[data-tab]").forEach((button) => {
     $(button.dataset.tab).classList.add("active");
     if (button.dataset.tab === "statistics") {
       await refreshStatistics(false);
-
+    } else if (button.dataset.tab === 'discord') {
+      await refreshDiscord(true);
+    } else if (button.dataset.tab === 'conflicts') {
+      await refreshConflicts(true);
     } else if (button.dataset.tab === "replay") {
       await refreshRecordings(false);
       await refreshTrackAudioTapStatus(false);
@@ -640,3 +643,67 @@ for (const variable of window.pdcTemplates.variables) {
   $('pdcTemplateVariables').appendChild(button);
 }
 $('resetPdcTemplatesBtn').addEventListener('click',()=>{ $('pdcTemplateBridge').value=window.pdcTemplates.defaults.bridge;$('pdcTemplateHoppie').value=window.pdcTemplates.defaults.hoppie; });
+
+const discordFields = {
+  enabled:'discordEnabled', airports:'discordAirports', details:'discordDetails', state:'discordState',
+  medium:'discordMedium', high:'discordHigh', lowLabel:'discordLowLabel', mediumLabel:'discordMediumLabel',
+  highLabel:'discordHighLabel', radius:'discordRadius', altitude:'discordAltitude', speed:'discordSpeed',
+  showElapsed:'discordShowElapsed', largeImage:'discordLargeImage', largeText:'discordLargeText',
+  button1Label:'discordButton1Label',button1Url:'discordButton1Url',button2Label:'discordButton2Label',button2Url:'discordButton2Url'
+};
+function renderDiscord(result, populate) {
+  if(populate) for(const [key,id] of Object.entries(discordFields)) {
+    if($(id).type==='checkbox') $(id).checked=!!result.config[key]; else $(id).value=result.config[key]??'';
+  }
+  $('discordStatus').textContent=result.status;
+  $('discordPreview').textContent=result.preview ? [result.preview.details,result.preview.state].filter(Boolean).join('\n') : 'No status currently published.';
+}
+async function refreshDiscord(populate=false) {
+  try {renderDiscord(await api.loadDiscord(installFolder),populate);}
+  catch(error){$('discordStatus').textContent=error.message;}
+}
+$('saveDiscordBtn').addEventListener('click',async()=>{
+  const value={};
+  for(const [key,id] of Object.entries(discordFields)) value[key]=$(id).type==='checkbox'?$(id).checked:$(id).value;
+  $('saveDiscordBtn').disabled=true;
+  try {renderDiscord(await api.saveDiscord(installFolder,value),true);}
+  catch(error){$('discordStatus').textContent=error.message;}
+  finally{$('saveDiscordBtn').disabled=false;}
+});
+$('refreshDiscordBtn').addEventListener('click',()=>refreshDiscord(false));
+setInterval(()=>{if($('discord').classList.contains('active'))refreshDiscord(false);},5000);
+
+const conflictFields={enabled:'conflictEnabled',situAdapter:'conflictSituAdapter',muted:'conflictMuted',arrivalAirports:'conflictAirports'};
+function renderConflicts(result,populate){
+  if(populate)for(const[key,id]of Object.entries(conflictFields)){
+    if($(id).type==='checkbox')$(id).checked=!!result.config[key];else $(id).value=result.config[key]??'';
+  }
+  const data=result.snapshot;
+  $('conflictStatus').textContent=data.status;
+  $('conflictAlerts').replaceChildren();
+  for(const a of data.alerts||[]){
+    const row=document.createElement('tr');
+    for(const value of [a.callsign,a.other,['None','Early (5 min)','Yellow (45s)','Red (30s)','Urgent (15s)'][a.stage]||'Unknown',Math.max(0,Math.round(a.seconds))+'s',a.reason]){
+      const cell=document.createElement('td');cell.textContent=value;row.appendChild(cell);
+    }
+    $('conflictAlerts').appendChild(row);
+  }
+
+}
+async function refreshConflicts(populate=false){
+  try{renderConflicts(await api.loadConflict(installFolder),populate);}catch(error){$('conflictStatus').textContent=error.message;}
+}
+$('saveConflictBtn').addEventListener('click',async()=>{
+  const value={};for(const[key,id]of Object.entries(conflictFields))value[key]=$(id).type==='checkbox'?$(id).checked:$(id).value;
+  $('saveConflictBtn').disabled=true;
+  try{renderConflicts(await api.saveConflict(installFolder,value),true);$('conflictStatus').textContent='Settings saved. Waiting for the next native scan…';}
+  catch(error){$('conflictStatus').textContent=error.message;}
+  finally{$('saveConflictBtn').disabled=false;}
+});
+
+$('refreshConflictBtn').addEventListener('click',()=>refreshConflicts(false));
+for(const[kind,id]of [['caution','conflictCautionSound'],['urgent','conflictUrgentSound']])$(id).addEventListener('click',async()=>{
+  try{const result=await api.importConflictSound(installFolder,kind);if(!result.canceled)$('conflictStatus').textContent='Sound installed: '+result.path+' (used for the next alert).';}
+  catch(error){$('conflictStatus').textContent=error.message;}
+});
+setInterval(()=>{if($('conflicts').classList.contains('active'))refreshConflicts(false);},2000);

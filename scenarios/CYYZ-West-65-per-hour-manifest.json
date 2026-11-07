@@ -1,0 +1,49 @@
+{
+  "synthetic": true,
+  "source": "User installed CZYZ SCT/ESE/navdata; offline training, not current navigation certification",
+  "duration": "One hour of traffic injection; allow extra time for last arrivals",
+  "streams": [
+    {
+      "star": "LINNG3",
+      "runway": "24R",
+      "count": 20,
+      "ratePerHour": 20,
+      "bedpost": "LINNG",
+      "bedpostAltitude": 11000
+    },
+    {
+      "star": "NUBER6",
+      "runway": "24R",
+      "count": 15,
+      "ratePerHour": 15,
+      "bedpost": "NUBER",
+      "bedpostAltitude": 11000
+    },
+    {
+      "star": "BOXUM7",
+      "runway": "23",
+      "count": 10,
+      "ratePerHour": 10,
+      "bedpost": "BOXUM",
+      "bedpostAltitude": 11000
+    },
+    {
+      "star": "IMEBA9",
+      "runway": "23",
+      "count": 10,
+      "ratePerHour": 10,
+      "bedpost": "IMEBA",
+      "bedpostAltitude": 8000
+    },
+    {
+      "star": "RAGID6",
+      "runway": "24R",
+      "count": 10,
+      "ratePerHour": 10,
+      "bedpost": "RAGID",
+      "bedpostAltitude": 8000
+    }
+  ],
+  "departures": 0,
+  "spacingNote": "Hourly rates take precedence; 10 NM cannot also be maintained with these speeds and rates."
+}

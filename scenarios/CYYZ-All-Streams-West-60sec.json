@@ -1,0 +1,1603 @@
+{
+  "format": "ZYZTools-training",
+  "version": 1,
+  "name": "CYYZ West Flow - All Five Streams - One Minute Spawns",
+  "waypoints": [
+    {
+      "name": "BOXUM",
+      "lat": 44.17805555555555,
+      "lon": -80.20166666666667
+    },
+    {
+      "name": "DUVOS",
+      "lat": 44.01777777777777,
+      "lon": -80.00111111111111
+    },
+    {
+      "name": "ADSED",
+      "lat": 43.84581388888889,
+      "lon": -79.84897222222222
+    },
+    {
+      "name": "ERBUS",
+      "lat": 43.749233333333336,
+      "lon": -79.72203333333333
+    },
+    {
+      "name": "TASKU",
+      "lat": 43.78413333333333,
+      "lon": -79.6713388888889
+    },
+    {
+      "name": "DAVIK",
+      "lat": 43.87275277777778,
+      "lon": -79.5422
+    },
+    {
+      "name": "LEVIG",
+      "lat": 43.90711388888889,
+      "lon": -79.49196666666667
+    },
+    {
+      "name": "MIPED",
+      "lat": 43.941452777777776,
+      "lon": -79.44167777777778
+    },
+    {
+      "name": "SATUR",
+      "lat": 43.975769444444445,
+      "lon": -79.39132777777779
+    },
+    {
+      "name": "CALVY",
+      "lat": 43.804336111111105,
+      "lon": -79.47446666666667
+    },
+    {
+      "name": "OMTOK",
+      "lat": 43.74208888888889,
+      "lon": -79.56528333333333
+    },
+    {
+      "name": "IMEBA",
+      "lat": 44.24944444444444,
+      "lon": -79.05444444444444
+    },
+    {
+      "name": "LEPUX",
+      "lat": 44.07083333333334,
+      "lon": -79.32388888888889
+    },
+    {
+      "name": "AMILU",
+      "lat": 43.87544166666667,
+      "lon": -79.30746944444444
+    },
+    {
+      "name": "LISDU",
+      "lat": 43.78559166666666,
+      "lon": -79.43638333333334
+    },
+    {
+      "name": "KIREX",
+      "lat": 43.72389444444445,
+      "lon": -79.52646944444444
+    },
+    {
+      "name": "LINNG",
+      "lat": 43.302747222222216,
+      "lon": -79.35479722222222
+    },
+    {
+      "name": "YOUTH",
+      "lat": 43.363327777777776,
+      "lon": -79.39363055555556
+    },
+    {
+      "name": "BIMPO",
+      "lat": 43.54421111111111,
+      "lon": -79.510125
+    },
+    {
+      "name": "VERKO",
+      "lat": 43.59661388888889,
+      "lon": -79.54376388888889
+    },
+    {
+      "name": "MAROD",
+      "lat": 43.7275,
+      "lon": -79.35283333333332
+    },
+    {
+      "name": "DEKNI",
+      "lat": 43.761783333333334,
+      "lon": -79.30261944444445
+    },
+    {
+      "name": "DAVNO",
+      "lat": 43.79604722222222,
+      "lon": -79.25235
+    },
+    {
+      "name": "DUNOL",
+      "lat": 43.830286111111114,
+      "lon": -79.20202222222223
+    },
+    {
+      "name": "EBDAL",
+      "lat": 43.78939444444444,
+      "lon": -79.43634444444444
+    },
+    {
+      "name": "NOAHA",
+      "lat": 43.727558333333334,
+      "lon": -79.52663888888888
+    },
+    {
+      "name": "NUBER",
+      "lat": 43.45777777777778,
+      "lon": -80.3775
+    },
+    {
+      "name": "ROKTO",
+      "lat": 43.50975,
+      "lon": -80.19107777777778
+    },
+    {
+      "name": "PENGO",
+      "lat": 43.59457777777778,
+      "lon": -79.87250555555555
+    },
+    {
+      "name": "MANUP",
+      "lat": 43.671930555555555,
+      "lon": -79.79736666666666
+    },
+    {
+      "name": "RAGID",
+      "lat": 44.04194444444444,
+      "lon": -78.80499999999999
+    },
+    {
+      "name": "DENKA",
+      "lat": 43.86972222222222,
+      "lon": -79.06305555555555
+    },
+    {
+      "name": "IRKIM",
+      "lat": 44.831944444444446,
+      "lon": -80.37166666666666
+    },
+    {
+      "name": "ROSVO",
+      "lat": 45.59024166666667,
+      "lon": -77.47917222222222
+    },
+    {
+      "name": "BETUL",
+      "lat": 45.126691666666666,
+      "lon": -78.16469722222223
+    },
+    {
+      "name": "DUGDA",
+      "lat": 43.90327222222222,
+      "lon": -79.33056111111111
+    },
+    {
+      "name": "LOKPU",
+      "lat": 43.227222222222224,
+      "lon": -79.30583333333333
+    },
+    {
+      "name": "APDAX",
+      "lat": 43.286944444444444,
+      "lon": -81.25055555555555
+    },
+    {
+      "name": "BOTUM",
+      "lat": 43.59642222222222,
+      "lon": -79.6360138888889
+    },
+    {
+      "name": "TORNI",
+      "lat": 45.10027777777778,
+      "lon": -76.23193611111111
+    },
+    {
+      "name": "LIBEM",
+      "lat": 44.81083333333333,
+      "lon": -76.95916666666668
+    },
+    {
+      "name": "IGSAP",
+      "lat": 44.517069444444445,
+      "lon": -77.67949444444444
+    },
+    {
+      "name": "UDNOX",
+      "lat": 44.35498611111111,
+      "lon": -78.068775
+    },
+    {
+      "name": "TUDAN",
+      "lat": 45.61416666666667,
+      "lon": -82.06583333333333
+    },
+    {
+      "name": "SETGO",
+      "lat": 45.267925,
+      "lon": -81.6040861111111
+    },
+    {
+      "name": "DARID",
+      "lat": 44.605583333333335,
+      "lon": -80.74288333333334
+    },
+    {
+      "name": "POLTY",
+      "lat": 45.899175,
+      "lon": -75.81103333333333
+    },
+    {
+      "name": "PERGI",
+      "lat": 44.86541388888889,
+      "lon": -77.93170555555557
+    },
+    {
+      "name": "WOZEE",
+      "lat": 42.933791666666664,
+      "lon": -78.73878888888889
+    },
+    {
+      "name": "ISTON",
+      "lat": 43.12972222222222,
+      "lon": -79.06444444444445
+    },
+    {
+      "name": "FINGL",
+      "lat": 42.75666666666667,
+      "lon": -81.32277777777777
+    },
+    {
+      "name": "DERLO",
+      "lat": 43.06638888888889,
+      "lon": -81.09527777777777
+    }
+  ],
+  "aircraft": [
+    {
+      "callsign": "ACA114",
+      "type": "A321",
+      "lat": 44.17805555555555,
+      "lon": -80.20166666666667,
+      "altitude": 16000,
+      "speed": 250,
+      "heading": 137.98658683658948,
+      "rate": 1500,
+      "route": "BOXUM DUVOS ADSED ERBUS TASKU DAVIK LEVIG MIPED SATUR CALVY OMTOK",
+      "origin": "CYUL",
+      "destination": "CYYZ",
+      "squawk": "2201",
+      "spawnTime": 0,
+      "spawnFix": "BOXUM",
+      "squawkMode": "N",
+      "arrivalRunway": "23",
+      "speedBasis": "IAS",
+      "publishedSpeeds": true,
+      "procedures": [
+        "BOXUM7"
+      ],
+      "flightRules": "I",
+      "wake": "M",
+      "equipment": "S",
+      "departureTime": "0000",
+      "actualDepartureTime": "0000",
+      "cruiseAltitude": 16000,
+      "cruiseSpeed": 440,
+      "enrouteHours": 1,
+      "enrouteMinutes": 0,
+      "fuelHours": 2,
+      "fuelMinutes": 0,
+      "alternate": "CYHM",
+      "remarks": "/v/ SYNTHETIC LOCAL TRAINING ONLY",
+      "flightPlanRoute": "BOXUM BOXUM7 CYYZ/23",
+      "category": "jet",
+      "compiledPlan": "BOXUM BOXUM7 CYYZ/23",
+      "compiledRunway": "23"
+    },
+    {
+      "callsign": "POE421",
+      "type": "E295",
+      "lat": 44.24944444444444,
+      "lon": -79.05444444444444,
+      "altitude": 16000,
+      "speed": 250,
+      "heading": 227.3554191307188,
+      "rate": 1500,
+      "route": "IMEBA LEPUX AMILU LISDU KIREX",
+      "origin": "CYOW",
+      "destination": "CYYZ",
+      "squawk": "2202",
+      "spawnTime": 60,
+      "spawnFix": "IMEBA",
+      "squawkMode": "N",
+      "arrivalRunway": "24L",
+      "speedBasis": "IAS",
+      "publishedSpeeds": true,
+      "procedures": [
+        "IMEBA9"
+      ],
+      "flightRules": "I",
+      "wake": "M",
+      "equipment": "S",
+      "departureTime": "0000",
+      "actualDepartureTime": "0000",
+      "cruiseAltitude": 16000,
+      "cruiseSpeed": 440,
+      "enrouteHours": 1,
+      "enrouteMinutes": 0,
+      "fuelHours": 2,
+      "fuelMinutes": 0,
+      "alternate": "CYHM",
+      "remarks": "/v/ SYNTHETIC LOCAL TRAINING ONLY",
+      "flightPlanRoute": "IMEBA IMEBA9 CYYZ/24L",
+      "category": "jet",
+      "compiledPlan": "IMEBA IMEBA9 CYYZ/24L",
+      "compiledRunway": "24L"
+    },
+    {
+      "callsign": "AAL258",
+      "type": "B738",
+      "lat": 43.302747222222216,
+      "lon": -79.35479722222222,
+      "altitude": 15000,
+      "speed": 250,
+      "heading": 335.01541727687646,
+      "rate": 1500,
+      "route": "LINNG YOUTH BIMPO VERKO MAROD DEKNI DAVNO DUNOL EBDAL NOAHA",
+      "origin": "KCLT",
+      "destination": "CYYZ",
+      "squawk": "2203",
+      "spawnTime": 120,
+      "spawnFix": "LINNG",
+      "squawkMode": "N",
+      "arrivalRunway": "24R",
+      "speedBasis": "IAS",
+      "publishedSpeeds": true,
+      "procedures": [
+        "LINNG3"
+      ],
+      "flightRules": "I",
+      "wake": "M",
+      "equipment": "S",
+      "departureTime": "0000",
+      "actualDepartureTime": "0000",
+      "cruiseAltitude": 15000,
+      "cruiseSpeed": 440,
+      "enrouteHours": 1,
+      "enrouteMinutes": 0,
+      "fuelHours": 2,
+      "fuelMinutes": 0,
+      "alternate": "CYHM",
+      "remarks": "/v/ SYNTHETIC LOCAL TRAINING ONLY",
+      "flightPlanRoute": "LINNG LINNG3 CYYZ/24R",
+      "category": "jet",
+      "compiledPlan": "LINNG LINNG3 CYYZ/24R",
+      "compiledRunway": "24R"
+    },
+    {
+      "callsign": "WJA654",
+      "type": "B738",
+      "lat": 43.45777777777778,
+      "lon": -80.3775,
+      "altitude": 16000,
+      "speed": 250,
+      "heading": 68.91745224361784,
+      "rate": 1500,
+      "route": "NUBER ROKTO PENGO MANUP ERBUS TASKU DAVIK LEVIG MIPED SATUR CALVY OMTOK",
+      "origin": "CYYC",
+      "destination": "CYYZ",
+      "squawk": "2204",
+      "spawnTime": 180,
+      "spawnFix": "NUBER",
+      "squawkMode": "N",
+      "arrivalRunway": "23",
+      "speedBasis": "IAS",
+      "publishedSpeeds": true,
+      "procedures": [
+        "NUBER6"
+      ],
+      "flightRules": "I",
+      "wake": "M",
+      "equipment": "S",
+      "departureTime": "0000",
+      "actualDepartureTime": "0000",
+      "cruiseAltitude": 16000,
+      "cruiseSpeed": 440,
+      "enrouteHours": 1,
+      "enrouteMinutes": 0,
+      "fuelHours": 2,
+      "fuelMinutes": 0,
+      "alternate": "CYHM",
+      "remarks": "/v/ SYNTHETIC LOCAL TRAINING ONLY",
+      "flightPlanRoute": "NUBER NUBER6 CYYZ/23",
+      "category": "jet",
+      "compiledPlan": "NUBER NUBER6 CYYZ/23",
+      "compiledRunway": "23"
+    },
+    {
+      "callsign": "JZA872",
+      "type": "CRJ9",
+      "lat": 44.04194444444444,
+      "lon": -78.80499999999999,
+      "altitude": 15000,
+      "speed": 250,
+      "heading": 227.2565279413194,
+      "rate": 1500,
+      "route": "RAGID DENKA AMILU LISDU KIREX",
+      "origin": "CYQB",
+      "destination": "CYYZ",
+      "squawk": "2205",
+      "spawnTime": 240,
+      "spawnFix": "RAGID",
+      "squawkMode": "N",
+      "arrivalRunway": "24L",
+      "speedBasis": "IAS",
+      "publishedSpeeds": true,
+      "procedures": [
+        "RAGID6"
+      ],
+      "flightRules": "I",
+      "wake": "M",
+      "equipment": "S",
+      "departureTime": "0000",
+      "actualDepartureTime": "0000",
+      "cruiseAltitude": 15000,
+      "cruiseSpeed": 440,
+      "enrouteHours": 1,
+      "enrouteMinutes": 0,
+      "fuelHours": 2,
+      "fuelMinutes": 0,
+      "alternate": "CYHM",
+      "remarks": "/v/ SYNTHETIC LOCAL TRAINING ONLY",
+      "flightPlanRoute": "RAGID RAGID6 CYYZ/24L",
+      "category": "jet",
+      "compiledPlan": "RAGID RAGID6 CYYZ/24L",
+      "compiledRunway": "24L"
+    },
+    {
+      "callsign": "ACA208",
+      "type": "BCS1",
+      "lat": 44.831944444444446,
+      "lon": -80.37166666666666,
+      "altitude": 20000,
+      "speed": 250,
+      "heading": 169.43602983625465,
+      "rate": 1500,
+      "route": "IRKIM BOXUM DUVOS ADSED ERBUS TASKU DAVIK LEVIG MIPED SATUR EBDAL NOAHA",
+      "origin": "CYEG",
+      "destination": "CYYZ",
+      "squawk": "2206",
+      "spawnTime": 300,
+      "spawnFix": "IRKIM",
+      "squawkMode": "N",
+      "arrivalRunway": "24R",
+      "speedBasis": "IAS",
+      "publishedSpeeds": true,
+      "procedures": [
+        "BOXUM7"
+      ],
+      "flightRules": "I",
+      "wake": "M",
+      "equipment": "S",
+      "departureTime": "0000",
+      "actualDepartureTime": "0000",
+      "cruiseAltitude": 20000,
+      "cruiseSpeed": 440,
+      "enrouteHours": 1,
+      "enrouteMinutes": 0,
+      "fuelHours": 2,
+      "fuelMinutes": 0,
+      "alternate": "CYHM",
+      "remarks": "/v/ SYNTHETIC LOCAL TRAINING ONLY",
+      "flightPlanRoute": "IRKIM BOXUM7 CYYZ/24R",
+      "category": "jet",
+      "compiledPlan": "IRKIM BOXUM7 CYYZ/24R",
+      "compiledRunway": "24R"
+    },
+    {
+      "callsign": "TSC613",
+      "type": "A332",
+      "lat": 45.59024166666667,
+      "lon": -77.47917222222222,
+      "altitude": 22000,
+      "speed": 250,
+      "heading": 226.34415290120359,
+      "rate": 1500,
+      "route": "ROSVO BETUL IMEBA LEPUX DUGDA CALVY OMTOK",
+      "origin": "LFPG",
+      "destination": "CYYZ",
+      "squawk": "2207",
+      "spawnTime": 360,
+      "spawnFix": "ROSVO",
+      "squawkMode": "N",
+      "arrivalRunway": "23",
+      "speedBasis": "IAS",
+      "publishedSpeeds": true,
+      "procedures": [
+        "IMEBA9"
+      ],
+      "flightRules": "I",
+      "wake": "H",
+      "equipment": "S",
+      "departureTime": "0000",
+      "actualDepartureTime": "0000",
+      "cruiseAltitude": 22000,
+      "cruiseSpeed": 440,
+      "enrouteHours": 1,
+      "enrouteMinutes": 0,
+      "fuelHours": 2,
+      "fuelMinutes": 0,
+      "alternate": "CYHM",
+      "remarks": "/v/ SYNTHETIC LOCAL TRAINING ONLY",
+      "flightPlanRoute": "ROSVO IMEBA9 CYYZ/23",
+      "category": "jet",
+      "compiledPlan": "ROSVO IMEBA9 CYYZ/23",
+      "compiledRunway": "23"
+    },
+    {
+      "callsign": "DAL382",
+      "type": "A319",
+      "lat": 43.227222222222224,
+      "lon": -79.30583333333333,
+      "altitude": 16000,
+      "speed": 250,
+      "heading": 334.74493709676307,
+      "rate": 1500,
+      "route": "LOKPU LINNG YOUTH BIMPO VERKO MAROD DEKNI DAVNO DUNOL LISDU KIREX",
+      "origin": "KATL",
+      "destination": "CYYZ",
+      "squawk": "2210",
+      "spawnTime": 420,
+      "spawnFix": "LOKPU",
+      "squawkMode": "N",
+      "arrivalRunway": "24L",
+      "speedBasis": "IAS",
+      "publishedSpeeds": true,
+      "procedures": [
+        "LINNG3"
+      ],
+      "flightRules": "I",
+      "wake": "M",
+      "equipment": "S",
+      "departureTime": "0000",
+      "actualDepartureTime": "0000",
+      "cruiseAltitude": 16000,
+      "cruiseSpeed": 440,
+      "enrouteHours": 1,
+      "enrouteMinutes": 0,
+      "fuelHours": 2,
+      "fuelMinutes": 0,
+      "alternate": "CYHM",
+      "remarks": "/v/ SYNTHETIC LOCAL TRAINING ONLY",
+      "flightPlanRoute": "LOKPU LINNG3 CYYZ/24L",
+      "category": "jet",
+      "compiledPlan": "LOKPU LINNG3 CYYZ/24L",
+      "compiledRunway": "24L"
+    },
+    {
+      "callsign": "UAL547",
+      "type": "B739",
+      "lat": 43.286944444444444,
+      "lon": -81.25055555555555,
+      "altitude": 22000,
+      "speed": 250,
+      "heading": 74.63440423077401,
+      "rate": 1500,
+      "route": "APDAX NUBER ROKTO PENGO BOTUM VERKO MAROD DEKNI DAVNO DUNOL EBDAL NOAHA",
+      "origin": "KDEN",
+      "destination": "CYYZ",
+      "squawk": "2211",
+      "spawnTime": 480,
+      "spawnFix": "APDAX",
+      "squawkMode": "N",
+      "arrivalRunway": "24R",
+      "speedBasis": "IAS",
+      "publishedSpeeds": true,
+      "procedures": [
+        "NUBER6"
+      ],
+      "flightRules": "I",
+      "wake": "M",
+      "equipment": "S",
+      "departureTime": "0000",
+      "actualDepartureTime": "0000",
+      "cruiseAltitude": 22000,
+      "cruiseSpeed": 440,
+      "enrouteHours": 1,
+      "enrouteMinutes": 0,
+      "fuelHours": 2,
+      "fuelMinutes": 0,
+      "alternate": "CYHM",
+      "remarks": "/v/ SYNTHETIC LOCAL TRAINING ONLY",
+      "flightPlanRoute": "APDAX NUBER6 CYYZ/24R",
+      "category": "jet",
+      "compiledPlan": "APDAX NUBER6 CYYZ/24R",
+      "compiledRunway": "24R"
+    },
+    {
+      "callsign": "ACA760",
+      "type": "B789",
+      "lat": 45.10027777777778,
+      "lon": -76.23193611111111,
+      "altitude": 22000,
+      "speed": 250,
+      "heading": 240.90239679435166,
+      "rate": 1500,
+      "route": "TORNI LIBEM IGSAP UDNOX RAGID DENKA DUGDA CALVY OMTOK",
+      "origin": "EGLL",
+      "destination": "CYYZ",
+      "squawk": "2212",
+      "spawnTime": 540,
+      "spawnFix": "TORNI",
+      "squawkMode": "N",
+      "arrivalRunway": "23",
+      "speedBasis": "IAS",
+      "publishedSpeeds": true,
+      "procedures": [
+        "RAGID6"
+      ],
+      "flightRules": "I",
+      "wake": "H",
+      "equipment": "S",
+      "departureTime": "0000",
+      "actualDepartureTime": "0000",
+      "cruiseAltitude": 22000,
+      "cruiseSpeed": 440,
+      "enrouteHours": 1,
+      "enrouteMinutes": 0,
+      "fuelHours": 2,
+      "fuelMinutes": 0,
+      "alternate": "CYHM",
+      "remarks": "/v/ SYNTHETIC LOCAL TRAINING ONLY",
+      "flightPlanRoute": "TORNI RAGID6 CYYZ/23",
+      "category": "jet",
+      "compiledPlan": "TORNI RAGID6 CYYZ/23",
+      "compiledRunway": "23"
+    },
+    {
+      "callsign": "WJA718",
+      "type": "B38M",
+      "lat": 45.61416666666667,
+      "lon": -82.06583333333333,
+      "altitude": 22000,
+      "speed": 250,
+      "heading": 136.73755620325193,
+      "rate": 1500,
+      "route": "TUDAN SETGO DARID BOXUM DUVOS ADSED ERBUS TASKU DAVIK LEVIG MIPED SATUR CALVY OMTOK",
+      "origin": "CYWG",
+      "destination": "CYYZ",
+      "squawk": "2213",
+      "spawnTime": 600,
+      "spawnFix": "TUDAN",
+      "squawkMode": "N",
+      "arrivalRunway": "23",
+      "speedBasis": "IAS",
+      "publishedSpeeds": true,
+      "procedures": [
+        "BOXUM7"
+      ],
+      "flightRules": "I",
+      "wake": "M",
+      "equipment": "S",
+      "departureTime": "0000",
+      "actualDepartureTime": "0000",
+      "cruiseAltitude": 22000,
+      "cruiseSpeed": 440,
+      "enrouteHours": 1,
+      "enrouteMinutes": 0,
+      "fuelHours": 2,
+      "fuelMinutes": 0,
+      "alternate": "CYHM",
+      "remarks": "/v/ SYNTHETIC LOCAL TRAINING ONLY",
+      "flightPlanRoute": "TUDAN BOXUM7 CYYZ/23",
+      "category": "jet",
+      "compiledPlan": "TUDAN BOXUM7 CYYZ/23",
+      "compiledRunway": "23"
+    },
+    {
+      "callsign": "ACA462",
+      "type": "A320",
+      "lat": 45.899175,
+      "lon": -75.81103333333333,
+      "altitude": 22000,
+      "speed": 250,
+      "heading": 235.99641539055636,
+      "rate": 1500,
+      "route": "POLTY PERGI IMEBA LEPUX AMILU LISDU KIREX",
+      "origin": "CYHZ",
+      "destination": "CYYZ",
+      "squawk": "2214",
+      "spawnTime": 660,
+      "spawnFix": "POLTY",
+      "squawkMode": "N",
+      "arrivalRunway": "24L",
+      "speedBasis": "IAS",
+      "publishedSpeeds": true,
+      "procedures": [
+        "IMEBA9"
+      ],
+      "flightRules": "I",
+      "wake": "M",
+      "equipment": "S",
+      "departureTime": "0000",
+      "actualDepartureTime": "0000",
+      "cruiseAltitude": 22000,
+      "cruiseSpeed": 440,
+      "enrouteHours": 1,
+      "enrouteMinutes": 0,
+      "fuelHours": 2,
+      "fuelMinutes": 0,
+      "alternate": "CYHM",
+      "remarks": "/v/ SYNTHETIC LOCAL TRAINING ONLY",
+      "flightPlanRoute": "POLTY IMEBA9 CYYZ/24L",
+      "category": "jet",
+      "compiledPlan": "POLTY IMEBA9 CYYZ/24L",
+      "compiledRunway": "24L"
+    },
+    {
+      "callsign": "JBU906",
+      "type": "A320",
+      "lat": 42.933791666666664,
+      "lon": -78.73878888888889,
+      "altitude": 22000,
+      "speed": 250,
+      "heading": 309.56805790570144,
+      "rate": 1500,
+      "route": "WOZEE ISTON LINNG YOUTH BIMPO VERKO MAROD DEKNI DAVNO DUNOL EBDAL NOAHA",
+      "origin": "KJFK",
+      "destination": "CYYZ",
+      "squawk": "2215",
+      "spawnTime": 720,
+      "spawnFix": "WOZEE",
+      "squawkMode": "N",
+      "arrivalRunway": "24R",
+      "speedBasis": "IAS",
+      "publishedSpeeds": true,
+      "procedures": [
+        "LINNG3"
+      ],
+      "flightRules": "I",
+      "wake": "M",
+      "equipment": "S",
+      "departureTime": "0000",
+      "actualDepartureTime": "0000",
+      "cruiseAltitude": 22000,
+      "cruiseSpeed": 440,
+      "enrouteHours": 1,
+      "enrouteMinutes": 0,
+      "fuelHours": 2,
+      "fuelMinutes": 0,
+      "alternate": "CYHM",
+      "remarks": "/v/ SYNTHETIC LOCAL TRAINING ONLY",
+      "flightPlanRoute": "WOZEE LINNG3 CYYZ/24R",
+      "category": "jet",
+      "compiledPlan": "WOZEE LINNG3 CYYZ/24R",
+      "compiledRunway": "24R"
+    },
+    {
+      "callsign": "ROU163",
+      "type": "A321",
+      "lat": 42.75666666666667,
+      "lon": -81.32277777777777,
+      "altitude": 22000,
+      "speed": 250,
+      "heading": 28.201685364623074,
+      "rate": 1500,
+      "route": "FINGL DERLO NUBER ROKTO PENGO MANUP ERBUS TASKU DAVIK LEVIG MIPED SATUR CALVY OMTOK",
+      "origin": "KLAS",
+      "destination": "CYYZ",
+      "squawk": "2216",
+      "spawnTime": 780,
+      "spawnFix": "FINGL",
+      "squawkMode": "N",
+      "arrivalRunway": "23",
+      "speedBasis": "IAS",
+      "publishedSpeeds": true,
+      "procedures": [
+        "NUBER6"
+      ],
+      "flightRules": "I",
+      "wake": "M",
+      "equipment": "S",
+      "departureTime": "0000",
+      "actualDepartureTime": "0000",
+      "cruiseAltitude": 22000,
+      "cruiseSpeed": 440,
+      "enrouteHours": 1,
+      "enrouteMinutes": 0,
+      "fuelHours": 2,
+      "fuelMinutes": 0,
+      "alternate": "CYHM",
+      "remarks": "/v/ SYNTHETIC LOCAL TRAINING ONLY",
+      "flightPlanRoute": "FINGL NUBER6 CYYZ/23",
+      "category": "jet",
+      "compiledPlan": "FINGL NUBER6 CYYZ/23",
+      "compiledRunway": "23"
+    },
+    {
+      "callsign": "POE309",
+      "type": "E295",
+      "lat": 44.35498611111111,
+      "lon": -78.068775,
+      "altitude": 20000,
+      "speed": 250,
+      "heading": 239.58556102792812,
+      "rate": 1500,
+      "route": "UDNOX RAGID DENKA AMILU LISDU KIREX",
+      "origin": "CYQM",
+      "destination": "CYYZ",
+      "squawk": "2217",
+      "spawnTime": 840,
+      "spawnFix": "UDNOX",
+      "squawkMode": "N",
+      "arrivalRunway": "24L",
+      "speedBasis": "IAS",
+      "publishedSpeeds": true,
+      "procedures": [
+        "RAGID6"
+      ],
+      "flightRules": "I",
+      "wake": "M",
+      "equipment": "S",
+      "departureTime": "0000",
+      "actualDepartureTime": "0000",
+      "cruiseAltitude": 20000,
+      "cruiseSpeed": 440,
+      "enrouteHours": 1,
+      "enrouteMinutes": 0,
+      "fuelHours": 2,
+      "fuelMinutes": 0,
+      "alternate": "CYHM",
+      "remarks": "/v/ SYNTHETIC LOCAL TRAINING ONLY",
+      "flightPlanRoute": "UDNOX RAGID6 CYYZ/24L",
+      "category": "jet",
+      "compiledPlan": "UDNOX RAGID6 CYYZ/24L",
+      "compiledRunway": "24L"
+    }
+  ],
+  "runways": [
+    {
+      "airport": "CYYZ",
+      "name": "05",
+      "threshold": {
+        "lat": 43.674394444444445,
+        "lon": -79.66371111111111
+      },
+      "opposite": {
+        "lat": 43.69421944444444,
+        "lon": -79.63491944444445
+      },
+      "elevation": 569,
+      "simulated": true
+    },
+    {
+      "airport": "CYYZ",
+      "name": "23",
+      "threshold": {
+        "lat": 43.69421944444444,
+        "lon": -79.63491944444445
+      },
+      "opposite": {
+        "lat": 43.674394444444445,
+        "lon": -79.66371111111111
+      },
+      "elevation": 569,
+      "simulated": true
+    },
+    {
+      "airport": "CYYZ",
+      "name": "06R",
+      "threshold": {
+        "lat": 43.6583,
+        "lon": -79.62192777777777
+      },
+      "opposite": {
+        "lat": 43.675288888888886,
+        "lon": -79.5972361111111
+      },
+      "elevation": 569,
+      "simulated": true
+    },
+    {
+      "airport": "CYYZ",
+      "name": "24L",
+      "threshold": {
+        "lat": 43.675288888888886,
+        "lon": -79.5972361111111
+      },
+      "opposite": {
+        "lat": 43.6583,
+        "lon": -79.62192777777777
+      },
+      "elevation": 569,
+      "simulated": true
+    },
+    {
+      "airport": "CYYZ",
+      "name": "06L",
+      "threshold": {
+        "lat": 43.661049999999996,
+        "lon": -79.62342777777778
+      },
+      "opposite": {
+        "lat": 43.678977777777774,
+        "lon": -79.59736944444444
+      },
+      "elevation": 569,
+      "simulated": true
+    },
+    {
+      "airport": "CYYZ",
+      "name": "24R",
+      "threshold": {
+        "lat": 43.678977777777774,
+        "lon": -79.59736944444444
+      },
+      "opposite": {
+        "lat": 43.661049999999996,
+        "lon": -79.62342777777778
+      },
+      "elevation": 569,
+      "simulated": true
+    },
+    {
+      "airport": "CYYZ",
+      "name": "15R",
+      "threshold": {
+        "lat": 43.68488333333333,
+        "lon": -79.65117777777779
+      },
+      "opposite": {
+        "lat": 43.669127777777774,
+        "lon": -79.63059722222222
+      },
+      "elevation": 569,
+      "simulated": true
+    },
+    {
+      "airport": "CYYZ",
+      "name": "33L",
+      "threshold": {
+        "lat": 43.669127777777774,
+        "lon": -79.63059722222222
+      },
+      "opposite": {
+        "lat": 43.68488333333333,
+        "lon": -79.65117777777779
+      },
+      "elevation": 569,
+      "simulated": true
+    },
+    {
+      "airport": "CYYZ",
+      "name": "15L",
+      "threshold": {
+        "lat": 43.69280833333333,
+        "lon": -79.64329444444445
+      },
+      "opposite": {
+        "lat": 43.67079722222222,
+        "lon": -79.61455
+      },
+      "elevation": 569,
+      "simulated": true
+    },
+    {
+      "airport": "CYYZ",
+      "name": "33R",
+      "threshold": {
+        "lat": 43.67079722222222,
+        "lon": -79.61455
+      },
+      "opposite": {
+        "lat": 43.69280833333333,
+        "lon": -79.64329444444445
+      },
+      "elevation": 569,
+      "simulated": true
+    }
+  ],
+  "speedRules": [
+    {
+      "airport": "CYYZ",
+      "procedure": "BOXUM7",
+      "runway": "05",
+      "fix": "DUVOS",
+      "kind": "at",
+      "knots": 250,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "BOXUM7",
+      "runway": "05",
+      "fix": "DEBGO",
+      "kind": "max",
+      "knots": 220,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "BOXUM7",
+      "runway": "05",
+      "fix": "MODOL",
+      "kind": "at",
+      "knots": 210,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "BOXUM7",
+      "runway": "06L",
+      "fix": "DUVOS",
+      "kind": "at",
+      "knots": 250,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "BOXUM7",
+      "runway": "06L",
+      "fix": "DEBGO",
+      "kind": "max",
+      "knots": 220,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "BOXUM7",
+      "runway": "06L",
+      "fix": "MODOL",
+      "kind": "at",
+      "knots": 210,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "BOXUM7",
+      "runway": "06R",
+      "fix": "DUVOS",
+      "kind": "at",
+      "knots": 250,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "BOXUM7",
+      "runway": "06R",
+      "fix": "DEBGO",
+      "kind": "max",
+      "knots": 220,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "BOXUM7",
+      "runway": "06R",
+      "fix": "MODOL",
+      "kind": "at",
+      "knots": 210,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "BOXUM7",
+      "runway": "23",
+      "fix": "DUVOS",
+      "kind": "at",
+      "knots": 250,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2A1, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "BOXUM7",
+      "runway": "23",
+      "fix": "ADSED",
+      "kind": "max",
+      "knots": 220,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2A1, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "BOXUM7",
+      "runway": "23",
+      "fix": "TASKU",
+      "kind": "at",
+      "knots": 210,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2A1, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "BOXUM7",
+      "runway": "24L",
+      "fix": "DUVOS",
+      "kind": "at",
+      "knots": 250,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2A1, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "BOXUM7",
+      "runway": "24L",
+      "fix": "ADSED",
+      "kind": "max",
+      "knots": 220,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2A1, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "BOXUM7",
+      "runway": "24L",
+      "fix": "TASKU",
+      "kind": "at",
+      "knots": 210,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2A1, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "BOXUM7",
+      "runway": "24R",
+      "fix": "DUVOS",
+      "kind": "at",
+      "knots": 250,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2A1, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "BOXUM7",
+      "runway": "24R",
+      "fix": "ADSED",
+      "kind": "max",
+      "knots": 220,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2A1, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "BOXUM7",
+      "runway": "24R",
+      "fix": "TASKU",
+      "kind": "at",
+      "knots": 210,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2A1, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "IMEBA9",
+      "runway": "05",
+      "fix": "SEKOP",
+      "kind": "at",
+      "knots": 250,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2C, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "IMEBA9",
+      "runway": "05",
+      "fix": "PILPO",
+      "kind": "max",
+      "knots": 220,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2C, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "IMEBA9",
+      "runway": "05",
+      "fix": "MODOL",
+      "kind": "at",
+      "knots": 210,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2C, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "IMEBA9",
+      "runway": "06L",
+      "fix": "SEKOP",
+      "kind": "at",
+      "knots": 250,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2C, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "IMEBA9",
+      "runway": "06L",
+      "fix": "PEKMO",
+      "kind": "at",
+      "knots": 210,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2C, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "IMEBA9",
+      "runway": "06R",
+      "fix": "SEKOP",
+      "kind": "at",
+      "knots": 250,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2C, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "IMEBA9",
+      "runway": "06R",
+      "fix": "PEKMO",
+      "kind": "at",
+      "knots": 210,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2C, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "IMEBA9",
+      "runway": "23",
+      "fix": "LEPUX",
+      "kind": "at",
+      "knots": 220,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2C2, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "IMEBA9",
+      "runway": "24L",
+      "fix": "LEPUX",
+      "kind": "at",
+      "knots": 220,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2C2, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "IMEBA9",
+      "runway": "24R",
+      "fix": "LEPUX",
+      "kind": "at",
+      "knots": 220,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2C2, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "LINNG3",
+      "runway": "05",
+      "fix": "SEDAB",
+      "kind": "at",
+      "knots": 250,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2D, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "LINNG3",
+      "runway": "05",
+      "fix": "SEGOD",
+      "kind": "at",
+      "knots": 210,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2D, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "LINNG3",
+      "runway": "06L",
+      "fix": "SEDAB",
+      "kind": "at",
+      "knots": 250,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2D, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "LINNG3",
+      "runway": "06L",
+      "fix": "SEGOD",
+      "kind": "at",
+      "knots": 210,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2D, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "LINNG3",
+      "runway": "06R",
+      "fix": "SEDAB",
+      "kind": "at",
+      "knots": 250,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2D, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "LINNG3",
+      "runway": "06R",
+      "fix": "SEGOD",
+      "kind": "at",
+      "knots": 210,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2D, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "LINNG3",
+      "runway": "23",
+      "fix": "YOUTH",
+      "kind": "at",
+      "knots": 250,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2D2, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "LINNG3",
+      "runway": "23",
+      "fix": "BIMPO",
+      "kind": "at",
+      "knots": 210,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2D2, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "LINNG3",
+      "runway": "24L",
+      "fix": "YOUTH",
+      "kind": "at",
+      "knots": 250,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2D2, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "LINNG3",
+      "runway": "24L",
+      "fix": "BIMPO",
+      "kind": "at",
+      "knots": 210,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2D2, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "LINNG3",
+      "runway": "24R",
+      "fix": "YOUTH",
+      "kind": "at",
+      "knots": 250,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2D2, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "LINNG3",
+      "runway": "24R",
+      "fix": "BIMPO",
+      "kind": "at",
+      "knots": 210,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2D2, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "NUBER6",
+      "runway": "05",
+      "fix": "IKBAT",
+      "kind": "at",
+      "knots": 220,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2E3, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "NUBER6",
+      "runway": "06L",
+      "fix": "IKBAT",
+      "kind": "at",
+      "knots": 220,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2E3, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "NUBER6",
+      "runway": "06R",
+      "fix": "IKBAT",
+      "kind": "at",
+      "knots": 220,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2E3, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "NUBER6",
+      "runway": "23",
+      "fix": "ROKTO",
+      "kind": "at",
+      "knots": 250,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2E5, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "NUBER6",
+      "runway": "23",
+      "fix": "MANUP",
+      "kind": "max",
+      "knots": 220,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2E5, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "NUBER6",
+      "runway": "23",
+      "fix": "TASKU",
+      "kind": "at",
+      "knots": 210,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2E5, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "NUBER6",
+      "runway": "24L",
+      "fix": "ROKTO",
+      "kind": "at",
+      "knots": 250,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2E5, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "NUBER6",
+      "runway": "24L",
+      "fix": "BOTUM",
+      "kind": "at",
+      "knots": 210,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2E5, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "NUBER6",
+      "runway": "24R",
+      "fix": "ROKTO",
+      "kind": "at",
+      "knots": 250,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2E5, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "NUBER6",
+      "runway": "24R",
+      "fix": "BOTUM",
+      "kind": "at",
+      "knots": 210,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2E5, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "RAGID6",
+      "runway": "05",
+      "fix": "LERAT",
+      "kind": "at",
+      "knots": 250,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2F, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "RAGID6",
+      "runway": "05",
+      "fix": "KEVNO",
+      "kind": "at",
+      "knots": 210,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2F, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "RAGID6",
+      "runway": "06L",
+      "fix": "LERAT",
+      "kind": "at",
+      "knots": 250,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2F, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "RAGID6",
+      "runway": "06L",
+      "fix": "RESES",
+      "kind": "at",
+      "knots": 210,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2F, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "RAGID6",
+      "runway": "06R",
+      "fix": "LERAT",
+      "kind": "at",
+      "knots": 250,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2F, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "RAGID6",
+      "runway": "06R",
+      "fix": "RESES",
+      "kind": "at",
+      "knots": 210,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2F, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "RAGID6",
+      "runway": "23",
+      "fix": "DENKA",
+      "kind": "at",
+      "knots": 220,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2F2, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "RAGID6",
+      "runway": "24L",
+      "fix": "DENKA",
+      "kind": "at",
+      "knots": 220,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2F2, 21 Nov 2025 / effective 27 Nov 2025"
+    },
+    {
+      "airport": "CYYZ",
+      "procedure": "RAGID6",
+      "runway": "24R",
+      "fix": "DENKA",
+      "kind": "at",
+      "knots": 220,
+      "aircraftCategory": "jet",
+      "source": "User-provided Jeppesen 10-2F2, 21 Nov 2025 / effective 27 Nov 2025"
+    }
+  ]
+}

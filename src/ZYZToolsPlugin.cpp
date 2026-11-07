@@ -1,5 +1,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
+#include <winsock2.h>
+#include <iphlpapi.h>
 #include "BuildChannel.h"
 #include <Windows.h>
 #include <windowsx.h>
@@ -8,9 +10,14 @@
 #include <TlHelp32.h>
 
 #include "../SDK/EuroScopePlugIn.h"
+#include "TrainingPilotTagDraw.h"
+#include "TrainingPilotList.h"
+#include "TrainingPilotDropdown.h"
 #include "DepartureAssignment.h"
 #include "ArrivalAssignment.h"
 #include "PdcTemplate.h"
+#include "conflict/ConflictModule.h"
+#include <memory>
 
 #include <algorithm>
 #include <atomic>
@@ -37,6 +44,8 @@
 #pragma comment(lib, "Winmm.lib")
 #pragma comment(lib, "Gdi32.lib")
 #pragma comment(lib, "User32.lib")
+#pragma comment(lib, "Iphlpapi.lib")
+#pragma comment(lib, "Ws2_32.lib")
 
 using namespace EuroScopePlugIn;
 
@@ -74,6 +83,10 @@ namespace
     constexpr int FUNC_SETTINGS_EDIT_IFR_SOUND = 9219;
     constexpr int FUNC_SETTINGS_EDIT_REPLAY_SAVE_COMMAND = 9220;
     constexpr int SCREEN_OBJECT_SETTINGS = 9301;
+    constexpr int SCREEN_OBJECT_PILOT = 9302;
+    constexpr int FUNC_PILOT_EDIT = 9700;
+    constexpr int FUNC_PILOT_LIST_FIRST = 9710;
+    constexpr int FUNC_PILOT_LIST_LAST = 9715;
 
     constexpr ULONGLONG LAST_RENDERED_FALLBACK_MS = 1500ULL;
     constexpr int DEPARTURE_SNAPSHOT_INTERVAL_SECONDS = 10;
@@ -1904,6 +1917,9 @@ namespace
 
 } // namespace
 
+#include "TrainingCommandBridge.h"
+#include "TrainingPrediction.h"
+
 class CZYZToolsPlugin final : public CPlugIn
 {
 public:
@@ -1911,12 +1927,27 @@ public:
         : CPlugIn(COMPATIBILITY_CODE, ZYZTOOLS_PLUGIN_NAME, "1.2.6", "Charlie Yablon and Elliot Potts", "ZYZTools EuroScope controller tools")
     {
         RegisterTagItemType("CYYZ_PDC STATUS", TAG_PDC_FLAG_TYPE);
+        m_conflict = std::make_unique<zyzca::ConflictModule>(*this, GetThisDllDir());
         RegisterTagItemType("CYYZ_PDC RWY", TAG_PDC_RUNWAY_TYPE);
         RegisterTagItemType("PDC Flag (legacy)", TAG_PDC_FLAG_LEGACY_TYPE);
         RegisterTagItemFunction("CYYZ_PDC SEND PDC", FUNC_PDC_GENERATE);
         RegisterTagItemFunction("CYYZ_PDC RESTORE FLAG", FUNC_PDC_RESTORE);
         RegisterTagItemFunction("Generate PDC (legacy)", FUNC_PDC_GENERATE_LEGACY);
         RegisterTagItemFunction("TEST: Trigger Incoming Message", FUNC_PDC_TEST);
+        const char* pilotFunctions[]={"ZYZTools PILOT: altitude","ZYZTools PILOT: IAS","ZYZTools PILOT: Mach","ZYZTools PILOT: heading","ZYZTools PILOT: direct waypoint","ZYZTools PILOT: advanced"};
+        for(int i=0;i<6;++i)RegisterTagItemFunction(pilotFunctions[i],FUNC_PILOT_LIST_FIRST+i);
+        const char* listItems[]={"ZYZTools list: actual altitude","ZYZTools list: pilot altitude","ZYZTools list: actual IAS","ZYZTools list: pilot speed","ZYZTools list: actual heading","ZYZTools list: pilot navigation","ZYZTools list: next fix","ZYZTools list: actual owner","ZYZTools list: SFI"};
+        for(int i=0;i<9;++i)RegisterTagItemType(listItems[i],TrainingPilotList::Altitude+i);
+        m_pilotAircraftList=RegisterFpList(ZYZTOOLS_PLUGIN_NAME " - All Aircraft");
+        if(m_pilotAircraftList.IsValid()&&m_pilotAircraftList.GetColumnNumber()==0){
+            const auto column=[this](const char* title,int width,int item,int left,int right){m_pilotAircraftList.AddColumnDefinition(title,width,false,ZYZTOOLS_PLUGIN_NAME,item,ZYZTOOLS_PLUGIN_NAME,left,ZYZTOOLS_PLUGIN_NAME,right);};
+            m_pilotAircraftList.AddColumnDefinition("Callsign",12,false,ZYZTOOLS_PLUGIN_NAME,zyzca::CallsignItem,nullptr,TAG_ITEM_FUNCTION_TOGGLE_ROUTE_DRAW,nullptr,TAG_ITEM_FUNCTION_HANDOFF_POPUP_MENU);
+            m_pilotAircraftList.AddColumnDefinition("Type",5,false,nullptr,TAG_ITEM_TYPE_PLANE_TYPE,ZYZTOOLS_PLUGIN_NAME,FUNC_PILOT_LIST_LAST,ZYZTOOLS_PLUGIN_NAME,FUNC_PILOT_LIST_LAST);
+            column("ALT",4,TrainingPilotList::Altitude,9710,9710);column("P ALT",5,TrainingPilotList::PilotAltitude,9710,9710);
+            column("IAS",4,TrainingPilotList::IAS,9711,9712);column("P SPD",7,TrainingPilotList::PilotSpeed,9711,9712);
+            column("HDG",4,TrainingPilotList::Heading,9713,9714);column("P NAV",10,TrainingPilotList::PilotNavigation,9713,9714);
+            column("Next",8,TrainingPilotList::NextFix,9714,9714);column("Owner",14,TrainingPilotList::Owner,9715,9715);column("SFI",3,TrainingPilotList::SFI,9715,9715);
+        }
 
         LoadConfig();
         StartHoppieWorker();
@@ -1975,6 +2006,8 @@ public:
 
     ~CZYZToolsPlugin() override
     {
+        m_conflict.reset();
+        DeleteFileA((GetThisDllDir() + "DiscordPresence.json").c_str());
         EndStatisticsSession("plugin unload");
         StopAudioRecordingPlayback();
         StopHoppieWorker();
@@ -1982,10 +2015,22 @@ public:
         ShutdownBridge();
     }
     CRadarScreen *OnRadarScreenCreated(const char *sDisplayName, bool NeedRadarContent, bool GeoReferenced, bool CanBeSaved, bool CanBeCreated) override;
+    void OnAirportRunwayActivityChanged() override { if (m_conflict) m_conflict->dirty = true; }
 
-    void OnGetTagItem(CFlightPlan FlightPlan, CRadarTarget, int ItemCode, int,
-                      char sItemString[16], int *pColorCode, COLORREF *pRGB, double *) override
+    void OnGetTagItem(CFlightPlan FlightPlan, CRadarTarget target, int ItemCode, int tagData,
+                      char sItemString[16], int *pColorCode, COLORREF *pRGB, double *fontSize) override
     {
+        if(ItemCode>=TrainingPilotList::Altitude&&ItemCode<=TrainingPilotList::SFI){
+            sItemString[0]=0;*pColorCode=TAG_COLOR_DEFAULT;if(!FlightPlan.IsValid()||!m_trainingCommands.PilotAircraft(FlightPlan.GetCallsign()))return;
+            for(const auto &tag:m_trainingCommands.PilotTags())if(tag.callsign==FlightPlan.GetCallsign()){
+                const auto value=TrainingPilotList::Value(ItemCode,tag);strncpy_s(sItemString,16,value.text.c_str(),_TRUNCATE);
+                *pColorCode=TAG_COLOR_RGB_DEFINED;*pRGB=value.tone==3?RGB(255,110,90):value.tone==2?RGB(70,230,115):value.tone==1?TrainingPilotTagDraw::Blue:TrainingPilotTagDraw::Normal;return;
+            }return;
+        }
+        if (ItemCode == zyzca::CallsignItem || ItemCode == zyzca::MarkerItem) {
+            if (m_conflict) m_conflict->OnGetTagItem(FlightPlan, target, ItemCode, tagData, sItemString, pColorCode, pRGB, fontSize);
+            return;
+        }
         if (ItemCode != TAG_PDC_FLAG_TYPE &&
             ItemCode != TAG_PDC_FLAG_LEGACY_TYPE &&
             ItemCode != TAG_PDC_RUNWAY_TYPE)
@@ -2061,8 +2106,30 @@ public:
         }
     }
 
-    void OnFunctionCall(int FunctionId, const char *sItemString, POINT, RECT) override
+    void OnFunctionCall(int FunctionId, const char *sItemString, POINT, RECT Area) override
     {
+        if(FunctionId>=FUNC_PILOT_LIST_FIRST&&FunctionId<=FUNC_PILOT_LIST_LAST){
+            const auto fp=FlightPlanSelectASEL();
+            if(!fp.IsValid()){DisplayUserMessage("ZYZTools","PILOT","Select the aircraft's list row first.",true,true,false,false,false);return;}
+            const char* fields[]={"ALT","IAS","MACH","HDG","DCT","ADV"};OpenPilotControl(fp.GetCallsign(),fields[FunctionId-FUNC_PILOT_LIST_FIRST],Area);return;
+        }
+        if(FunctionId==FUNC_PILOT_EDIT){
+            const auto cs=m_pilotEditCallsign,context=m_pilotEditContext,field=m_pilotMenuField;const auto value=Upper(Trim(sItemString?sItemString:""));m_pilotEditCallsign.clear();m_pilotEditContext.clear();if(cs.empty()||context.empty()||m_trainingCommands.PilotContext(cs)!=context)return;
+            if(field=="HDG"){
+                if(value.empty()||value.size()>3||!std::all_of(value.begin(),value.end(),[](char c){return c>='0'&&c<='9';})||std::atoi(value.c_str())>360){DisplayUserMessage("ZYZTools","PILOT","Enter a magnetic heading from 000 to 360.",true,true,false,false,false);return;}
+                SendPilotAction(cs,"HDG "+value);return;
+            }
+            if(field=="SPEED_RESTRICTION"||field=="CROSS_RESTRICTION"){
+                std::istringstream input(value);std::string first,separator,last,extra;input>>first>>separator>>last;
+                const auto fix=[](const std::string &s){return !s.empty()&&s.size()<=16&&std::all_of(s.begin(),s.end(),[](unsigned char c){return std::isalnum(c)||c=='_'||c=='-';});};
+                const auto digits=[](const std::string &s){return !s.empty()&&s.size()<=5&&std::all_of(s.begin(),s.end(),[](char c){return c>='0'&&c<='9';});};
+                const bool speed=field=="SPEED_RESTRICTION",valid=!(input>>extra)&&(speed?digits(first)&&separator=="UNTIL"&&fix(last):fix(first)&&separator=="AT"&&digits(last));
+                if(!valid){DisplayUserMessage("ZYZTools","PILOT",speed?"Enter e.g. 170 UNTIL KIREX (knots IAS).":"Enter e.g. LINNG AT 11000 (feet).",true,true,false,false,false);return;}
+                SendPilotAction(cs,speed?"IAS "+first+" UNTIL "+last:"CROSS "+first+" AT "+last);return;
+            }
+            const bool valid=field=="SQ"?value.size()==4&&std::all_of(value.begin(),value.end(),[](char c){return c>='0'&&c<='7';}):field=="DCT"&&!value.empty()&&value.size()<=16&&std::all_of(value.begin(),value.end(),[](unsigned char c){return std::isalnum(c)||c=='_'||c=='-';});
+            if(!valid){DisplayUserMessage("ZYZTools","PILOT","Enter a four-digit octal squawk or a single known waypoint name.",true,true,false,false,false);return;}SendPilotAction(cs,field+" "+value);return;
+        }
         if (HandleSettingsEdit(FunctionId, sItemString))
             return;
 
@@ -2120,6 +2187,8 @@ public:
 
     void OnFlightPlanDisconnect(CFlightPlan FlightPlan) override
     {
+        if(FlightPlan.IsValid()&&m_pilotAircraftList.IsValid()){m_pilotAircraftList.RemoveFpFromTheList(FlightPlan);m_pilotListMembers.erase(FlightPlan.GetCallsign());}
+        if (m_conflict) m_conflict->OnFlightPlanDisconnect(FlightPlan);
         std::string cs = Upper(Trim(FlightPlan.GetCallsign()));
         if (!cs.empty())
         {
@@ -2140,6 +2209,7 @@ public:
 
     void OnFlightPlanFlightPlanDataUpdate(CFlightPlan FlightPlan) override
     {
+        if (m_conflict) m_conflict->dirty = true;
         TryAssignArrivalRunway(FlightPlan);
         TryAssignSpawnRunway(FlightPlan);
         CacheFp(FlightPlan);
@@ -2148,6 +2218,7 @@ public:
 
     void OnFlightPlanControllerAssignedDataUpdate(CFlightPlan FlightPlan, int DataType) override
     {
+        if (m_conflict) m_conflict->dirty = true;
         if (DataType == CTR_DATA_TYPE_SCRATCH_PAD_STRING) TryAssignArrivalRunway(FlightPlan);
         CacheFp(FlightPlan);
 
@@ -2217,7 +2288,15 @@ public:
 
     void OnTimer(int Counter) override
     {
+        const auto trainingSelf=ControllerMyself();
+        CFlightPlan trainingFp=FlightPlanSelectASEL(); CRadarTarget trainingRt=RadarTargetSelectASEL();
+        const std::string trainingSelected=trainingFp.IsValid()?trainingFp.GetCallsign():trainingRt.IsValid()?trainingRt.GetCallsign():"";
+        const std::string trainingResult=m_trainingCommands.Tick(trainingSelected,GetConnectionType()==CONNECTION_TYPE_DIRECT&&trainingSelf.IsValid()?trainingSelf.GetCallsign():"");
+        RefreshPilotAircraftList();
+        if(!trainingResult.empty()) DisplayUserMessage("ZYZTools","TRAINING",trainingResult.c_str(),true,true,false,false,false);
+        if (m_conflict) {m_conflict->trainingVerified=m_trainingCommands.ConflictTelemetry(m_conflict->trainingAircraft);m_conflict->OnTimer(Counter);}
         UpdateStatisticsConnectionState();
+        if (Counter % 5 == 0) WriteDiscordPresence();
         if (Counter % 2 == 0)
             RefreshDepartureAssignmentConfig();
         PollSettingsActions();
@@ -2240,9 +2319,28 @@ public:
     bool OnCompileCommand(const char *sCommandLine) override
     {
         if (!sCommandLine) return false;
-        const std::string command = Upper(CollapseWhitespace(Trim(sCommandLine)));
-        if (command == ".UI" || command == "." + ReplaySaveCommandKey())
-            return HandleUiAction(sCommandLine);
+        const std::string trainingCommand=Upper(CollapseWhitespace(Trim(sCommandLine)));
+        if(trainingCommand==".AIRCRAFT"){
+            if(m_trainingCommands.PilotLayoutContext().empty())DisplayUserMessage("ZYZTools","PILOT","Connect my EuroScope to your private instructor session before opening All Aircraft.",true,true,false,false,false);
+            else {RefreshPilotAircraftList();if(m_pilotAircraftList.IsValid())m_pilotAircraftList.ShowFpList(true);}
+            return true;
+        }
+        const bool explicitTraining=trainingCommand==".SIM" || trainingCommand.rfind(".SIM ",0)==0;
+        // Existing plugin/configured replay commands retain priority. Generic
+        // shortcuts are claimed only with our verified local training context.
+        if(!explicitTraining){
+            if(m_conflict && m_conflict->OnCompileCommand(sCommandLine))return true;
+            if(trainingCommand==".UI" || trainingCommand=="."+ReplaySaveCommandKey())return HandleUiAction(sCommandLine);
+        }
+        std::string trainingInstruction;
+        const bool shortcut=CTrainingCommandBridge::Shortcut(trainingCommand,trainingInstruction);
+        if(explicitTraining || (shortcut && GetConnectionType()==CONNECTION_TYPE_DIRECT && m_trainingCommands.TrainingContext())) {
+            std::string message;
+            if(trainingCommand==".SIM HELP" || trainingCommand==".SIM") message="Select an aircraft, then .ALT 5000 | .RATE 1500 | .SPD 210 | .HDG/.LHDG/.RHDG 240 | .DCT FIX | .APP CLEAR/CANCEL | .PAUSE ON/OFF | .IDENT | .SQ 4321 | .MODE C/STBY | .SPEED PUBLISHED | .ROUTE RESUME | .DELETE. Instructor training only; .sim also works.";
+            else if(GetConnectionType()!=CONNECTION_TYPE_DIRECT)message="Training commands require a direct instructor training connection, not playback or another connection mode.";
+            else {CFlightPlan fp=FlightPlanSelectASEL();CRadarTarget rt=RadarTargetSelectASEL();CController self=ControllerMyself();message=m_trainingCommands.Command(fp.IsValid()?fp.GetCallsign():rt.IsValid()?rt.GetCallsign():"",self.IsValid()?self.GetCallsign():"",explicitTraining?trainingCommand.substr(5):trainingInstruction);}
+            DisplayUserMessage("ZYZTools","TRAINING",message.c_str(),true,true,false,false,false);return true;
+        }
         return false;
     }
 
@@ -2379,6 +2477,73 @@ public:
 
 private:
     friend class CSettingsScreen;
+    std::string m_pilotEditCallsign,m_pilotEditContext,m_pilotFeedback;
+    std::string m_pilotMenuField,m_pilotSelected;
+    std::vector<std::string> m_pilotMenuValues;
+    TrainingPilotDropdown m_pilotDropdown;
+    RECT m_pilotMenuArea{};
+    void OpenPilotControl(const std::string &cs,const std::string &field,RECT area){
+        if(m_sendConfirmation.active)return;
+        const auto context=m_trainingCommands.PilotContext(cs);
+        if(context.empty()){DisplayUserMessage("ZYZTools","PILOT","Use Connect my EuroScope and select an active aircraft in your private instructor session. Normal live-network list fields are unchanged.",true,true,false,false,false);return;}
+        m_pilotEditCallsign=cs;m_pilotEditContext=context;m_pilotMenuField=field;m_pilotMenuArea=area;m_pilotSelected="";
+        for(const auto &tag:m_trainingCommands.PilotTags())if(tag.callsign==cs){
+            const int i=field=="ALT"?0:field=="IAS"?1:field=="HDG"?2:field=="DCT"?4:field=="SQ"?5:field=="MACH"?7:-1;
+            if(i>=0)m_pilotSelected=field=="SQ"?tag.squawk:tag.values[i];
+            if(field=="ALT"&&tag.values[0]!="-")m_pilotSelected=TrainingPilotTagDraw::Level(std::atoi(tag.values[0].c_str()));
+            if(field=="MACH"&&tag.values[7]!="-"){char value[16];std::snprintf(value,sizeof(value),"%.2f",std::atof(tag.values[7].c_str()));m_pilotSelected=value;}
+            if(field=="ALT"&&tag.altMode=="APP"&&tag.values[6]=="CLEAR")m_pilotSelected="Cleared approach";
+        }
+        m_pilotMenuValues=m_trainingCommands.PilotMenu(cs,field);
+        if(field=="SQ")m_pilotMenuValues.push_back("Enter custom squawk...");
+        if(field=="ADV")m_pilotMenuValues.insert(m_pilotMenuValues.begin(),"Show All Aircraft list");
+        if(m_pilotMenuValues.empty()){DisplayUserMessage("ZYZTools","PILOT","No choices available. Check instructor connection and retry.",true,true,false,false,false);return;}ShowPilotMenu();
+    }
+    void ShowPilotMenu(){
+        const auto cs=m_pilotEditCallsign,context=m_pilotEditContext,field=m_pilotMenuField;
+        if(context.empty()||m_trainingCommands.PilotContext(cs)!=context||m_pilotMenuValues.empty())return;const RECT area=m_pilotMenuArea;
+        const bool opened=m_pilotDropdown.Open(m_pilotMenuValues,m_pilotSelected,[this,cs,context,field,area](std::string value){
+            if(m_trainingCommands.PilotContext(cs)!=context)return;
+            if(value.rfind("Quick ",0)==0||value.rfind("Crossing ",0)==0){const auto start=value.rfind('[');if(start!=std::string::npos&&value.back()==']')SendPilotAction(cs,Upper(value.substr(start+1,value.size()-start-2)));return;}
+            if(field=="IAS"&&value.rfind("Preset ",0)==0){const auto start=value.rfind('(');if(start!=std::string::npos&&value.back()==')')SendPilotAction(cs,"IAS "+Upper(value.substr(start+1,value.size()-start-2)));return;}
+            if(field=="HDG"&&value=="Enter custom heading..."){m_pilotEditCallsign=cs;m_pilotEditContext=context;m_pilotMenuField="HDG";OpenPopupEdit(area,FUNC_PILOT_EDIT,"");return;}
+            if(field=="HDG"&&value=="Fly present heading"){SendPilotAction(cs,"HDG PRESENT");return;}
+            if(field=="ADV"){
+                if(value=="Show All Aircraft list"){RefreshPilotAircraftList();if(m_pilotAircraftList.IsValid())m_pilotAircraftList.ShowFpList(true);return;}
+                if(value.rfind("Preset ",0)==0){const auto start=value.rfind('(');if(start!=std::string::npos&&value.back()==')')SendPilotAction(cs,"IAS "+Upper(value.substr(start+1,value.size()-start-2)));return;}
+                m_pilotEditCallsign=cs;m_pilotEditContext=context;m_pilotMenuArea=area;
+                if(value=="Delete aircraft"){m_pilotMenuField="DELETE_CONFIRM";m_pilotMenuValues={"Cancel","Delete aircraft"};m_pilotSelected="Cancel";ShowPilotMenu();return;}
+                if(value=="IDENT"){SendPilotAction(cs,"IDENT");return;}
+                if(value=="Enter squawk"){OpenPilotControl(cs,"SQ",area);return;}
+                if(value=="Set vertical rate"){OpenPilotControl(cs,"RATE",area);return;}
+                if(value=="Cancel approach"){SendPilotAction(cs,"APP CANCEL");return;}
+                if(value=="Clear speed restrictions"){SendPilotAction(cs,"RESTRICTIONS SPEED CLEAR");return;}
+                if(value=="Clear crossing restrictions"){SendPilotAction(cs,"RESTRICTIONS ALT CLEAR");return;}
+                m_pilotMenuField=value=="Custom speed restrictions"?"SPEED_RESTRICTION":"CROSS_RESTRICTION";
+                OpenPopupEdit(area,FUNC_PILOT_EDIT,value=="Custom speed restrictions"?"170 UNTIL KIREX":"LINNG AT 11000");return;
+            }
+            if(field=="DELETE_CONFIRM"){if(value=="Delete aircraft")SendPilotAction(cs,"DELETE AIRCRAFT");return;}
+            if(field=="DCT"&&value=="Type waypoint..."){m_pilotEditCallsign=cs;m_pilotEditContext=context;m_pilotMenuField=field;OpenPopupEdit(area,FUNC_PILOT_EDIT,"");return;}
+            if(field=="SQ"&&value=="Enter custom squawk..."){m_pilotEditCallsign=cs;m_pilotEditContext=context;m_pilotMenuField=field;OpenPopupEdit(area,FUNC_PILOT_EDIT,"");return;}
+            SendPilotAction(cs,field=="ALT"?(value=="Cleared approach"?"APP CLEAR":"ALT "+std::to_string(std::atoi(value.c_str())*100)):field+" "+value);
+        });if(!opened)DisplayUserMessage("ZYZTools","PILOT","Could not open pilot dropdown. Refocus EuroScope and retry.",true,true,false,false,false);
+    }
+    ULONGLONG m_pilotFeedbackUntil=0;
+    void SendPilotAction(const std::string &cs,const std::string &command){const auto self=ControllerMyself();if(GetConnectionType()!=CONNECTION_TYPE_DIRECT||!self.IsValid()||m_trainingCommands.PilotContext(cs).empty())return;const auto message=m_trainingCommands.Command(cs,self.GetCallsign(),command);m_pilotFeedback=cs+": "+command;m_pilotFeedbackUntil=GetTickCount64()+3000;if(!message.empty())DisplayUserMessage("ZYZTools","PILOT",message.c_str(),true,true,false,false,false);}
+    CTrainingCommandBridge m_trainingCommands;
+    CFlightPlanList m_pilotAircraftList;
+    std::map<std::string,CFlightPlan> m_pilotListMembers;
+    std::string m_pilotListContext;
+    void RefreshPilotAircraftList(){
+        if(!m_pilotAircraftList.IsValid())return;
+        const auto context=m_trainingCommands.PilotLayoutContext();std::set<std::string> active;
+        if(!context.empty())for(const auto &tag:m_trainingCommands.PilotTags())if(m_trainingCommands.PilotAircraft(tag.callsign))active.insert(tag.callsign);
+        for(auto i=m_pilotListMembers.begin();i!=m_pilotListMembers.end();){if(context!=m_pilotListContext||!active.count(i->first)||!i->second.IsValid()){if(i->second.IsValid())m_pilotAircraftList.RemoveFpFromTheList(i->second);i=m_pilotListMembers.erase(i);}else ++i;}
+        if(context.empty()){if(!m_pilotListContext.empty())m_pilotAircraftList.ShowFpList(false);m_pilotListContext.clear();return;}
+        for(const auto &cs:active){if(m_pilotListMembers.count(cs))continue;const auto fp=FlightPlanSelect(cs.c_str());if(fp.IsValid()){m_pilotAircraftList.AddFpToTheList(fp);m_pilotListMembers.emplace(cs,fp);}}
+        if(context!=m_pilotListContext)m_pilotAircraftList.ShowFpList(true);m_pilotListContext=context;
+    }
+    bool m_trainingTagRestore=false;
 
     enum class SentChannel
     {
@@ -2506,6 +2671,7 @@ private:
     };
 
     Config m_cfg{};
+    std::unique_ptr<zyzca::ConflictModule> m_conflict;
     DualsMode m_dualsMode = DualsMode::Off;
 
     bool m_hoppieMode = false; // default OFF
@@ -3195,6 +3361,26 @@ private:
         default:
             return "CLEARED";
         }
+    }
+
+    void WriteDiscordPresence()
+    {
+        const bool connected = IsStatisticsNetworkConnection();
+        const CController myself = ControllerMyself();
+        const std::string position = connected && myself.IsValid() && myself.GetCallsign() ? myself.GetCallsign() : "";
+        int owned = 0;
+        if (connected)
+            for (CFlightPlan fp = FlightPlanSelectFirst(); fp.IsValid(); fp = FlightPlanSelectNext(fp))
+                if (fp.GetTrackingControllerIsMe()) ++owned;
+        const std::string target = GetThisDllDir() + "DiscordPresence.json";
+        const std::string temp = target + ".tmp";
+        std::ofstream out(temp, std::ios::binary | std::ios::trunc);
+        if (!out) return;
+        out << "{\"ts\":" << std::time(nullptr) << ",\"connected\":" << (connected ? "true" : "false")
+            << ",\"position\":\"" << JsonEscape(position) << "\",\"owned\":" << owned
+            << ",\"session\":" << m_statisticsSession.startedAt << "}";
+        out.close();
+        if (out) MoveFileExA(temp.c_str(), target.c_str(), MOVEFILE_REPLACE_EXISTING);
     }
 
     bool IsStatisticsNetworkConnection() const
@@ -5607,10 +5793,13 @@ private:
 class CSettingsScreen final : public CRadarScreen
 {
 public:
-    explicit CSettingsScreen(CZYZToolsPlugin *plugin) : m_plugin(plugin) {}
+    explicit CSettingsScreen(CZYZToolsPlugin *plugin) : m_plugin(plugin) {
+        if (m_plugin->m_conflict) m_plugin->m_conflict->screens.insert(this);
+    }
 
     void OnAsrContentToBeClosed(void) override
     {
+        if (m_plugin && m_plugin->m_conflict) m_plugin->m_conflict->screens.erase(this);
         delete this;
     }
 
@@ -5619,6 +5808,9 @@ public:
         if (!m_plugin || Phase != REFRESH_PHASE_AFTER_LISTS)
             return;
         RefreshTheme();
+        DrawTrainingPrediction(hDC);
+        DrawConflictPoints(hDC);
+        DrawPilotControls(hDC);
         if (m_plugin->m_settingsVisible)
         {
             KeepSettingsRectVisible();
@@ -5643,6 +5835,50 @@ public:
             DrawSendConfirmation(hDC);
     }
 
+    void DrawPilotControls(HDC dc)
+    {
+        if(m_plugin->GetConnectionType()!=CONNECTION_TYPE_DIRECT||m_plugin->m_settingsVisible)return;
+        const auto &tags=m_plugin->m_trainingCommands.PilotTags();if(tags.empty())return;
+        const auto layoutContext=m_plugin->m_trainingCommands.PilotLayoutContext();if(m_pilotLayoutContext!=layoutContext){m_pilotTagOffsets.clear();m_pilotLayoutContext=layoutContext;}
+        const RECT radar=GetRadarArea();const int saved=SaveDC(dc);IntersectClipRect(dc,radar.left,radar.top,radar.right,radar.bottom);SetBkMode(dc,TRANSPARENT);
+        HFONT font=CreateFontA(TrainingPilotTagDraw::FontHeight,0,0,0,500,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,FIXED_PITCH,"EuroScope");if(font)SelectObject(dc,font);
+        SelectObject(dc,GetStockObject(DC_PEN));SelectObject(dc,GetStockObject(HOLLOW_BRUSH));SetDCPenColor(dc,RGB(65,145,255));
+        static const char* names[]={"ALT","IAS","HDG","RATE","DCT","SQ","APP","MACH","Advanced"};
+        for(const auto &cached:tags){auto tag=cached;
+            if(!m_plugin->m_trainingCommands.PilotAircraft(tag.callsign))continue;const auto rt=m_plugin->RadarTargetSelect(tag.callsign.c_str());if(!rt.IsValid()||!rt.GetPosition().IsValid())continue;
+            const auto live=rt.GetPosition();tag.altitude=live.GetPressureAltitude()>m_plugin->GetTransitionAltitude()?live.GetFlightLevel():live.GetPressureAltitude();tag.groundSpeed=live.GetReportedGS();
+            const POINT plane=ConvertCoordFromPositionToPixel(live.GetPosition());if(plane.x<radar.left||plane.x>radar.right||plane.y<radar.top||plane.y>radar.bottom)continue;
+            POINT offset{28,24};const auto found=m_pilotTagOffsets.find(tag.callsign);if(found!=m_pilotTagOffsets.end())offset=found->second;
+            const int left=std::max(static_cast<int>(radar.left)+4,std::min(static_cast<int>(radar.right)-TrainingPilotTagDraw::Width-4,static_cast<int>(plane.x+offset.x))),top=std::max(static_cast<int>(radar.top)+4,std::min(static_cast<int>(radar.bottom)-TrainingPilotTagDraw::Height-4,static_cast<int>(plane.y+offset.y)));
+            RECT box{left,top,left+TrainingPilotTagDraw::Width,top+TrainingPilotTagDraw::Height};SetDCPenColor(dc,TrainingPilotTagDraw::Normal);MoveToEx(dc,plane.x,plane.y,nullptr);LineTo(dc,left,top+8);
+            TrainingPilotTagDraw::Draw(dc,left,top,tag,m_plugin->m_conflict?static_cast<int>(m_plugin->m_conflict->displayStage(tag.callsign)):0,m_plugin->m_conflict?m_plugin->m_conflict->displayLocation(tag.callsign):std::string{});RECT header{left,top,left+TrainingPilotTagDraw::Width,top+TrainingPilotTagDraw::HeaderHeight};
+            for(int i:{0,1,2,5,8}){RECT r=TrainingPilotTagDraw::Cell(left,top,i);const auto tip=tag.callsign+" "+(i==5?"Callsign: left route, right handoff":names[i])+" - pilot control; green check means student annotation matches";AddScreenObject(SCREEN_OBJECT_PILOT,(tag.callsign+"|"+std::to_string(i)).c_str(),r,i==5,tip.c_str());}
+        }
+        RestoreDC(dc,saved);if(font)DeleteObject(font);
+    }
+
+    void DrawConflictPoints(HDC dc){
+        if(!m_plugin||!m_plugin->m_conflict)return;auto&module=*m_plugin->m_conflict;if(!module.enabled)return;const int saved=SaveDC(dc);if(!saved)return;const RECT radar=GetRadarArea();IntersectClipRect(dc,radar.left,radar.top,radar.right,radar.bottom);SelectObject(dc,GetStockObject(DC_PEN));SelectObject(dc,GetStockObject(DC_BRUSH));SetDCPenColor(dc,RGB(255,230,0));SetDCBrushColor(dc,RGB(255,230,0));std::set<std::string> drawn;
+        for(const auto&[id,alert]:module.alerts){if(!alert.hasPoint||module.displayStage(id)==ca::Stage::None)continue;const auto key=id<alert.other?id+"|"+alert.other:alert.other+"|"+id;if(!drawn.insert(key).second)continue;const auto geo=ca::unproject(alert.point);CPosition position;position.m_Latitude=geo.first;position.m_Longitude=geo.second;const POINT point=ConvertCoordFromPositionToPixel(position);Ellipse(dc,point.x-3,point.y-3,point.x+4,point.y+4);}
+        RestoreDC(dc,saved);
+    }
+    void DrawTrainingPrediction(HDC hDC)
+    {
+        if(m_plugin->GetConnectionType()!=CONNECTION_TYPE_DIRECT)return;
+        const auto target=m_plugin->RadarTargetSelectASEL();if(!target.IsValid())return;
+        const int minutes=m_plugin->m_trainingCommands.PredictionMinutes(target.GetCallsign());if(!minutes)return;
+        const auto data=target.GetPosition();if(!data.IsValid())return;
+        const auto origin=data.GetPosition();const double gs=data.GetReportedGS(),heading=data.GetReportedHeadingTrueNorth();
+        const int saved=SaveDC(hDC);if(!saved)return;const RECT area=GetRadarArea();IntersectClipRect(hDC,area.left,area.top,area.right,area.bottom);
+        HPEN pen=CreatePen(PS_DOT,1,RGB(80,230,230));if(!pen){RestoreDC(hDC,saved);return;}SelectObject(hDC,pen);
+        POINT previous=ConvertCoordFromPositionToPixel(origin);
+        for(int minute=1;minute<=minutes;++minute){TrainingPrediction::Point projected;if(!TrainingPrediction::Project(origin.m_Latitude,origin.m_Longitude,heading,gs,minute,projected))break;
+            CPosition end;end.m_Latitude=projected.lat;end.m_Longitude=projected.lon;const POINT point=ConvertCoordFromPositionToPixel(end);
+            MoveToEx(hDC,previous.x,previous.y,nullptr);LineTo(hDC,point.x,point.y);MoveToEx(hDC,point.x-2,point.y-2,nullptr);LineTo(hDC,point.x+3,point.y+3);previous=point;
+        }
+        RestoreDC(hDC,saved);DeleteObject(pen);
+    }
+
     bool OnCompileCommand(const char *sCommandLine) override
     {
         if (!m_plugin)
@@ -5665,8 +5901,9 @@ public:
             m_plugin->HandleSettingsEdit(FunctionId, sItemString);
     }
 
-    void OnButtonDownScreenObject(int ObjectType, const char *sObjectId, POINT Pt, RECT, int Button) override
+    void OnButtonDownScreenObject(int ObjectType, const char *sObjectId, POINT Pt, RECT Area, int Button) override
     {
+        if(m_plugin&&ObjectType==SCREEN_OBJECT_PILOT&&sObjectId&&Button==BUTTON_LEFT){const std::string id=sObjectId;const auto split=id.find('|');if(split!=std::string::npos&&id.substr(split+1)=="5"&&!m_plugin->m_trainingCommands.PilotContext(id.substr(0,split)).empty()){m_pilotDragCS=id.substr(0,split);m_pilotDragOffset={Pt.x-Area.left,Pt.y-Area.top};}return;}
         if (!m_plugin || m_plugin->m_sendConfirmation.active ||
             ObjectType != SCREEN_OBJECT_SETTINGS || Button != BUTTON_LEFT || !sObjectId)
             return;
@@ -5685,6 +5922,7 @@ public:
 
     void OnMoveScreenObject(int ObjectType, const char *sObjectId, POINT Pt, RECT, bool Released) override
     {
+        if(m_plugin&&ObjectType==SCREEN_OBJECT_PILOT&&sObjectId){const auto rt=m_plugin->RadarTargetSelect(m_pilotDragCS.c_str());if(rt.IsValid()&&rt.GetPosition().IsValid()){const auto origin=ConvertCoordFromPositionToPixel(rt.GetPosition().GetPosition());m_pilotTagOffsets[m_pilotDragCS]={Pt.x-m_pilotDragOffset.x-origin.x,Pt.y-m_pilotDragOffset.y-origin.y};RequestRefresh();}if(Released)m_pilotDragCS.clear();return;}
         if (!m_plugin || m_plugin->m_sendConfirmation.active ||
             ObjectType != SCREEN_OBJECT_SETTINGS || !sObjectId)
             return;
@@ -5739,8 +5977,16 @@ public:
         RequestRefresh();
     }
 
-    void OnClickScreenObject(int ObjectType, const char *sObjectId, POINT, RECT Area, int Button) override
+    void OnClickScreenObject(int ObjectType, const char *sObjectId, POINT Pt, RECT Area, int Button) override
     {
+        if(m_plugin&&ObjectType==SCREEN_OBJECT_PILOT&&sObjectId){
+            if(m_plugin->m_sendConfirmation.active)return;const std::string id=sObjectId;const auto split=id.find('|');if(split==std::string::npos||id.substr(split+1)=="MOVE")return;
+            const auto cs=id.substr(0,split),context=m_plugin->m_trainingCommands.PilotContext(cs);if(context.empty())return;const int index=atoi(id.substr(split+1).c_str());if(index!=0&&index!=1&&index!=2&&index!=5&&index!=8)return;
+            if(Button!=BUTTON_LEFT&&Button!=BUTTON_RIGHT&&!(Button==BUTTON_MIDDLE&&(index==0||index==8)))return;
+            if(index==5){const auto fp=m_plugin->FlightPlanSelect(cs.c_str());if(!fp.IsValid())return;m_plugin->SetASELAircraft(fp);StartTagFunction(cs.c_str(),nullptr,0,cs.c_str(),nullptr,Button==BUTTON_RIGHT?TAG_ITEM_FUNCTION_HANDOFF_POPUP_MENU:TAG_ITEM_FUNCTION_TOGGLE_ROUTE_DRAW,Pt,Area);return;}
+            const std::string field=index==8?"ADV":index==0?"ALT":index==1?(Button==BUTTON_RIGHT?"MACH":"IAS"):index==2?(Button==BUTTON_RIGHT?"HDG":"DCT"):"SQ";
+            m_plugin->OpenPilotControl(cs,field,Area);return;
+        }
         if (!m_plugin || ObjectType != SCREEN_OBJECT_SETTINGS || Button != BUTTON_LEFT || !sObjectId)
             return;
 
@@ -5924,6 +6170,9 @@ public:
 
 private:
     CZYZToolsPlugin *m_plugin = nullptr;
+    std::unordered_map<std::string,POINT> m_pilotTagOffsets;
+    std::string m_pilotLayoutContext,m_pilotDragCS;
+    POINT m_pilotDragOffset{};
     POINT m_dragOffset{0, 0};
     POINT m_resizeOffset{0, 0};
     bool m_loggedVisibleDraw = false;

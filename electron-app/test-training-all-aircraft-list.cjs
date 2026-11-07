@@ -1,0 +1,9 @@
+const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+test('native list has explicit private-only reopening from Advanced and command bar',()=>{
+ const cpp=fs.readFileSync(path.join(__dirname,'../src/ZYZToolsPlugin.cpp'),'utf8');
+ const start=cpp.indexOf('if(trainingCommand==".AIRCRAFT")'),end=cpp.indexOf('const bool explicitTraining',start),open=cpp.slice(start,end);
+ assert(start>=0);assert(open.includes('PilotLayoutContext().empty()'));assert(open.includes('ShowFpList(true)'));
+ assert(cpp.includes('m_pilotMenuValues.insert(m_pilotMenuValues.begin(),"Show All Aircraft list")'));
+ assert(cpp.includes('if(value=="Show All Aircraft list"){RefreshPilotAircraftList();'));
+});
+test('native all-aircraft list is independently populated from authenticated active simulator targets',()=>{const cpp=fs.readFileSync(path.join(__dirname,'../src/ZYZToolsPlugin.cpp'),'utf8');assert(cpp.includes('RegisterFpList(ZYZTOOLS_PLUGIN_NAME " - All Aircraft")'));assert(cpp.includes('m_pilotAircraftList.GetColumnNumber()==0'));const first=cpp.indexOf('void RefreshPilotAircraftList()'),last=cpp.indexOf('\n    }',first),refresh=cpp.slice(first,last);assert(refresh.includes('m_trainingCommands.PilotTags()'));assert(refresh.includes('m_trainingCommands.PilotLayoutContext()'));assert(refresh.includes('PilotAircraft(tag.callsign)'));assert(refresh.includes('AddFpToTheList(fp)'));assert(refresh.includes('RemoveFpFromTheList'));assert(refresh.includes('ShowFpList(false)'));assert(refresh.includes('ShowFpList(true)'));assert(!/GetTrackingControllerIsMe|GetSector|GetPositionId|COPN|COPX|GetFacility/.test(refresh));assert(cpp.includes('RefreshPilotAircraftList();'));assert(cpp.includes('m_pilotListMembers.erase(FlightPlan.GetCallsign())'));assert(!cpp.includes('DeleteAllColumns('));assert(cpp.includes('column("P ALT"'));assert(cpp.includes('column("P SPD"'));assert(cpp.includes('column("P NAV"'));});

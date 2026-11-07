@@ -18,11 +18,50 @@ app.setName(channel.name);
 app.setPath('userData', path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), channel.userDataName));
 
 let mainWindow = null;
+let discordPresence = null;
+// EuroScope's classic direct connection uses fixed port 6809. Distinct loopback
+// addresses keep production and test training sources separate without custom ports.
+const localTraining=new (require('./local-training').LocalTraining)(channel.test?'127.0.0.1':'127.0.0.2',{liveWeather:process.env.ZYZTOOLS_CALM_WEATHER!=='1'});
+const trainingMultiplayer=new (require('./training-multiplayer').TrainingMultiplayer)(localTraining,channel.test?6811:6812);
+const trainingConnector=new (require('./training-fsd-tunnel').FsdConnector)(channel.test?'127.0.0.1':'127.0.0.2');
+const tunnelCache=path.join(app.getPath('userData'),'managed-tunnel');
+const trainingTunnel=new (require('./training-tunnel').TrainingTunnel)(tunnelCache,()=>trainingMultiplayer.server?trainingMultiplayer.status().url:null,{verify:()=>{
+ const pinned=require('./training-tunnel-release.json'),source=app.isPackaged?path.join(process.resourcesPath,'tunnel/cloudflared.bin'):path.resolve(__dirname,'../../build/Tunnel/cloudflared.exe');
+ if(!fs.existsSync(source))throw Error('Bundled tunnel helper missing. Reinstall this ZYZTools version.');const bytes=fs.readFileSync(source);if(crypto.createHash('sha256').update(bytes).digest('hex')!==pinned.sha256)throw Error('Bundled tunnel integrity check failed. Reinstall ZYZTools.');
+ fs.mkdirSync(tunnelCache,{recursive:true});const target=path.join(tunnelCache,pinned.file);if(!fs.existsSync(target)||crypto.createHash('sha256').update(fs.readFileSync(target)).digest('hex')!==pinned.sha256)fs.writeFileSync(target,bytes,{mode:0o700});return target;
+}});
+const sectorFile=()=>path.join(app.getPath('userData'),'training-sector.json');
+async function readTrainingImport(file){return require('./training-import').readScenario(file,getTrainingSector(),async report=>{
+ const detail=[...(report.rejected.length?['NOT IMPORTED:',...report.rejected]:[]),...report.warnings].join('\n');if(detail.length>12000)throw Error('Too many compatibility issues to review safely. Split or correct the scenario before importing.');
+ const r=await dialog.showMessageBox(mainWindow,{type:'warning',title:'SweatBox compatibility review',message:report.imported+' of '+report.total+' aircraft can be imported.',detail,buttons:['Cancel','Import reviewed aircraft'],defaultId:0,cancelId:0,noLink:true});return r.response===1;
+});}
+let trainingSector=null;
+function getTrainingSector(){if(!trainingSector){try{trainingSector=JSON.parse(fs.readFileSync(sectorFile(),'utf8'));}catch{trainingSector={fixes:[],lines:[]};}}return trainingSector;}
+function prepareTraining(value){return require('./training-sector').resolveScenario(value,getTrainingSector());}
+localTraining.planResolver=a=>require('./training-routes').expandRoute(a,getTrainingSector(),localTraining.runtimeWaypoints||localTraining.scenario.waypoints);
+const instructorClient=new (require('./training-instructor').InstructorClient)(app.getPath('userData'),safeStorage);
+const trainingCommandBridge=new (require('./training-command-bridge').TrainingCommandBridge)(path.join(app.getPath('userData'),'TrainingCommands'),channel.test?'test':'production',instructorClient,trainingConnector);
+function ensureDiscordPresence(folder) {
+  if (!discordPresence) {
+    const { PresenceService } = require('./discord-presence');
+    const file = path.join(app.getPath('userData'), 'discord-presence-settings.json');
+    let selected = folder;
+    if (!selected) {
+      try { selected = JSON.parse(fs.readFileSync(file, 'utf8')).pluginFolder; } catch {}
+    }
+    selected = installDestination(selected || commandLinePluginFolder() || discoveredInstalledPluginFolder() || defaultParentFolder());
+    discordPresence = new PresenceService(file, selected);
+    discordPresence.start();
+  }
+  if (folder) discordPresence.folder = installDestination(folder);
+  return discordPresence;
+}
 const ownsInstance = app.requestSingleInstanceLock();
 if (!ownsInstance) app.quit();
 else app.on('second-instance', () => { mainWindow?.show(); mainWindow?.focus(); });
 
 const FILES_TO_INSTALL = [
+  ...['CZYZConflictAlert.ini','aircraft_wake.csv','parallel_approaches.txt','speed_restrictions.csv','wake_separation.csv','caution_chime.wav','urgent_alert.wav'].map(name=>({name,preserve:true})),
   { name: "PreferredCYYZPdcPlugin.dll", preserve: false },
   { name: "PreferredCYYZPdcBridge.exe", preserve: false },
   { name: "PreferredCYYZAudioReplay.exe", preserve: false },
@@ -574,6 +613,12 @@ function installEuroScopePayload(parentFolder, config) {
   const destination = installDestination(parentFolder);
   fs.mkdirSync(destination, { recursive: true });
 
+  // Migrate only supporting files; never install or load a second conflict DLL.
+  const legacyConflict = path.join(path.dirname(destination), 'CZYZConflictAlert');
+  for (const name of ['CZYZConflictAlert.ini','aircraft_wake.csv','parallel_approaches.txt','speed_restrictions.csv','wake_separation.csv','caution_chime.wav','urgent_alert.wav']) {
+    const oldFile=path.join(legacyConflict,name),newFile=path.join(destination,name);
+    if(fs.existsSync(oldFile)&&!fs.existsSync(newFile))fs.copyFileSync(oldFile,newFile);
+  }
   const copied = FILES_TO_INSTALL.map((file) => copyPayloadFile(file.name, destination, file.preserve));
   const merged = normalizeConfig({
     ...loadConfig(destination),
@@ -789,6 +834,7 @@ function selectedUpdateStream() {
 app.whenReady().then(async () => {
   if (!ownsInstance) return;
   createWindow();
+  ensureDiscordPresence();
   // The development app must never replace itself with the consumer installer.
   if (channel.test) return;
   try {
@@ -813,7 +859,150 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
+app.on('before-quit', () => { trainingCommandBridge.close();instructorClient.disconnect();trainingTunnel.stop();trainingConnector.stop();trainingMultiplayer.stop();localTraining.stop();discordPresence?.stop().catch(() => {}); });
+ipcMain.handle('discord:load', async (_event, folder) => {
+  const service = ensureDiscordPresence(folder);
+  return { config: service.config, status: service.status, preview: service.preview };
+});
+ipcMain.handle('discord:save', async (_event, folder, value) => {
+  const target = installDestination(folder);
+  assertDestination(target, readJsonIfExists(configPathForInstall(target)));
+  const service = ensureDiscordPresence();
+  service.save({ ...value, pluginFolder: target }, target);
+  await service.tick();
+  return { config: service.config, status: service.status, preview: service.preview };
+});
+
 ipcMain.handle("app:initialState", async () => getInitialState());
+ipcMain.handle('training:action',async(_event,action,value)=>{
+  if(action==='status')return localTraining.status();
+  if(action==='updateRate')return localTraining.updateRate(value);
+  if(action==='speedProfile')return localTraining.speedProfile(value.profile);
+  if(action==='load')return localTraining.load(prepareTraining(value));
+  if(action==='start')return localTraining.start(6809);
+  if(action==='demo')return localTraining.load(require('./training-demo.json'));
+  if(action==='run')return localTraining.run();
+  if(action==='pause')return localTraining.pause();
+  if(action==='reset')return localTraining.reset();
+  if(action==='stop'){trainingTunnel.stop();trainingMultiplayer.stop();return localTraining.stop();}
+  if(action==='command')return localTraining.command(value?.callsign,value?.command);
+  if(action==='amend')return localTraining.amend(value?.callsign,value?.fields);
+  if(action==='routePreview')return require('./training-routes').expandRoute(value?.aircraft||value,getTrainingSector(),value?.waypoints||localTraining.scenario.waypoints);
+  if(action==='speedDefaults')return require('./training-speed-data');
+  if(action==='speedRules'){
+    if(localTraining.server)throw Error('Stop the server before changing scenario speed rules.');
+    return localTraining.load({...localTraining.scenario,speedRules:require('./training-flight').normalizeSpeedRules(value)});
+  }
+  throw Error('Unknown local training action.');
+});
+ipcMain.handle('training:save',async(_event,value)=>{
+  const scenario=require('./local-training').normalize(prepareTraining(value));
+  const result=await dialog.showSaveDialog(mainWindow,{title:'Export initial training scenario',defaultPath:path.join(app.getPath('documents'),scenario.name.replace(/[^A-Za-z0-9_-]/g,'_')+'.zyztraining.json'),filters:[{name:'ZYZTools training',extensions:['json']}]});
+  if(result.canceled||!result.filePath)return false;
+  fs.writeFileSync(result.filePath,JSON.stringify(scenario,null,2),'utf8');return true;
+});
+ipcMain.handle('training:load',async()=>{
+  if(localTraining.server)throw Error('Stop the local server before importing a scenario.');
+  const result=await dialog.showOpenDialog(mainWindow,{title:'Import training / EuroScope SweatBox scenario',properties:['openFile'],filters:[{name:'Training scenarios',extensions:['json','txt']}]});
+  if(result.canceled)return null;
+  const scenario=await readTrainingImport(result.filePaths[0]);return scenario?localTraining.load(scenario):null;
+});
+ipcMain.handle('training:sector',async(_event,choose=false)=>{
+  if(choose==='clearAsr'){const data={...getTrainingSector()};delete data.profile;fs.writeFileSync(sectorFile(),JSON.stringify(data),'utf8');trainingSector=data;}
+  else if(choose==='asr'){
+    if(!getTrainingSector().geometry?.length)throw Error('Import your sector file again first so named display layers are available.');
+    const result=await dialog.showOpenDialog(mainWindow,{title:'Use EuroScope ASR display selections',defaultPath:path.join(process.env.APPDATA||app.getPath('documents'),'EuroScope'),properties:['openFile'],filters:[{name:'EuroScope radar screen',extensions:['asr']}]});
+    if(!result.canceled){const file=result.filePaths[0];if(fs.statSync(file).size>5*1024*1024)throw Error('ASR file exceeds 5 MB.');const profile=require('./training-sector').parseAsr(fs.readFileSync(file,'utf8'),path.basename(file));const data={...getTrainingSector(),profile};fs.writeFileSync(sectorFile(),JSON.stringify(data),'utf8');trainingSector=data;}
+  }
+  else if(choose===true){
+    const result=await dialog.showOpenDialog(mainWindow,{title:'Import sector fixes and map geometry',defaultPath:path.join(process.env.APPDATA||app.getPath('documents'),'EuroScope'),properties:['openFile','multiSelections'],filters:[{name:'EuroScope sector',extensions:['sct','sct2']}]});
+    if(!result.canceled){const data=require('./training-sector').importSectors(result.filePaths);fs.mkdirSync(app.getPath('userData'),{recursive:true});fs.writeFileSync(sectorFile(),JSON.stringify(data),'utf8');trainingSector=data;}
+  }
+  const data=getTrainingSector();return {...data,navPointCount:data.navPoints?.length||0,airwayCount:data.airways?.length||0,procedureCount:data.procedures?.length||0,navPoints:undefined,airways:undefined,procedures:undefined};
+});
+ipcMain.handle('training:multiplayer',async(_event,action,value)=>{
+ if(action==='inviteCopy'){const t=trainingTunnel.status();if(t.state!=='ready'||!trainingMultiplayer.server)throw Error('Wait for the internet tunnel to be ready.');require('electron').clipboard.writeText(require('./training-invite').makeInvite(t.url,trainingMultiplayer.token));return {copied:true};}
+ if(action==='invitePaste')return {invite:require('electron').clipboard.readText()};
+ if(action==='copyConnectorAddress'){if(!trainingConnector.server)throw Error('Join the host first.');require('electron').clipboard.writeText(trainingConnector.host);return {copied:true};}
+ if(action==='inviteJoin'){if(localTraining.server)throw Error('Stop your local training server before joining a remote host.');const input=String(value?.invite||'').trim();return trainingConnector.start(/^https:\/\//i.test(input)?require('./training-invite').parseInvite(input):await require('./training-directory').resolveCode(input));}
+ if(action==='hostStart'){
+  if(trainingConnector.server||trainingConnector.starting)throw Error('Stop the remote connector before hosting.');
+  if(!localTraining.scenario.aircraft.length)throw Error('Import/create a scenario or Load demo before hosting.');
+  if(!localTraining.server)await localTraining.start(6809);
+  await trainingMultiplayer.start();if(!trainingTunnel.status().running)await trainingTunnel.start();
+  return {training:localTraining.status(),shared:trainingMultiplayer.status(),tunnel:trainingTunnel.status()};
+ }
+ if(action==='hostStop'){trainingTunnel.stop();trainingMultiplayer.stop();return localTraining.stop();}
+ if(action==='tunnelStatus')return trainingTunnel.status();
+ if(action==='tunnelStart')return trainingTunnel.start();
+ if(action==='tunnelStop')return trainingTunnel.stop();
+ if(action==='tunnelCopy'){const s=trainingTunnel.status();if(s.state!=='ready'||!s.url)throw Error('Wait for the tunnel to connect.');require('electron').clipboard.writeText(s.url);return s;}
+ if(action==='connectorStatus')return trainingConnector.status();
+ if(action==='connectorStop'){trainingCommandBridge.disable();return trainingConnector.stop();}
+ if(action==='connectorStart'){if(localTraining.server)throw Error('Stop your local training server before joining a remote host.');return trainingConnector.start(value);}
+ if(action==='status')return trainingMultiplayer.status();
+ if(action==='stop'){trainingTunnel.stop();return trainingMultiplayer.stop();}
+ if(action==='start'){
+  return trainingMultiplayer.start();
+ }
+ if(action==='open'){if(!trainingMultiplayer.server)throw Error('Start shared control first.');await shell.openExternal(trainingMultiplayer.status().url);return trainingMultiplayer.status();}
+ throw Error('Unknown multiplayer action.');
+});
+ipcMain.handle('training:instructor',async(event,action,value={})=>{
+ if(event.sender!==mainWindow?.webContents||event.senderFrame!==mainWindow.webContents.mainFrame)throw Error('Invalid sender.');
+ if(action==='status')return instructorClient.status();
+ if(action==='connect')return instructorClient.connect(value.pairing,value.remember===true);
+ if(action==='restore')return instructorClient.restore();
+ if(action==='disconnect'){trainingCommandBridge.disable();return instructorClient.disconnect(value.forget===true);}
+ if(action==='euroScopeSelection')return trainingCommandBridge.selection();
+ if(action==='speedPresets')return trainingCommandBridge.speedPresets(value);
+ if(action==='controlPresets')return trainingCommandBridge.controlPresets(value);
+ if(action==='namedControlSlots')return trainingCommandBridge.namedControlSlots(value);
+ if(action==='altitudePresets')return trainingCommandBridge.altitudePresets(value);
+ if(action==='prediction'){const result=trainingCommandBridge.prediction(value.minutes);await trainingCommandBridge.refresh();return result;}
+ if(action==='state')return instructorClient.state();
+ if(action==='aircraft')return instructorClient.aircraft(value.slot);
+ if(action==='upload'){
+  const r=await dialog.showOpenDialog(mainWindow,{title:'Upload training / EuroScope SweatBox scenario',filters:[{name:'Training scenarios',extensions:['json','txt']}],properties:['openFile']});if(r.canceled)return {canceled:true};
+  const scenario=await readTrainingImport(r.filePaths[0]);if(!scenario)return {canceled:true};return instructorClient.action(value.slot,'import',value.epoch,{scenario});
+ }
+ if(action==='connectEuroScope'){
+  if(localTraining.server)throw Error('Stop the local practice server before connecting to your server PC.');
+  if(trainingConnector.server||trainingConnector.starting)throw Error('A EuroScope connector is already active. Disconnect it under Student before switching servers.');
+  const state=await instructorClient.state(),slot=state.slots.find(s=>s.id===value.slot);if(slot?.engineMode==='euroscope')throw Error('Update the server app and restart this slot in ZYZTools mode. Native mode has been removed.');
+  const result=await instructorClient.action(value.slot,'studentInvite',value.epoch);const s=await trainingConnector.start(require('./training-invite').parseInvite(result.invite));
+  try{await trainingCommandBridge.bind(value.slot);}catch(e){trainingConnector.stop();trainingCommandBridge.disable();throw e;}require('electron').clipboard.writeText(s.address);
+  await dialog.showMessageBox(mainWindow,{type:'info',title:'Instructor EuroScope view ready',message:'Server address copied: '+s.address,detail:'In EuroScope disconnect any old session, choose the normal direct connection, leave Connect to VATSIM UNCHECKED, use dummy credentials and a unique instructor callsign. Paste '+s.address+' as Server (port 6809). Keep ZYZTools running. This joins the selected server’s traffic; it does not transfer simulation to your PC.'});return {...s,engineMode:'zyztools'};
+ }
+ if(action==='studentInvite'){const result=await instructorClient.action(value.slot,'studentInvite',value.epoch);require('electron').clipboard.writeText(result.invite);return {copied:true};}
+ if(action==='action')return instructorClient.action(value.slot,value.action,value.epoch,value.payload);
+ throw Error('Unknown instructor action.');
+});
+ipcMain.handle('conflict:load', async (_event, folder) => {
+  const target=installDestination(folder);
+  assertDestination(target, readJsonIfExists(configPathForInstall(target)));
+  const settings=require('./conflict-settings');
+  return {config:settings.load(target),snapshot:settings.snapshot(target)};
+});
+ipcMain.handle('conflict:save', async (_event, folder, config) => {
+  const target=installDestination(folder);
+  assertDestination(target, readJsonIfExists(configPathForInstall(target)));
+  const settings=require('./conflict-settings');
+  return {config:settings.save(target,config),snapshot:settings.snapshot(target)};
+});
+ipcMain.handle('conflict:sound', async (_event, folder, kind) => {
+  if(!['caution','urgent'].includes(kind))throw Error('Unknown alert sound.');
+  const target=installDestination(folder);
+  assertDestination(target, readJsonIfExists(configPathForInstall(target)));
+  const result=await dialog.showOpenDialog(mainWindow,{title:'Choose conflict alert PCM WAV',properties:['openFile'],filters:[{name:'WAV audio',extensions:['wav']}]});
+  if(result.canceled)return {canceled:true};
+  const source=result.filePaths[0], bytes=fs.readFileSync(source);
+  if(bytes.length<44||bytes.length>20*1024*1024||bytes.toString('ascii',0,4)!=='RIFF'||bytes.toString('ascii',8,12)!=='WAVE')throw Error('Choose a valid WAV smaller than 20 MB.');
+  fs.mkdirSync(target,{recursive:true});
+  const output=path.join(target,kind==='caution'?'caution_chime.wav':'urgent_alert.wav');
+  if(path.resolve(source)!==path.resolve(output))fs.copyFileSync(source,output);
+  return {path:output};
+});
 function loadCustomTheme() {
   try { return require('./custom-theme').normalize(JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'custom-theme.json'), 'utf8'))); }
   catch { return require('./custom-theme').normalize(); }

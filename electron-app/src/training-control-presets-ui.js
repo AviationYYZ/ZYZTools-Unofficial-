@@ -1,0 +1,15 @@
+(()=>{
+ const api=window.preferredCyyzPdc?.trainingInstructor,host=document.getElementById('instructorSpeedPresets');if(!api||!host)return;
+ const root=document.createElement('details'),summary=document.createElement('summary'),help=document.createElement('p');summary.textContent='Quick control slots · separate dropdown categories';help.textContent='Each numbered row is an independent named preset, like a speed-until slot. Set Name and Value, then Save all quick slots. Empty rows disable individual slots. ALT uses flight levels (080 = 8000 ft). IAS is a plain assigned speed. Saved slots appear only in their matching EuroScope tag/list dropdown. Browser presets are separate.';root.append(summary,help);host.append(root);
+ const names={ALT:'Altitude',IAS:'IAS speed',MACH:'Mach',HDG:'Heading',DCT:'Direct waypoint',SQ:'Squawk',RATE:'Vertical rate',APP:'Approach'},tables={};
+ for(const [field,name]of Object.entries(names)){
+  const section=document.createElement('details'),title=document.createElement('summary'),table=document.createElement('table'),head=document.createElement('thead'),body=document.createElement('tbody');section.dataset.controlSlots=field;title.textContent=name+' slots';head.innerHTML='<tr><th>Slot</th><th>Name</th><th>Value</th></tr>';table.append(head,body);section.append(title,table);root.append(section);tables[field]=body;
+  for(let i=0;i<12;i++){const row=document.createElement('tr'),slot=document.createElement('td');slot.textContent=i+1;row.append(slot);for(const key of ['name','value']){const cell=document.createElement('td'),input=document.createElement('input');input.type='text';input.maxLength=key==='name'?32:40;input.dataset.field=key;input.setAttribute('aria-label',name+' slot '+(i+1)+' '+key);cell.append(input);row.append(cell);}body.append(row);}
+ }
+ const save=document.createElement('button'),reset=document.createElement('button'),note=document.createElement('p');save.type=reset.type='button';save.textContent='Save all quick slots';reset.textContent='Restore default quick slots';root.append(save,reset,note);let ready=false;
+ function lock(on){for(const e of root.querySelectorAll('input,button'))e.disabled=on||!ready;}
+ function fill(slots){for(const [field,body]of Object.entries(tables))for(let i=0;i<12;i++)for(const input of body.rows[i].querySelectorAll('input'))input.value=slots[field][i]?.[input.dataset.field]||'';}
+ function read(){return Object.fromEntries(Object.entries(tables).map(([field,body])=>[field,[...body.rows].map(row=>{const s=Object.fromEntries([...row.querySelectorAll('input')].map(e=>[e.dataset.field,e.value.trim()]));return !s.name&&!s.value?null:s;})]));}
+ async function store(resetDefaults){if(!ready)return;lock(true);try{const result=await api('namedControlSlots',resetDefaults?{reset:true}:{slots:read()});fill(result.slots);note.textContent='Saved all numbered slots. Reopen the relevant EuroScope dropdown.';}catch(e){note.textContent=e.message;}finally{lock(false);}}
+ save.onclick=()=>store(false);reset.onclick=()=>store(true);lock(true);api('namedControlSlots').then(v=>{fill(v.slots);ready=true;lock(false);}).catch(e=>{note.textContent=e.message;});
+})();
