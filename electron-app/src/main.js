@@ -831,32 +831,49 @@ function selectedUpdateStream() {
   try { return JSON.parse(fs.readFileSync(updatePreferencesPath(), 'utf8')).stream === 'beta' ? 'beta' : 'stable'; }
   catch { return 'stable'; }
 }
-app.whenReady().then(async () => {
-  if (!ownsInstance) return;
-  createWindow();
-  ensureDiscordPresence();
+let checkingStartupUpdate = false;
+async function startEssentialUpdate() {
   // The development app must never replace itself with the consumer installer.
-  if (channel.test) return;
+  if (channel.test) return false;
   try {
-    const release = await updates.check(updates.DEFAULT_REPOSITORY, app.getVersion(), undefined, selectedUpdateStream());
-    if (release.available && release.essential) {
-      const notice = await require('./essential-update-notice').showEssentialUpdateNotice(BrowserWindow, mainWindow, channel.name);
-      try {
+    const release = await updates.check(updates.DEFAULT_REPOSITORY, app.getVersion(), undefined, selectedUpdateStream(), { essentialOnly: true });
+    if (!release.available) return false;
+    let notice;
+    try {
+      notice = await require('./essential-update-notice').showEssentialUpdateNotice(BrowserWindow, null, channel.name);
       const installer = await updates.download(release, path.join(app.getPath('temp'), channel.userDataName + '-Updates'));
       await notice.beforeInstall();
-      const child = childProcess.spawn(installer, ['/S'], { detached: true, stdio: 'ignore', windowsHide: true });
-      child.on('error', error => { notice.close(); dialog.showErrorBox('Essential update could not start', error.message); });
-      child.once('spawn', () => { child.unref(); app.quit(); });
-      } catch (error) {
-        notice.close();
-        dialog.showErrorBox('Essential update could not be downloaded', error.message);
-      }
+      await new Promise((resolve, reject) => {
+        const child = childProcess.spawn(installer, ['/S'], { detached: true, stdio: 'ignore', windowsHide: true });
+        child.once('error', reject);
+        child.once('spawn', () => { child.unref(); resolve(); });
+      });
+      return true;
+    } catch (error) {
+      notice?.close();
+      const answer = await dialog.showMessageBox({
+        type: 'warning', title: 'Essential update could not install',
+        message: 'The automatic update could not be downloaded or started.',
+        detail: error.message + '\n\nYou can open the official release page to download the installer manually. Leave antivirus protection enabled.',
+        buttons: ['Continue to app', 'Open official release'], defaultId: 1, cancelId: 0
+      });
+      if (answer.response === 1) await shell.openExternal('https://github.com/' + updates.DEFAULT_REPOSITORY + '/releases/tag/' + encodeURIComponent(release.tag));
     }
   } catch (error) { console.warn('Startup update check:', error.message); }
+  return false;
+}
+app.whenReady().then(async () => {
+  if (!ownsInstance) return;
+  checkingStartupUpdate = true;
+  const installing = await startEssentialUpdate();
+  checkingStartupUpdate = false;
+  if (installing) { app.quit(); return; }
+  createWindow();
+  ensureDiscordPresence();
 });
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
+  if (!checkingStartupUpdate && process.platform !== "darwin") app.quit();
 });
 
 app.on('before-quit', () => { trainingCommandBridge.close();instructorClient.disconnect();trainingTunnel.stop();trainingConnector.stop();trainingMultiplayer.stop();localTraining.stop();discordPresence?.stop().catch(() => {}); });

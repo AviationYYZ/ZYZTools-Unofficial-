@@ -1,5 +1,6 @@
 #pragma once
 #include <windows.h>
+#include <windowsx.h>
 #include <commctrl.h>
 #include <functional>
 #include <algorithm>
@@ -7,11 +8,20 @@
 #include <vector>
 // Own popup only. Subclasses only our own combo list; never EuroScope/Situ.
 class TrainingPilotDropdown {
+ static constexpr UINT FinishMessage=WM_APP+42;
+ bool finishing=false;
+ int pendingChoice=-1;
+ void Finish(int choice){
+  if(!window||finishing)return;
+  finishing=true;pendingChoice=choice;
+  if(!PostMessage(window,FinishMessage,0,0)){finishing=false;pendingChoice=-1;}
+ }
  HWND wheelList=nullptr;WNDPROC listProc=nullptr;int wheelRemainder=0;
  static LRESULT CALLBACK WheelOnlyListProc(HWND hwnd,UINT message,WPARAM w,LPARAM l){
   auto self=reinterpret_cast<TrainingPilotDropdown*>(GetPropA(hwnd,"ZYZToolsPilotWheelOwner"));if(!self||!self->listProc)return DefWindowProc(hwnd,message,w,l);const auto original=self->listProc;
   // No hover/drag edge auto-scroll, list repeat timers, or scrollbar scrolling.
   if(message==WM_MOUSEMOVE||message==WM_TIMER||message==WM_VSCROLL||message==WM_NCLBUTTONDOWN||message==WM_NCLBUTTONDBLCLK)return 0;
+  if(message==WM_LBUTTONUP){RECT bounds{};GetClientRect(hwnd,&bounds);const POINT point{GET_X_LPARAM(l),GET_Y_LPARAM(l)};if(!PtInRect(&bounds,point)){self->Finish(-1);return 0;}}
   if(message==WM_MOUSEWHEEL){self->wheelRemainder+=static_cast<short>(HIWORD(w));const int steps=self->wheelRemainder/WHEEL_DELTA;self->wheelRemainder%=WHEEL_DELTA;if(steps){const int top=static_cast<int>(SendMessage(self->combo,CB_GETTOPINDEX,0,0)),count=static_cast<int>(SendMessage(self->combo,CB_GETCOUNT,0,0));SendMessage(self->combo,CB_SETTOPINDEX,std::clamp(top-steps*3,0,std::max(0,count-1)),0);}return 0;}
   if(message==WM_NCDESTROY){RemovePropA(hwnd,"ZYZToolsPilotWheelOwner");self->wheelList=nullptr;self->listProc=nullptr;}
   return CallWindowProc(original,hwnd,message,w,l);
@@ -22,15 +32,23 @@ class TrainingPilotDropdown {
   if(message==WM_NCCREATE){self=static_cast<TrainingPilotDropdown*>(reinterpret_cast<CREATESTRUCT*>(l)->lpCreateParams);SetWindowLongPtr(hwnd,GWLP_USERDATA,reinterpret_cast<LONG_PTR>(self));}
   if(self&&(message==WM_CTLCOLORLISTBOX||message==WM_CTLCOLOREDIT||message==WM_CTLCOLORSTATIC)){SetTextColor(reinterpret_cast<HDC>(w),RGB(225,225,225));SetBkColor(reinterpret_cast<HDC>(w),RGB(45,45,45));return reinterpret_cast<LRESULT>(self->background);}
   if(self&&message==WM_DRAWITEM){const auto item=reinterpret_cast<DRAWITEMSTRUCT*>(l);if(item->CtlID==1){const auto dc=item->hDC;const bool picked=(item->itemState&ODS_SELECTED)!=0;SetDCBrushColor(dc,picked?RGB(72,72,72):RGB(45,45,45));FillRect(dc,&item->rcItem,static_cast<HBRUSH>(GetStockObject(DC_BRUSH)));SetBkMode(dc,TRANSPARENT);SetTextColor(dc,RGB(225,225,225));SelectObject(dc,self->font);RECT r=item->rcItem;r.left+=4;if(item->itemID<self->values.size())DrawTextA(dc,self->values[item->itemID].c_str(),-1,&r,DT_SINGLELINE|DT_VCENTER|DT_END_ELLIPSIS);return TRUE;}}
-  if(self&&message==WM_COMMAND&&LOWORD(w)==1){const int code=HIWORD(w);if(code==CBN_SELENDOK){const auto index=SendMessage(self->combo,CB_GETCURSEL,0,0);if(index>=0&&static_cast<size_t>(index)<self->values.size()){auto callback=self->selected;const auto value=self->values[index];self->Close();if(callback)callback(value);}return 0;}if(code==CBN_SELENDCANCEL||code==CBN_CLOSEUP){PostMessage(hwnd,WM_CLOSE,0,0);return 0;}}
-  if(message==WM_ACTIVATE&&LOWORD(w)==WA_INACTIVE){PostMessage(hwnd,WM_CLOSE,0,0);return 0;}
-  if(message==WM_CLOSE){DestroyWindow(hwnd);return 0;}
+  // Combo notifications are sent synchronously while USER32 is still using
+  // its list and capture state. Never destroy the combo from that stack.
+  if(self&&message==WM_COMMAND&&LOWORD(w)==1&&reinterpret_cast<HWND>(l)==self->combo){const int code=HIWORD(w);if(code==CBN_SELENDOK){self->Finish(static_cast<int>(SendMessage(self->combo,CB_GETCURSEL,0,0)));return 0;}if(code==CBN_SELENDCANCEL||code==CBN_CLOSEUP){self->Finish(-1);return 0;}}
+  if(self&&((message==WM_ACTIVATE&&LOWORD(w)==WA_INACTIVE)||message==WM_CLOSE)){self->Finish(-1);return 0;}
+  if(self&&message==FinishMessage){
+   if(self->window!=hwnd||!self->finishing)return 0;
+   const int index=self->pendingChoice;const bool valid=index>=0&&static_cast<size_t>(index)<self->values.size();
+   auto callback=valid?std::move(self->selected):std::function<void(std::string)>{};
+   auto value=valid?self->values[index]:std::string{};
+   self->Close();if(callback)callback(std::move(value));return 0;
+  }
   if(self&&message==WM_NCDESTROY){if(self->window==hwnd){self->window=nullptr;self->combo=nullptr;self->selected={};}SetWindowLongPtr(hwnd,GWLP_USERDATA,0);}
   return DefWindowProc(hwnd,message,w,l);
  }
 public:
  ~TrainingPilotDropdown(){Close();if(font)DeleteObject(font);if(background)DeleteObject(background);if(instance&&!className.empty())UnregisterClassA(className.c_str(),instance);}
- void Close(){const auto old=window;window=nullptr;combo=nullptr;selected={};if(old&&IsWindow(old))DestroyWindow(old);}
+ void Close(){const auto old=window;window=nullptr;combo=nullptr;selected={};finishing=false;pendingChoice=-1;if(old&&IsWindow(old))DestroyWindow(old);}
  HWND Handle() const{return window;}
  bool Open(const std::vector<std::string>& options,const std::string &current,std::function<void(std::string)> callback,HWND localOwner=nullptr,bool show=true){
   Close();if(options.empty()||options.size()>2100)return false;HWND owner=localOwner?localOwner:GetForegroundWindow();DWORD pid=0;GetWindowThreadProcessId(owner,&pid);if(pid!=GetCurrentProcessId())return false;

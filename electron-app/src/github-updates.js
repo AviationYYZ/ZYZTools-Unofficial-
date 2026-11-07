@@ -17,7 +17,7 @@ function newer(tag, installed) {
   for (let i = 0; i < 3; i++) { if (a[i] !== b[i]) return a[i] > b[i]; }
   return false;
 }
-async function check(repo, installed, request = fetch, kind = 'production') {
+async function check(repo, installed, request = fetch, kind = 'production', {essentialOnly=false}={}) {
   repo = repository(repo);
   const beta = kind === 'test' || kind === 'beta';
   const result = await request(`https://api.github.com/repos/${repo}/releases?per_page=100`, {
@@ -25,7 +25,8 @@ async function check(repo, installed, request = fetch, kind = 'production') {
   });
   if (!result.ok) throw new Error(result.status === 404 ? 'No published release found for this repository.' : `GitHub release check failed (${result.status}).`);
   const data = await result.json();
-  const releases = (Array.isArray(data) ? data : [data]).filter(release => !release.draft && !!release.prerelease === beta && /^v?\d+\.\d+\.\d+(?:-beta(?:\.\d+)?)?$/.test(release.tag_name));
+  const essential = release => String(release.body || '').includes('<!-- zyztools-update:essential -->');
+  const releases = (Array.isArray(data) ? data : [data]).filter(release => !release.draft && !!release.prerelease === beta && /^v?\d+\.\d+\.\d+(?:-beta(?:\.\d+)?)?$/.test(release.tag_name) && (!essentialOnly||essential(release)));
   if (!releases.length) return { repo, available: false, currentVersionPublished: false, message: `No ${beta ? 'beta' : 'stable'} releases have been published yet.` };
   releases.sort((a, b) => newer(a.tag_name, b.tag_name) ? -1 : newer(b.tag_name, a.tag_name) ? 1 : 0);
   const release = releases[0];
@@ -34,7 +35,7 @@ async function check(repo, installed, request = fetch, kind = 'production') {
     ? (release.assets || []).find(a => /^ZYZTools-Test-Setup(?:[-.][\w.-]+)?\.exe$/i.test(a.name))
     : (release.assets || []).find(a => /^ZYZTools-Setup(?:[-.][\w.-]+)?\.exe$/i.test(a.name))
       || (release.assets || []).find(a => /^PreferredCYYZPdcPlugin-Setup(?:[-.][\w.-]+)?\.exe$/i.test(a.name));
-  return { repo, tag: release.tag_name, available: available && !!asset, asset, essential: String(release.body || '').includes('<!-- zyztools-update:essential -->'),
+  return { repo, tag: release.tag_name, available: available && !!asset, asset, essential: essential(release),
     currentVersionPublished: beta && releases.some(r => r.tag_name.replace(/^v/, '').replace(/-beta(?:\.\d+)?$/, '') === installed),
     message: available ? (asset ? `Version ${release.tag_name} is available.` : 'A newer release has no compatible setup EXE attached.') : `You are up to date (${installed}).` };
 }
