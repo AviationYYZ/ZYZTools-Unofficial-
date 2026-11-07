@@ -385,6 +385,8 @@
     body[data-theme="navcan"] .menu-group { margin: 6px; }
     body[data-theme="navcan"] .menu-group summary { color: white; border-color: #ffffff70; }
     body[data-theme="navcan"] .menu-group:has([aria-current="page"]) summary { border-color: white; }
+    #updateNotice { margin: 10px 14px; padding: 10px 12px; border: 1px solid var(--accent); background: var(--panel); border-radius: 5px; }
+    #updateNotice .buttons { margin-top: 6px; }
   </style>
   <link rel="stylesheet" href="vatcan-theme.css" />
   <link rel="stylesheet" href="custom-theme.css" />
@@ -426,6 +428,10 @@
 
     <div>
       <div id="status" class="status">Loading...</div>
+      <aside id="updateNotice" aria-label="App update" hidden>
+        <div id="updateNoticeText" role="status"></div>
+        <div class="buttons"><button id="updateNoticeDownload">Download now</button><button id="updateNoticeDismiss">Dismiss</button></div>
+      </aside>
       <section id="install" class="active">
         <div class="card">
           <div class="caption">EuroScope plugin destination</div>

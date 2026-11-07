@@ -388,6 +388,7 @@ async function boot() {
   configToForm(state.config);
   setStatus("Ready. Use Install / Update EuroScope Plugin after changing destination or settings.");
   checkUpdates();
+  if (!state.isTestBuild) setInterval(() => checkUpdates(true), 120000);
   await refreshRecordings(false);
   await refreshTrackAudioTapStatus(false);
   await refreshStatistics(false);
@@ -563,28 +564,70 @@ $("statisticsFilesTable").addEventListener("click", async (event) => {
 
 boot().catch((error) => setStatus(error.message, "error"));
 
-async function checkUpdates() {
+let offeredUpdate, updateCheckRunning = false, updateDownloading = false;
+const dismissedUpdates = new Set(), downloadedUpdates = new Set();
+function renderUpdateNotice() {
+  const release = offeredUpdate;
+  $("updateNotice").hidden = !release || dismissedUpdates.has(release.tag);
+  $("installUpdateBtn").hidden = !release;
+  $("installUpdateBtn").disabled = $("updateNoticeDownload").disabled = updateDownloading || downloadedUpdates.has(release?.tag);
+  if (!release) return;
+  const downloaded = downloadedUpdates.has(release.tag);
+  $("updateNoticeDownload").textContent = downloaded ? 'Downloaded' : 'Download now';
+  $("installUpdateBtn").textContent = downloaded ? 'Downloaded' : 'Download update';
+  $("updateNoticeText").textContent = release.essential
+    ? `Essential update ${release.tag} ${downloaded ? 'downloaded' : 'available'}. It will install the next time you open ZYZTools.`
+    : `ZYZTools ${release.tag} is ${downloaded ? 'downloaded and ready to install when convenient' : 'available'}.`;
+}
+async function checkUpdates(background = false) {
+  if (updateCheckRunning || updateDownloading) return;
+  updateCheckRunning = true;
   $("checkUpdatesBtn").disabled = true;
-  $("installUpdateBtn").hidden = true;
-  $("updateStatus").textContent = 'Checking GitHub releases…';
+  if (!background) $("updateStatus").textContent = 'Checking GitHub releases…';
+  const stream = $("updateStream").value;
   try {
-    const result = await api.checkUpdates($("updateStream").value);
+    const result = await api.checkUpdates(stream);
+    if (stream !== $("updateStream").value) return;
+    offeredUpdate = result.available ? result : null;
+    renderUpdateNotice();
     $("updateStatus").textContent = result.message;
-    $("installUpdateBtn").hidden = !result.available;
     if (result.currentVersionPublished) {
       betaPublished = true;
       $("publishTestBtn").disabled = true;
       $("publishStatus").textContent = `Beta ${currentAppVersion} is already published.`;
     }
-  } catch (error) { $("updateStatus").textContent = error.message; }
-  finally { $("checkUpdatesBtn").disabled = false; }
+  } catch (error) { if (!background) $("updateStatus").textContent = error.message; }
+  finally {
+    updateCheckRunning = false;
+    $("checkUpdatesBtn").disabled = false;
+    if (stream !== $("updateStream").value) checkUpdates();
+  }
 }
-$("checkUpdatesBtn").addEventListener('click', checkUpdates);
-$("installUpdateBtn").addEventListener('click', async () => {
-  $("installUpdateBtn").disabled = true;
+$("checkUpdatesBtn").addEventListener('click', () => checkUpdates());
+async function downloadOfferedUpdate() {
+  const release = offeredUpdate;
+  if (!release || updateDownloading || updateCheckRunning || downloadedUpdates.has(release.tag)) return;
+  updateDownloading = true;
+  renderUpdateNotice();
   $("updateStatus").textContent = 'Downloading the latest installer…';
-  try { await api.installUpdate(); }
-  catch (error) { $("updateStatus").textContent = error.message; $("installUpdateBtn").disabled = false; }
+  $("updateNoticeText").textContent = release.essential ? 'Downloading now. Installation waits until the next launch.' : 'Downloading the optional update…';
+  let failure;
+  try {
+    const result = await api.downloadUpdate(release.tag);
+    downloadedUpdates.add(release.tag);
+    $("updateStatus").textContent = result.essential ? 'Downloaded. Installs next time you open ZYZTools.' : 'Downloaded. Open the installer when convenient.';
+  } catch (error) { failure = error.message; $("updateStatus").textContent = failure; }
+  finally {
+    updateDownloading = false;
+    renderUpdateNotice();
+    if (failure) $("updateNoticeText").textContent += ' Download failed: ' + failure;
+  }
+}
+$("installUpdateBtn").addEventListener('click', downloadOfferedUpdate);
+$("updateNoticeDownload").addEventListener('click', downloadOfferedUpdate);
+$("updateNoticeDismiss").addEventListener('click', () => {
+  if (offeredUpdate) dismissedUpdates.add(offeredUpdate.tag);
+  renderUpdateNotice();
 });
 
 async function publishBeta(options = {}) {
@@ -616,7 +659,7 @@ async function publishBeta(options = {}) {
 $("publishTestBtn").addEventListener("click", () => publishBeta());
 $("publishStream").addEventListener('change', () => { betaPublished = false; $("publishTestBtn").disabled = false; $("publishConfirmBtn").disabled = false; });
 $("updateStream").value = localStorage.getItem('updateStream') || 'stable';
-$("updateStream").addEventListener('change', () => { localStorage.setItem('updateStream', $("updateStream").value); checkUpdates(); });
+$("updateStream").addEventListener('change', () => { localStorage.setItem('updateStream', $("updateStream").value); offeredUpdate = null; renderUpdateNotice(); checkUpdates(); });
 $("openGitHubTokenBtn").addEventListener("click", () => api.openTokenSettings());
 $("publishConfirmBtn").addEventListener("click", () => {
   const token = $("publishToken").value.trim();

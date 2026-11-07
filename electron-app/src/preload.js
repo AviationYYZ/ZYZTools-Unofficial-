@@ -15,7 +15,7 @@ contextBridge.exposeInMainWorld("preferredCyyzPdc", {
   initialState: () => ipcRenderer.invoke("app:initialState"),
   saveCustomTheme: (theme) => ipcRenderer.invoke('theme:saveCustom', theme),
   checkUpdates: (stream) => ipcRenderer.invoke("updates:check", stream),
-  installUpdate: () => ipcRenderer.invoke("updates:install"),
+  downloadUpdate: (tag) => ipcRenderer.invoke("updates:download", tag),
   publishTest: (options = {}) => ipcRenderer.invoke("test:publish", options),
   openTokenSettings: () => ipcRenderer.invoke("test:tokenSettings"),
   pluginAction: (folder, action, callsign) => ipcRenderer.invoke("plugin:action", folder, action, callsign),

@@ -832,6 +832,7 @@ function selectedUpdateStream() {
   catch { return 'stable'; }
 }
 let checkingStartupUpdate = false;
+const updateFolder = release => path.join(app.getPath('userData'), 'updates', release.tag);
 async function startEssentialUpdate() {
   // The development app must never replace itself with the consumer installer.
   if (channel.test) return false;
@@ -841,7 +842,7 @@ async function startEssentialUpdate() {
     let notice;
     try {
       notice = await require('./essential-update-notice').showEssentialUpdateNotice(BrowserWindow, null, channel.name);
-      const installer = await updates.download(release, path.join(app.getPath('temp'), channel.userDataName + '-Updates'));
+      const installer = await updates.download(release, updateFolder(release));
       await notice.beforeInstall();
       await new Promise((resolve, reject) => {
         const child = childProcess.spawn(installer, ['/S'], { detached: true, stdio: 'ignore', windowsHide: true });
@@ -1055,18 +1056,25 @@ ipcMain.handle("test:publish", async (_event, options = {}) => {
 });
 ipcMain.handle("updates:check", async (_event, stream) => {
   stream = stream === 'beta' ? 'beta' : stream === 'stable' ? 'stable' : selectedUpdateStream();
-  fs.mkdirSync(app.getPath('userData'), { recursive: true });
-  fs.writeFileSync(updatePreferencesPath(), JSON.stringify({ stream }));
-  checkedRelease = null;
-  checkedRelease = await updates.check(updates.DEFAULT_REPOSITORY, app.getVersion(), undefined, stream);
+  if (selectedUpdateStream() !== stream) {
+    fs.mkdirSync(app.getPath('userData'), { recursive: true });
+    fs.writeFileSync(updatePreferencesPath(), JSON.stringify({ stream }));
+  }
+  checkedRelease = await updates.check(updates.DEFAULT_REPOSITORY, app.getVersion(), undefined, stream, {preferEssential: !channel.test});
   if (channel.test) return { available: false, message: checkedRelease.message + ' Developer app stays separate; publishing includes the consumer installer.' };
-  return { tag: checkedRelease.tag, available: checkedRelease.available, message: checkedRelease.message, currentVersionPublished: checkedRelease.currentVersionPublished };
+  return { tag: checkedRelease.tag, available: checkedRelease.available, essential: checkedRelease.essential, message: checkedRelease.message, currentVersionPublished: checkedRelease.currentVersionPublished };
 });
-ipcMain.handle("updates:install", async () => {
-  const installer = await updates.download(checkedRelease, path.join(app.getPath('temp'), channel.userDataName + '-Updates'));
-  const error = await shell.openPath(installer);
-  if (error) throw new Error(error);
-  app.quit();
+let updateDownloadInProgress = false;
+ipcMain.handle("updates:download", async (_event, tag) => {
+  const release = checkedRelease;
+  if (channel.test || !release?.available || release.tag !== tag) throw new Error('Check again for the current update.');
+  if (updateDownloadInProgress) throw new Error('An update is already downloading.');
+  updateDownloadInProgress = true;
+  try {
+    const installer = await updates.download(release, updateFolder(release));
+    if (!release.essential) shell.showItemInFolder(installer);
+    return { essential: release.essential };
+  } finally { updateDownloadInProgress = false; }
 });
 ipcMain.handle("plugin:action", async (_event, folder, action, callsign) => {
   loadConfig(folder);
