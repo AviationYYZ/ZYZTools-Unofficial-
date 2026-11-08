@@ -1,4 +1,15 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+test('radar roster can display all authenticated callsigns independently of the native list',()=>{
+ const cpp=fs.readFileSync(path.join(__dirname,'../src/ZYZToolsPlugin.cpp'),'utf8');
+ const draw=cpp.slice(cpp.indexOf('void DrawAircraftRoster('),cpp.indexOf('void DrawPilotControls('));
+ assert(cpp.includes('DrawAircraftRoster(hDC)'));
+ assert(draw.includes('PilotRosterContext().empty()'));
+ assert(draw.includes('PilotRoster()'));
+ assert(draw.includes('cell(8,106,5,cs);'));
+ assert(!draw.includes('FlightPlanSelect'));
+ assert(draw.includes('page*capacity'));
+ assert(cpp.includes('ObjectType==SCREEN_OBJECT_ROSTER_CELL'));
+});
 test('native list has explicit private-only reopening from Advanced and command bar',()=>{
  const cpp=fs.readFileSync(path.join(__dirname,'../src/ZYZToolsPlugin.cpp'),'utf8');
  const start=cpp.indexOf('if(trainingCommand==".AIRCRAFT")'),end=cpp.indexOf('const bool explicitTraining',start),open=cpp.slice(start,end);

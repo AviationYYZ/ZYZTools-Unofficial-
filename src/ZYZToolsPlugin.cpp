@@ -84,6 +84,8 @@ namespace
     constexpr int FUNC_SETTINGS_EDIT_REPLAY_SAVE_COMMAND = 9220;
     constexpr int SCREEN_OBJECT_SETTINGS = 9301;
     constexpr int SCREEN_OBJECT_PILOT = 9302;
+    constexpr int SCREEN_OBJECT_ROSTER = 9303;
+    constexpr int SCREEN_OBJECT_ROSTER_CELL = 9304;
     constexpr int FUNC_PILOT_EDIT = 9700;
     constexpr int FUNC_PILOT_LIST_FIRST = 9710;
     constexpr int FUNC_PILOT_LIST_LAST = 9715;
@@ -2325,6 +2327,8 @@ public:
             if(m_trainingCommands.PilotRosterContext().empty())DisplayUserMessage("ZYZTools","PILOT","Connect my EuroScope to your private instructor session before opening All Aircraft.",true,true,false,false,false);
             else {
                 RefreshPilotAircraftList(true);
+                m_pilotRosterVisible=true;
+                m_pilotRosterPage=0;
                 if(m_pilotAircraftList.IsValid())m_pilotAircraftList.ShowFpList(true);
                 const auto message=std::to_string(m_pilotListMembers.size())+" of "+std::to_string(m_trainingCommands.PilotRoster().size())+" active simulator flight plans available. Missing plans are requested automatically.";
                 DisplayUserMessage("ZYZTools","Aircraft list",message.c_str(),true,true,false,false,false);
@@ -2542,7 +2546,7 @@ private:
             if(field=="HDG"&&value=="Enter custom heading..."){m_pilotEditCallsign=cs;m_pilotEditContext=context;m_pilotMenuField="HDG";OpenPopupEdit(area,FUNC_PILOT_EDIT,"");return;}
             if(field=="HDG"&&value=="Fly present heading"){SendPilotAction(cs,"HDG PRESENT");return;}
             if(field=="ADV"){
-                if(value=="Show All Aircraft list"){RefreshPilotAircraftList();if(m_pilotAircraftList.IsValid())m_pilotAircraftList.ShowFpList(true);return;}
+                if(value=="Show All Aircraft list"){RefreshPilotAircraftList();m_pilotRosterVisible=true;m_pilotRosterPage=0;return;}
                 if(value.rfind("Preset ",0)==0){const auto start=value.rfind('(');if(start!=std::string::npos&&value.back()==')')SendPilotAction(cs,"IAS "+Upper(value.substr(start+1,value.size()-start-2)));return;}
                 m_pilotEditCallsign=cs;m_pilotEditContext=context;m_pilotMenuArea=area;
                 if(value=="Delete aircraft"){m_pilotMenuField="DELETE_CONFIRM";m_pilotMenuValues={"Cancel","Delete aircraft"};m_pilotSelected="Cancel";ShowPilotMenu();return;}
@@ -2565,6 +2569,8 @@ private:
     void SendPilotAction(const std::string &cs,const std::string &command){const auto self=ControllerMyself();if(GetConnectionType()!=CONNECTION_TYPE_DIRECT||!self.IsValid()||m_trainingCommands.PilotContext(cs).empty())return;const auto message=m_trainingCommands.Command(cs,self.GetCallsign(),command);m_pilotFeedback=cs+": "+command;m_pilotFeedbackUntil=GetTickCount64()+3000;if(!message.empty())DisplayUserMessage("ZYZTools","PILOT",message.c_str(),true,true,false,false,false);}
     CTrainingCommandBridge m_trainingCommands;
     CFlightPlanList m_pilotAircraftList;
+    bool m_pilotRosterVisible=false;
+    int m_pilotRosterPage=0;
     std::map<std::string,CFlightPlan> m_pilotListMembers;
     std::string m_pilotListContext;
     bool m_pilotListNeedsRebuild=false;
@@ -2573,7 +2579,7 @@ private:
         const auto context=m_trainingCommands.PilotRosterContext();const auto active=m_trainingCommands.PilotRoster();
         force=force||m_pilotListNeedsRebuild;m_pilotListNeedsRebuild=false;
         for(auto i=m_pilotListMembers.begin();i!=m_pilotListMembers.end();){if(force||context!=m_pilotListContext||!active.count(i->first)||!i->second.IsValid()){if(i->second.IsValid())m_pilotAircraftList.RemoveFpFromTheList(i->second);i=m_pilotListMembers.erase(i);}else ++i;}
-        if(context.empty()){if(!m_pilotListContext.empty())m_pilotAircraftList.ShowFpList(false);m_pilotListContext.clear();return;}
+        if(context.empty()){if(!m_pilotListContext.empty())m_pilotAircraftList.ShowFpList(false);m_pilotRosterVisible=false;m_pilotListContext.clear();return;}
         std::vector<std::string> missing;
         for(const auto &cs:active){
             if(m_pilotListMembers.count(cs))continue;
@@ -5857,6 +5863,7 @@ public:
         DrawTrainingPrediction(hDC);
         DrawConflictPoints(hDC);
         DrawPilotControls(hDC);
+        DrawAircraftRoster(hDC);
         DrawGlobalAnnouncement(hDC);
         if (m_plugin->m_settingsVisible)
         {
@@ -5880,6 +5887,55 @@ public:
         }
         if (m_plugin->m_sendConfirmation.active)
             DrawSendConfirmation(hDC);
+    }
+
+    void DrawAircraftRoster(HDC dc)
+    {
+        if(!m_plugin->m_pilotRosterVisible||m_plugin->m_settingsVisible||
+           m_plugin->GetConnectionType()!=CONNECTION_TYPE_DIRECT||
+           m_plugin->m_trainingCommands.PilotRosterContext().empty())return;
+        const auto calls=m_plugin->m_trainingCommands.PilotRoster();
+        const auto &tags=m_plugin->m_trainingCommands.PilotTags();
+        const RECT radar=GetRadarArea();
+        if(radar.right-radar.left<410||radar.bottom-radar.top<110)return;
+        const int x=std::max(static_cast<int>(radar.left)+8,std::min(static_cast<int>(radar.right)-398,
+            m_rosterMoved?static_cast<int>(m_rosterPosition.x):static_cast<int>((radar.left+radar.right-390)/2)));
+        const int y=std::max(static_cast<int>(radar.top)+8,std::min(static_cast<int>(radar.bottom)-96,
+            m_rosterMoved?static_cast<int>(m_rosterPosition.y):static_cast<int>(radar.top)+48));
+        const int row=17;
+        const int capacity=std::max(1,std::min(16,static_cast<int>((radar.bottom-y-38)/row)));
+        const int pages=std::max(1,(static_cast<int>(calls.size())+capacity-1)/capacity);
+        auto &page=m_plugin->m_pilotRosterPage;page=std::max(0,std::min(page,pages-1));
+        const int first=page*capacity,last=std::min(static_cast<int>(calls.size()),first+capacity);
+        const int saved=SaveDC(dc);if(!saved)return;
+        SelectObject(dc,GetStockObject(DC_BRUSH));SelectObject(dc,GetStockObject(DC_PEN));
+        SetDCBrushColor(dc,RGB(8,24,25));SetDCPenColor(dc,RGB(55,110,104));
+        Rectangle(dc,x,y,x+390,y+39+row*(last-first));
+        SelectObject(dc,GetStockObject(ANSI_FIXED_FONT));SetBkMode(dc,TRANSPARENT);SetTextColor(dc,RGB(194,230,215));
+        const auto label=[&](int px,int py,const std::string &s){TextOutA(dc,px,py,s.c_str(),static_cast<int>(s.size()));};
+        label(x+8,y+3,"ZYZTools - All Aircraft ("+std::to_string(calls.size())+")");
+        AddScreenObject(SCREEN_OBJECT_ROSTER,"DRAG",RECT{x,y,x+308,y+19},true,"Drag aircraft roster");
+        label(x+313,y+3,"<  >  X");
+        for(int i=0;i<3;++i){const RECT b{x+310+i*24,y,x+332+i*24,y+19};AddScreenObject(SCREEN_OBJECT_ROSTER,i==0?"PREV":i==1?"NEXT":"CLOSE",b,false,"Aircraft roster");}
+        label(x+8,y+21,"Callsign      Type  ALT  IAS  NAV  More");
+        auto it=calls.begin();std::advance(it,first);
+        for(int i=first;i<last;++i,++it){
+            const auto &cs=*it;const int yy=y+38+(i-first)*row;
+            const auto tag=std::find_if(tags.begin(),tags.end(),[&](const auto &t){return t.callsign==cs;});
+            const auto cell=[&](int dx,int width,int field,const std::string &value){
+                label(x+dx,yy,value);const RECT b{x+dx,yy,x+dx+width,yy+row};
+                AddScreenObject(SCREEN_OBJECT_ROSTER_CELL,(cs+"|"+std::to_string(field)).c_str(),b,false,"Instructor aircraft controls");
+            };
+            cell(8,106,5,cs);
+            if(tag!=tags.end()){
+                label(x+120,yy,tag->type);
+                cell(168,35,0,TrainingPilotTagDraw::Level(tag->altitude));
+                cell(208,35,1,std::to_string(tag->ias));
+                cell(248,35,2,std::to_string(tag->heading));
+                cell(288,40,8,"...");
+            }
+        }
+        RestoreDC(dc,saved);
     }
 
     void DrawPilotControls(HDC dc)
@@ -5974,6 +6030,9 @@ public:
 
     void OnButtonDownScreenObject(int ObjectType, const char *sObjectId, POINT Pt, RECT Area, int Button) override
     {
+        if(ObjectType==SCREEN_OBJECT_ROSTER&&sObjectId&&std::string(sObjectId)=="DRAG"&&Button==BUTTON_LEFT){
+            m_rosterDragOffset={Pt.x-Area.left,Pt.y-Area.top};m_rosterDragging=true;return;
+        }
         if(m_plugin&&ObjectType==SCREEN_OBJECT_PILOT&&sObjectId&&Button==BUTTON_LEFT){const std::string id=sObjectId;const auto split=id.find('|');if(split!=std::string::npos&&id.substr(split+1)=="5"&&!m_plugin->m_trainingCommands.PilotContext(id.substr(0,split)).empty()){m_pilotDragCS=id.substr(0,split);m_pilotDragOffset={Pt.x-Area.left,Pt.y-Area.top};}return;}
         if (!m_plugin || m_plugin->m_sendConfirmation.active ||
             ObjectType != SCREEN_OBJECT_SETTINGS || Button != BUTTON_LEFT || !sObjectId)
@@ -5993,6 +6052,10 @@ public:
 
     void OnMoveScreenObject(int ObjectType, const char *sObjectId, POINT Pt, RECT, bool Released) override
     {
+        if(ObjectType==SCREEN_OBJECT_ROSTER&&sObjectId&&std::string(sObjectId)=="DRAG"&&m_rosterDragging){
+            m_rosterPosition={Pt.x-m_rosterDragOffset.x,Pt.y-m_rosterDragOffset.y};
+            m_rosterMoved=true;if(Released)m_rosterDragging=false;RequestRefresh();return;
+        }
         if(m_plugin&&ObjectType==SCREEN_OBJECT_PILOT&&sObjectId){const auto rt=m_plugin->RadarTargetSelect(m_pilotDragCS.c_str());if(rt.IsValid()&&rt.GetPosition().IsValid()){const auto origin=ConvertCoordFromPositionToPixel(rt.GetPosition().GetPosition());m_pilotTagOffsets[m_pilotDragCS]={Pt.x-m_pilotDragOffset.x-origin.x,Pt.y-m_pilotDragOffset.y-origin.y};RequestRefresh();}if(Released)m_pilotDragCS.clear();return;}
         if (!m_plugin || m_plugin->m_sendConfirmation.active ||
             ObjectType != SCREEN_OBJECT_SETTINGS || !sObjectId)
@@ -6050,7 +6113,14 @@ public:
 
     void OnClickScreenObject(int ObjectType, const char *sObjectId, POINT Pt, RECT Area, int Button) override
     {
-        if(m_plugin&&ObjectType==SCREEN_OBJECT_PILOT&&sObjectId){
+        if(m_plugin&&ObjectType==SCREEN_OBJECT_ROSTER&&sObjectId&&Button==BUTTON_LEFT){
+            const std::string action=sObjectId;
+            if(action=="CLOSE")m_plugin->m_pilotRosterVisible=false;
+            else if(action=="PREV")--m_plugin->m_pilotRosterPage;
+            else if(action=="NEXT")++m_plugin->m_pilotRosterPage;
+            RequestRefresh();return;
+        }
+        if(m_plugin&&(ObjectType==SCREEN_OBJECT_PILOT||ObjectType==SCREEN_OBJECT_ROSTER_CELL)&&sObjectId){
             if(m_plugin->m_sendConfirmation.active)return;const std::string id=sObjectId;const auto split=id.find('|');if(split==std::string::npos||id.substr(split+1)=="MOVE")return;
             const auto cs=id.substr(0,split),context=m_plugin->m_trainingCommands.PilotContext(cs);if(context.empty())return;const int index=atoi(id.substr(split+1).c_str());if(index!=0&&index!=1&&index!=2&&index!=5&&index!=8)return;
             if(Button!=BUTTON_LEFT&&Button!=BUTTON_RIGHT&&!(Button==BUTTON_MIDDLE&&(index==0||index==8)))return;
@@ -6244,6 +6314,8 @@ private:
     std::unordered_map<std::string,POINT> m_pilotTagOffsets;
     std::string m_pilotLayoutContext,m_pilotDragCS;
     POINT m_pilotDragOffset{};
+    POINT m_rosterPosition{},m_rosterDragOffset{};
+    bool m_rosterMoved=false,m_rosterDragging=false;
     POINT m_dragOffset{0, 0};
     POINT m_resizeOffset{0, 0};
     bool m_loggedVisibleDraw = false;
