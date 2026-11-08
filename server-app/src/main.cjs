@@ -10,6 +10,7 @@ else{
  app.whenReady().then(async()=>{
   const helper=app.isPackaged?path.join(process.resourcesPath,'tunnel'):path.join(__dirname,'../../build/Tunnel');
   manager=new ServerManager(app.getPath('userData'),helper);
+  manager.loadDefaults();
   hub=new (require('./instructor.cjs').InstructorHub)(manager,helper);
   window=new BrowserWindow({width:1130,height:850,minWidth:730,minHeight:520,show:false,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
   window.webContents.setWindowOpenHandler(()=>({action:'deny'}));window.webContents.on('will-navigate',e=>e.preventDefault());window.removeMenu();

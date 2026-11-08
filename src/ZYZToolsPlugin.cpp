@@ -2566,6 +2566,7 @@ private:
             if(field=="HDG"&&value=="Fly present heading"){SendPilotAction(cs,"HDG PRESENT");return;}
             if(field=="ADV"){
                 if(value=="Show All Aircraft list"){RefreshPilotAircraftList();m_pilotRosterVisible=true;m_pilotRosterPage=0;return;}
+                if(value.rfind("Divert to runway ",0)==0){SendPilotAction(cs,"RWY "+value.substr(17));return;}
                 if(value.rfind("Preset ",0)==0){const auto start=value.rfind('(');if(start!=std::string::npos&&value.back()==')')SendPilotAction(cs,"IAS "+Upper(value.substr(start+1,value.size()-start-2)));return;}
                 m_pilotEditCallsign=cs;m_pilotEditContext=context;m_pilotMenuArea=area;
                 if(value=="Delete aircraft"){m_pilotMenuField="DELETE_CONFIRM";m_pilotMenuValues={"Cancel","Delete aircraft"};m_pilotSelected="Cancel";ShowPilotMenu();return;}

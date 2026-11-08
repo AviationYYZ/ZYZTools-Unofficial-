@@ -9,6 +9,13 @@ class ServerManager extends EventEmitter{
   for(const s of this.slots){let prior=saved.slots?.[s.id-1]?.jetSpeedProfile;if(prior===undefined){try{prior=JSON.parse(fs.readFileSync(path.join(folder,'server-'+s.id,'scenario.json'),'utf8')).jetSpeedProfile;}catch{}}s.jetSpeedProfile=engine('training-jet-profile').normalize(prior);this.config.slots[s.id-1].jetSpeedProfile=s.jetSpeedProfile;}
  }
  save(){const tmp=this.file+'.tmp';fs.writeFileSync(tmp,JSON.stringify(this.config,null,2));fs.renameSync(tmp,this.file);}
+ loadDefaults(folder=path.join(__dirname,'default-scenarios')){
+  for(let id=1;id<=4;id++){
+   const file=path.join(this.dir(id),'scenario.json'),source=path.join(folder,'west70-'+id+'.json');
+   if(fs.existsSync(file)||!fs.existsSync(source))continue;
+   this.import(id,JSON.parse(fs.readFileSync(source,'utf8')));
+  }
+ }
  slot(id){const s=this.slots.find(s=>s.id===id);if(!s)throw Error('Choose server 1 through 6.');return s;}
  dir(id){return path.join(this.folder,'server-'+this.slot(id).id);}
  log(s,message){const entry={time:new Date().toISOString(),message};s.log.push(entry);if(s.log.length>100)s.log.shift();fs.mkdirSync(this.dir(s.id),{recursive:true});const file=path.join(this.dir(s.id),'events.log');if(fs.existsSync(file)&&fs.statSync(file).size>128000)fs.renameSync(file,file+'.previous');fs.appendFileSync(file,entry.time+' '+message+'\n');}

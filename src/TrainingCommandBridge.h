@@ -107,7 +107,7 @@ public:
     static bool Shortcut(const std::string &line,std::string &command) {
         if(line.empty() || line[0]!='.')return false;
         const auto end=line.find_first_of(" ,");const auto verb=line.substr(1,end==std::string::npos?std::string::npos:end-1);
-        static const std::vector<std::string> allowed={"ALT","RATE","SPD","IAS","MACH","HDG","LHDG","RHDG","DCT","APP","PAUSE","IDENT","SQ","MODE","SPEED","ROUTE","DELETE","CROSS","RESTRICTIONS"};
+        static const std::vector<std::string> allowed={"ALT","RATE","SPD","IAS","MACH","HDG","LHDG","RHDG","DCT","APP","PAUSE","IDENT","SQ","MODE","SPEED","ROUTE","DELETE","CROSS","RESTRICTIONS","RWY"};
         if(std::find(allowed.begin(),allowed.end(),verb)==allowed.end())return false;
         command=line.substr(1);return true;
     }
