@@ -18,6 +18,7 @@ private:
     unsigned sequence = 0;
     int predictionMinutes=0; ULONGLONG predictionVerified=0; std::string predictionCallsigns;
     ULONGLONG rosterVerified=0;std::string rosterContext,rosterCallsigns;
+    ULONGLONG lastFlightPlanRecovery=0;
     bool pilotControls=false;
     static std::vector<ca::Waypoint> DecodeRoute(const std::string&encoded){std::vector<ca::Waypoint> out;std::istringstream input(encoded);std::string row;while(std::getline(input,row,';')&&out.size()<200){std::replace(row.begin(),row.end(),',',' ');std::istringstream fields(row);std::string name;double lat,lon;if(fields>>name>>lat>>lon&&name.size()<=16&&std::isfinite(lat)&&std::isfinite(lon)&&std::abs(lat)<=90&&std::abs(lon)<=180)out.push_back({name,ca::project(lat,lon),0});}return out;}
     struct TagOverlay {std::string callsign,id,nonce;int type=0;ULONGLONG until=0;};
@@ -119,6 +120,15 @@ public:
     std::set<std::string> PilotRoster() const {
         std::set<std::string> out;if(PilotRosterContext().empty())return out;
         std::istringstream items(rosterCallsigns);std::string cs;while(std::getline(items,cs,','))if(Callsign(cs))out.insert(cs);return out;
+    }
+    void RecoverFlightPlans(const std::string& controller,const std::vector<std::string>& missing){
+        if(missing.empty()||controller.empty()||GetTickCount64()-lastFlightPlanRecovery<8000)return;
+        std::string nonce,session;if(!Binding(nonce,session)||PilotRosterContext()!=nonce+"|"+session)return;
+        const DWORD port=TrainingSocketPort();if(!port)return;
+        lastFlightPlanRecovery=GetTickCount64();
+        std::string names;
+        for(size_t i=0;i<missing.size()&&i<30;i++)if(Callsign(missing[i])){if(!names.empty())names+=",";names+="\""+missing[i]+"\"";}
+        if(!names.empty())Request(L"POST",L"/flight-plans",nonce,"{"+Payload("",controller,port,session)+",\"aircraft\":["+names+"]}");
     }
     bool ConflictTelemetry(std::vector<ca::Aircraft>& out) const {
         out.clear();if(PilotLayoutContext().empty()||!TrainingContext())return false;

@@ -2323,7 +2323,12 @@ public:
         const std::string trainingCommand=Upper(CollapseWhitespace(Trim(sCommandLine)));
         if(trainingCommand==".AIRCRAFT"){
             if(m_trainingCommands.PilotRosterContext().empty())DisplayUserMessage("ZYZTools","PILOT","Connect my EuroScope to your private instructor session before opening All Aircraft.",true,true,false,false,false);
-            else {RefreshPilotAircraftList();if(m_pilotAircraftList.IsValid())m_pilotAircraftList.ShowFpList(true);}
+            else {
+                RefreshPilotAircraftList(true);
+                if(m_pilotAircraftList.IsValid())m_pilotAircraftList.ShowFpList(true);
+                const auto message=std::to_string(m_pilotListMembers.size())+" of "+std::to_string(m_trainingCommands.PilotRoster().size())+" active simulator flight plans available. Missing plans are requested automatically.";
+                DisplayUserMessage("ZYZTools","Aircraft list",message.c_str(),true,true,false,false,false);
+            }
             return true;
         }
         const bool explicitTraining=trainingCommand==".SIM" || trainingCommand.rfind(".SIM ",0)==0;
@@ -2562,13 +2567,24 @@ private:
     CFlightPlanList m_pilotAircraftList;
     std::map<std::string,CFlightPlan> m_pilotListMembers;
     std::string m_pilotListContext;
-    void RefreshPilotAircraftList(){
+    bool m_pilotListNeedsRebuild=false;
+    void RefreshPilotAircraftList(bool force=false){
         if(!m_pilotAircraftList.IsValid())return;
         const auto context=m_trainingCommands.PilotRosterContext();const auto active=m_trainingCommands.PilotRoster();
-        for(auto i=m_pilotListMembers.begin();i!=m_pilotListMembers.end();){if(context!=m_pilotListContext||!active.count(i->first)||!i->second.IsValid()){if(i->second.IsValid())m_pilotAircraftList.RemoveFpFromTheList(i->second);i=m_pilotListMembers.erase(i);}else ++i;}
+        force=force||m_pilotListNeedsRebuild;m_pilotListNeedsRebuild=false;
+        for(auto i=m_pilotListMembers.begin();i!=m_pilotListMembers.end();){if(force||context!=m_pilotListContext||!active.count(i->first)||!i->second.IsValid()){if(i->second.IsValid())m_pilotAircraftList.RemoveFpFromTheList(i->second);i=m_pilotListMembers.erase(i);}else ++i;}
         if(context.empty()){if(!m_pilotListContext.empty())m_pilotAircraftList.ShowFpList(false);m_pilotListContext.clear();return;}
-        for(const auto &cs:active){if(m_pilotListMembers.count(cs))continue;const auto fp=FlightPlanSelect(cs.c_str());if(fp.IsValid()){m_pilotAircraftList.AddFpToTheList(fp);m_pilotListMembers.emplace(cs,fp);}}
-        if(context!=m_pilotListContext)m_pilotAircraftList.ShowFpList(true);m_pilotListContext=context;
+        std::vector<std::string> missing;
+        for(const auto &cs:active){
+            if(m_pilotListMembers.count(cs))continue;
+            auto fp=FlightPlanSelect(cs.c_str());
+            if(!fp.IsValid()){const auto target=RadarTargetSelect(cs.c_str());if(target.IsValid())fp=target.GetCorrelatedFlightPlan();}
+            if(fp.IsValid()){m_pilotAircraftList.AddFpToTheList(fp);m_pilotListMembers.emplace(cs,fp);}
+            else missing.push_back(cs);
+        }
+        const auto controller=ControllerMyself();
+        if(controller.IsValid())m_trainingCommands.RecoverFlightPlans(controller.GetCallsign(),missing);
+        if(force||context!=m_pilotListContext)m_pilotAircraftList.ShowFpList(true);m_pilotListContext=context;
     }
     bool m_trainingTagRestore=false;
 
@@ -7787,6 +7803,7 @@ private:
 
 CRadarScreen *CZYZToolsPlugin::OnRadarScreenCreated(const char *, bool, bool, bool, bool)
 {
+    m_pilotListNeedsRebuild=true;
     WriteAuditLog("settings_screen_created", "result=ready");
     return new CSettingsScreen(this);
 }

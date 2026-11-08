@@ -39,8 +39,16 @@ class TrainingCommandBridge{
    throw Error('Unknown pilot UI request.');
   }
   if(req.url.startsWith('/tag-state'))return this.reply(res,410,{state:'error',message:'Legacy controls retired.'});
-  if(req.method!=='POST'||!['/selection','/command','/tag-edit'].includes(req.url))return this.reply(res,404,{state:'error',message:'Not found.'});
+  if(req.method!=='POST'||!['/selection','/command','/tag-edit','/flight-plans'].includes(req.url))return this.reply(res,404,{state:'error',message:'Not found.'});
   if(!/^application\/json/.test(req.headers['content-type']||''))throw Error('JSON required.');let size=0,chunks=[];for await(const b of req){size+=b.length;if(size>2048)throw Error('Training request exceeds limit.');chunks.push(b);}const v=JSON.parse(Buffer.concat(chunks));this.check(v);
+  if(req.url==='/flight-plans'){
+   const peer=this.connector.peerForPort(v.port),active=new Set(this.snapshot.aircraft.filter(a=>a.active).map(a=>a.callsign));
+   if(!Array.isArray(v.aircraft)||!v.aircraft.length||v.aircraft.length>30||v.aircraft.some(cs=>typeof cs!=='string'||!active.has(cs)))throw Error('Only active simulator flight plans can be requested.');
+   if(typeof peer.forward!=='function'||Date.now()-(peer.lastFlightPlanRecovery||0)<8000)return this.reply(res,200,{state:'waiting'});
+   peer.lastFlightPlanRecovery=Date.now();
+   peer.forward([...new Set(v.aircraft)].map(cs=>'$CQ'+peer.controller+':SERVER:FP:'+cs)).catch(()=>{});
+   return this.reply(res,200,{state:'queued'});
+  }
   if(req.url==='/selection'){if(!Number.isFinite(v.changed_at)||v.changed_at<0)throw Error('Invalid selection.');if(v.changed_at>=this.lastChanged){this.lastChanged=v.changed_at;this.selectedPort=v.port;if(this.selected!==v.callsign){this.selected=v.callsign||'';this.revision++;}}return this.reply(res,200,{state:'done'});}
   if(req.url==='/tag-edit')return this.reply(res,202,await this.tagEdit(v));
   if(!/^[A-Za-z0-9_-]{8,100}$/.test(v.id||'')||!v.callsign)throw Error('Select an aircraft before issuing a command.');const command=normalizeCommand(v.command);
