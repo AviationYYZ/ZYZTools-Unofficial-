@@ -21,7 +21,7 @@ app.whenReady().then(async()=>{
   const until=async s=>{for(let i=0;i<50;i++){if(await js(s))return;await new Promise(r=>setTimeout(r,100));}throw Error('Timed out: '+s);};
   await until('navigator.serviceWorker.controller !== null');
   await js("document.querySelector('[data-page=tools]').click()");
-  assert.equal(await js("document.querySelectorAll('.calculator-card').length"),7);
+  assert.equal(await js("document.querySelectorAll('.calculator-card').length"),8);
   assert.equal(await js("document.documentElement.scrollWidth <= innerWidth"),true);
   await js("document.querySelector('[data-page=traffic]').click();document.getElementById('code').value='ABCDE-FG234';document.querySelector('#pairForm button').click()");
   await until("document.querySelector('#roster button') !== null");
@@ -42,6 +42,6 @@ app.whenReady().then(async()=>{
   assert.equal(await js("localStorage.length + sessionStorage.length"),0);
   const paths=await js("(async()=>{const names=await caches.keys();const cache=await caches.open(names.find(n=>n.startsWith('zyz-instructor-shell-')));return (await cache.keys()).map(r=>new URL(r.url).pathname)})()");
   assert(paths.length>=7);assert(paths.every(p=>p.startsWith('/instructor/')&&!p.includes('/pair')));
-  console.log('PASS: phone-width instructor PWA, offline shell, seven tools, pairing, selected-aircraft command, and no persisted credentials.');
+  console.log('PASS: phone-width instructor PWA, offline shell, eight tools, pairing, selected-aircraft command, and no persisted credentials.');
  }finally{w?.destroy();await hub.stop();fs.rmSync(folder,{recursive:true,force:true});}
 }).then(()=>app.exit(0)).catch(e=>{console.error(e);app.exit(1);});

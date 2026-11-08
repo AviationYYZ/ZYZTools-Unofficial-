@@ -7,6 +7,7 @@ fs.mkdirSync(path.join(stage,'src','engine'),{recursive:true});for(const file of
 fs.copyFileSync(path.join(root,'electron-app/src/training-speed-editor.js'),path.join(stage,'src/engine/training-speed-editor.js'));
 fs.copyFileSync(path.join(root,'electron-app/src/controller-calculators.js'),path.join(stage,'src/pwa/controller-calculators.js'));
 fs.copyFileSync(path.join(root,'electron-app/src/training-route-variants.json'),path.join(stage,'src/engine/training-route-variants.json'));
+fs.copyFileSync(path.join(root,'electron-app/src/github-updates.js'),path.join(stage,'src/engine/github-updates.js'));
 const release=require('../electron-app/src/training-tunnel-release.json'),helper=path.join(root,'build/Tunnel/cloudflared.exe');
 if(require('node:crypto').createHash('sha256').update(fs.readFileSync(helper)).digest('hex')!==release.sha256)throw Error('Bundled tunnel helper checksum mismatch.');
 const config={...require('./package.json').build,directories:{app:stage,output},electronVersion:require('../electron-app/node_modules/electron/package.json').version,extraResources:[{from:helper,to:'tunnel/cloudflared.exe'},{from:path.join(root,'build/Tunnel/LICENSE-cloudflared.txt'),to:'tunnel/LICENSE-cloudflared.txt'},{from:path.join(root,'docs/THREE_SERVER_SETUP.md'),to:'THREE_SERVER_SETUP.md'}]};

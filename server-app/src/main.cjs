@@ -1,7 +1,8 @@
 const {app,BrowserWindow,ipcMain,dialog,clipboard,shell,Tray,Menu,nativeImage,powerSaveBlocker}=require('electron');
 const path=require('node:path'),fs=require('node:fs'),{ServerManager}=require('./manager.cjs');
-app.setName('ZYZTools Server test');app.setPath('userData',path.join(app.getPath('appData'),'ZYZTools Server test'));
-let manager,hub,window,tray,quitting=false,blocked;
+// Keep the existing user-data folder and installer identity during the rename.
+app.setName('ZYZTools Server');app.setPath('userData',path.join(app.getPath('appData'),'ZYZTools Server test'));
+let manager,hub,window,tray,quitting=false,blocked,updater,updateTimer;
 if(!app.requestSingleInstanceLock())app.quit();
 else{
  app.on('second-instance',()=>{window?.show();window?.focus();});
@@ -15,11 +16,12 @@ else{
   window.on('close',e=>{if(!quitting){e.preventDefault();window.hide();}});
   // A tiny local icon; no network or remote assets in the management UI.
   const icon=nativeImage.createFromDataURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==');
-  tray=new Tray(icon);tray.setToolTip('ZYZTools Server test');tray.setContextMenu(Menu.buildFromTemplate([{label:'Open server dashboard',click:show},{label:'Stop all servers and exit',click:()=>app.quit()}]));tray.on('double-click',show);
+  tray=new Tray(icon);tray.setToolTip('ZYZTools Server');tray.setContextMenu(Menu.buildFromTemplate([{label:'Open server dashboard',click:show},{label:'Stop all servers and exit',click:()=>app.quit()}]));tray.on('double-click',show);
   blocked=powerSaveBlocker.start('prevent-app-suspension');
   ipcMain.handle('server:action',async(event,action,id,value)=>{
    if(event.sender!==window.webContents||event.senderFrame!==window.webContents.mainFrame)throw Error('Invalid sender.');
-   if(action==='status')return {...manager.status(),instructor:hub.status()};
+   if(action==='status')return {...manager.status(),instructor:hub.status(),updateStatus:updater?.message||'Stable automatic updates are enabled in installed builds.'};
+   if(manager.updating)throw Error('Server update is installing. Try again after restart.');
    if(action==='instructorEnable'){await hub.start();manager.config.instructorEnabled=true;manager.save();return {...manager.status(),instructor:hub.status()};}
    if(action==='instructorDisable'){await hub.stop();manager.config.instructorEnabled=false;manager.save();return {...manager.status(),instructor:hub.status()};}
    if(action==='instructorCopy'){const s=hub.status();if(!s.code)throw Error('Wait for the instructor pairing code.');clipboard.writeText(s.code);return {...manager.status(),instructor:s};}
@@ -46,7 +48,21 @@ else{
   await window.loadFile(path.join(__dirname,'index.html'));show();
   if(manager.config.instructorEnabled)await hub.start();
   await manager.autostart();
+  if(app.isPackaged){
+   if(manager.config.startup)app.setLoginItemSettings({openAtLogin:true});
+   const idle=()=>!quitting&&!manager.updating&&manager.slots.every(s=>!s.child&&!s.desired&&['stopped','error'].includes(s.state));
+   updater=new (require('./auto-updates.cjs').ServerUpdater)({version:app.getVersion(),folder:app.getPath('userData'),idle,install:async installer=>{
+    if(!idle())return;
+    manager.updating=true;
+    try{
+     const child=require('node:child_process').spawn(installer,['/S','--updated','--force-run'],{detached:true,windowsHide:true,stdio:'ignore'});
+     await new Promise((resolve,reject)=>{child.once('spawn',resolve);child.once('error',reject);});
+     child.unref();app.quit();
+    }catch(e){manager.updating=false;throw e;}
+   }});
+   updateTimer=setInterval(()=>updater.tick(),15000);updater.tick();
+  }
  }).catch(e=>{dialog.showErrorBox('ZYZTools Server could not start',e.message);app.exit(1);});
- app.on('before-quit',e=>{if(!manager||quitting)return;e.preventDefault();quitting=true;Promise.all([hub?.stop(),manager.shutdown()]).finally(()=>{if(blocked!==undefined)powerSaveBlocker.stop(blocked);tray?.destroy();app.quit();});});
+ app.on('before-quit',e=>{if(!manager||quitting)return;e.preventDefault();quitting=true;clearInterval(updateTimer);Promise.all([hub?.stop(),manager.shutdown()]).finally(()=>{if(blocked!==undefined)powerSaveBlocker.stop(blocked);tray?.destroy();app.quit();});});
  app.on('window-all-closed',()=>{});
 }

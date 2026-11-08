@@ -1,0 +1,10 @@
+# ZYZTools radar tools
+
+- `.calc` opens the calculator menu. Choose a calculator, enter the comma-separated values in the order displayed, then press Enter. Results appear in the menu. Use groundspeed for time/distance calculations.
+- `.leader 0.5 SEL` draws a 30-second track line for the selected aircraft. Use `ALL` for every displayed target or `PICK` to select aircraft by clicking their symbols. Lengths can be 0.5–10 minutes in 0.5-minute steps. `.leader off` clears the lines. Turn off duplicate built-in or third-party prediction lines if desired.
+- `.fixwatch VERKO 5 PICK` highlights VERKO and watches selected aircraft for entry inside 5 NM. Click aircraft symbols and choose **Done picking**. Use `ALL` instead of `PICK` for all targets, or radius `0` for highlights and distances without alerts. An aircraft already inside the radius must leave before an entry alert can fire. `.fixwatch clear VERKO` removes a watch; `.fixwatch clear all` removes all.
+- **ZYZTools: waypoint distance** is a registered tag item for the nearest watched fix and its distance. Add it to a compatible tag layout if you want it inside the tag. A small label beside the aircraft symbol also works with unchanged tag layouts.
+- `.spacing` lets you click two aircraft for measured horizontal and pressure-altitude spacing, closure and a ten-minute constant-track closest-approach estimate for pairs within 50 NM. It does not account for future turns, climbs or descents. `.spacing off` clears the pair.
+- `.radartools` opens the controls and spacing readout.
+
+These are display and planning aids, not clearance or separation assurance. Settings are session-local; the tools do not issue instructions to aircraft.

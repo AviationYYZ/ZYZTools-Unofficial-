@@ -1,4 +1,4 @@
-const cacheName='zyz-instructor-shell-2.0.12';
+const cacheName='zyz-instructor-shell-2.0.13';
 const assets=['/instructor/','/instructor/app.js','/instructor/app.css','/instructor/calculators.js','/instructor/icon.svg','/instructor/icon.png','/instructor/icon-192.png','/instructor/manifest.webmanifest'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(cacheName).then(c=>c.addAll(assets)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('zyz-instructor-shell-')&&k!==cacheName).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));

@@ -13,6 +13,7 @@
 #include "TrainingPilotTagDraw.h"
 #include "TrainingPilotList.h"
 #include "TrainingPilotDropdown.h"
+#include "RadarTools.h"
 #include "DepartureAssignment.h"
 #include "ArrivalAssignment.h"
 #include "PdcTemplate.h"
@@ -34,6 +35,8 @@
 #include <mutex>
 #include <regex>
 #include <sstream>
+#include <set>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -86,6 +89,11 @@ namespace
     constexpr int SCREEN_OBJECT_PILOT = 9302;
     constexpr int SCREEN_OBJECT_ROSTER = 9303;
     constexpr int SCREEN_OBJECT_ROSTER_CELL = 9304;
+    constexpr int SCREEN_OBJECT_RADAR_TOOLS = 9320;
+    constexpr int SCREEN_OBJECT_RADAR_PICK = 9321;
+    constexpr int TAG_WATCH_DISTANCE = 9760;
+    constexpr int FUNC_RADAR_CALC = 9770;
+    constexpr int FUNC_RADAR_WATCH = 9780;
     constexpr int FUNC_PILOT_EDIT = 9700;
     constexpr int FUNC_PILOT_LIST_FIRST = 9710;
     constexpr int FUNC_PILOT_LIST_LAST = 9715;
@@ -1932,6 +1940,7 @@ public:
         m_conflict = std::make_unique<zyzca::ConflictModule>(*this, GetThisDllDir());
         RegisterTagItemType("CYYZ_PDC RWY", TAG_PDC_RUNWAY_TYPE);
         RegisterTagItemType("PDC Flag (legacy)", TAG_PDC_FLAG_LEGACY_TYPE);
+        RegisterTagItemType("ZYZTools: waypoint distance",TAG_WATCH_DISTANCE);
         RegisterTagItemFunction("CYYZ_PDC SEND PDC", FUNC_PDC_GENERATE);
         RegisterTagItemFunction("CYYZ_PDC RESTORE FLAG", FUNC_PDC_RESTORE);
         RegisterTagItemFunction("Generate PDC (legacy)", FUNC_PDC_GENERATE_LEGACY);
@@ -2022,6 +2031,13 @@ public:
     void OnGetTagItem(CFlightPlan FlightPlan, CRadarTarget target, int ItemCode, int tagData,
                       char sItemString[16], int *pColorCode, COLORREF *pRGB, double *fontSize) override
     {
+        if(ItemCode==TAG_WATCH_DISTANCE){
+            sItemString[0]=0;*pColorCode=TAG_COLOR_DEFAULT;
+            if(!target.IsValid()&&FlightPlan.IsValid())target=FlightPlan.GetCorrelatedRadarTarget();
+            const auto value=WatchDistance(target);
+            if(!value.empty()){strncpy_s(sItemString,16,value.c_str(),_TRUNCATE);*pColorCode=TAG_COLOR_RGB_DEFINED;*pRGB=RGB(100,226,203);}
+            return;
+        }
         if(ItemCode>=TrainingPilotList::Altitude&&ItemCode<=TrainingPilotList::SFI){
             sItemString[0]=0;*pColorCode=TAG_COLOR_DEFAULT;if(!FlightPlan.IsValid()||!m_trainingCommands.PilotAircraft(FlightPlan.GetCallsign()))return;
             for(const auto &tag:m_trainingCommands.PilotTags())if(tag.callsign==FlightPlan.GetCallsign()){
@@ -2110,6 +2126,7 @@ public:
 
     void OnFunctionCall(int FunctionId, const char *sItemString, POINT, RECT Area) override
     {
+        if(RadarToolsEdit(FunctionId,sItemString))return;
         if(FunctionId>=FUNC_PILOT_LIST_FIRST&&FunctionId<=FUNC_PILOT_LIST_LAST){
             const auto fp=FlightPlanSelectASEL();
             if(!fp.IsValid()){DisplayUserMessage("ZYZTools","PILOT","Select the aircraft's list row first.",true,true,false,false,false);return;}
@@ -2290,6 +2307,7 @@ public:
 
     void OnTimer(int Counter) override
     {
+        TickWaypointAlerts();
         if (Counter % 2 == 0) PollGlobalAnnouncement();
         const auto trainingSelf=ControllerMyself();
         CFlightPlan trainingFp=FlightPlanSelectASEL(); CRadarTarget trainingRt=RadarTargetSelectASEL();
@@ -2323,6 +2341,7 @@ public:
     {
         if (!sCommandLine) return false;
         const std::string trainingCommand=Upper(CollapseWhitespace(Trim(sCommandLine)));
+        if(HandleRadarToolsCommand(trainingCommand))return true;
         if(trainingCommand==".AIRCRAFT"){
             if(m_trainingCommands.PilotRosterContext().empty())DisplayUserMessage("ZYZTools","PILOT","Connect my EuroScope to your private instructor session before opening All Aircraft.",true,true,false,false,false);
             else {
@@ -2569,6 +2588,106 @@ private:
     void SendPilotAction(const std::string &cs,const std::string &command){const auto self=ControllerMyself();if(GetConnectionType()!=CONNECTION_TYPE_DIRECT||!self.IsValid()||m_trainingCommands.PilotContext(cs).empty())return;const auto message=m_trainingCommands.Command(cs,self.GetCallsign(),command);m_pilotFeedback=cs+": "+command;m_pilotFeedbackUntil=GetTickCount64()+3000;if(!message.empty())DisplayUserMessage("ZYZTools","PILOT",message.c_str(),true,true,false,false,false);}
     CTrainingCommandBridge m_trainingCommands;
     CFlightPlanList m_pilotAircraftList;
+    struct WaypointWatch{
+        CPosition position;double radius=0;bool all=false;
+        std::set<std::string> aircraft;
+        std::map<std::string,bool> outside;
+        bool includes(const std::string& cs)const{return all||aircraft.count(cs)!=0;}
+    };
+    std::map<std::string,WaypointWatch> m_waypointWatches;
+    std::vector<std::string> m_spacingPair;
+    std::set<std::string> m_leaderAircraft;
+    std::string m_radarPick,m_pickWatch,m_calcResult;
+    double m_leaderMinutes=0;
+    std::string m_leaderMode="SEL";
+    bool m_radarToolsVisible=false,m_calcsVisible=false;
+    int m_calcSelected=-1;
+    void RadarNotice(const std::string &text){DisplayUserMessage("ZYZTools","Radar tools",text.c_str(),true,true,false,false,false);}
+    bool ResolveWatchFix(const std::string& name,CPosition& p){
+        for(const int type:{SECTOR_ELEMENT_FIX,SECTOR_ELEMENT_VOR,SECTOR_ELEMENT_NDB})
+            for(auto e=SectorFileElementSelectFirst(type);e.IsValid();e=SectorFileElementSelectNext(e,type))
+                if(e.GetName()&&Upper(e.GetName())==name&&e.GetPosition(&p,0))return true;
+        return false;
+    }
+    std::string WatchDistance(CRadarTarget target) const{
+        if(!target.IsValid()||m_waypointWatches.empty())return {};
+        const auto p=target.GetPosition();if(!p.IsValid())return {};
+        std::string nearest;double distance=1e9;
+        for(const auto& w:m_waypointWatches)if(w.second.includes(target.GetCallsign())){
+            const double d=p.GetPosition().DistanceTo(w.second.position);if(d<distance){nearest=w.first;distance=d;}
+        }
+        return nearest.empty()?"":nearest.substr(0,7)+" "+RadarTools::Number(distance)+"NM";
+    }
+    void TickWaypointAlerts(){
+        if(GetConnectionType()==CONNECTION_TYPE_NO||GetConnectionType()==CONNECTION_TYPE_PLAYBACK){for(auto& w:m_waypointWatches)w.second.outside.clear();return;}
+        bool beep=false;
+        for(auto& w:m_waypointWatches){
+            if(w.second.radius<=0)continue;
+            std::set<std::string> seen;
+            for(auto a=RadarTargetSelectFirst();a.IsValid();a=RadarTargetSelectNext(a)){
+                const std::string cs=a.GetCallsign();if(!w.second.includes(cs))continue;
+                const auto p=a.GetPosition();if(!p.IsValid())continue;seen.insert(cs);
+                const double d=p.GetPosition().DistanceTo(w.second.position);
+                auto entry=w.second.outside.emplace(cs,d>w.second.radius);
+                if(!entry.second&&RadarTools::RadiusEntry(entry.first->second,d,w.second.radius)){
+                    beep=true;RadarNotice(cs+" entered "+RadarTools::Number(w.second.radius)+" NM of "+w.first);
+                }
+            }
+            for(auto i=w.second.outside.begin();i!=w.second.outside.end();)if(!seen.count(i->first))i=w.second.outside.erase(i);else ++i;
+        }
+        if(beep)MessageBeep(MB_ICONEXCLAMATION);
+    }
+    void PickRadarAircraft(const std::string& cs){
+        if(m_radarPick=="PAIR"){
+            const auto i=std::find(m_spacingPair.begin(),m_spacingPair.end(),cs);
+            if(i!=m_spacingPair.end())m_spacingPair.erase(i);
+            else{if(m_spacingPair.size()>=2)m_spacingPair.erase(m_spacingPair.begin());m_spacingPair.push_back(cs);}
+            if(m_spacingPair.size()==2)m_radarPick.clear();
+        }else if(m_radarPick=="LEADER"){
+            if(!m_leaderAircraft.erase(cs))m_leaderAircraft.insert(cs);
+        }else if(m_radarPick=="WATCH"){
+            auto w=m_waypointWatches.find(m_pickWatch);if(w==m_waypointWatches.end())return;
+            if(!w->second.aircraft.erase(cs))w->second.aircraft.insert(cs);
+            w->second.outside.erase(cs);
+        }
+    }
+    bool HandleRadarToolsCommand(const std::string& line){
+        std::istringstream args(line);std::string verb;args>>verb;
+        if(verb==".CALC"){m_calcsVisible=true;return true;}
+        if(verb==".RADARTOOLS"){m_radarToolsVisible=true;return true;}
+        if(verb==".SPACING"){std::string option;args>>option;m_spacingPair.clear();m_radarPick=option=="OFF"?"":"PAIR";m_radarToolsVisible=option!="OFF";return true;}
+        if(verb==".LEADER"){
+            std::string length,mode;args>>length>>mode;
+            if(length=="OFF"){m_leaderMinutes=0;if(m_radarPick=="LEADER")m_radarPick.clear();return true;}
+            try{size_t consumed=0;const double minutes=std::stod(length,&consumed);
+                if(consumed!=length.size()||!std::isfinite(minutes)||minutes<.5||minutes>10||std::abs(minutes*2-std::round(minutes*2))>.001||(!mode.empty()&&mode!="ALL"&&mode!="SEL"&&mode!="PICK"))throw std::invalid_argument("leader");
+                m_leaderMinutes=minutes;m_leaderMode=mode.empty()?"SEL":mode;
+                if(mode=="PICK"){m_radarPick="LEADER";m_radarToolsVisible=true;}else if(m_radarPick=="LEADER")m_radarPick.clear();
+            }catch(...){RadarNotice("Use .leader 0.5 through 10 in half-minute steps, followed by SEL, PICK or ALL. .leader off hides lines.");}
+            return true;
+        }
+        if(verb!=".FIXWATCH")return false;
+        std::string fix,range,mode;args>>fix>>range>>mode;
+        if(fix=="CLEAR"){if(range.empty()||range=="ALL")m_waypointWatches.clear();else m_waypointWatches.erase(range);if(!m_waypointWatches.count(m_pickWatch)&&m_radarPick=="WATCH")m_radarPick.clear();return true;}
+        if(fix.empty()){RadarNotice("Use .fixwatch FIX [alert NM] [ALL or PICK]. Use .fixwatch clear FIX or clear all.");return true;}
+        if(range=="ALL"||range=="PICK"){mode=range;range.clear();}
+        double radius=0;
+        try{if(!range.empty()){size_t end=0;radius=std::stod(range,&end);if(end!=range.size()||!std::isfinite(radius)||radius<0||radius>100)throw std::invalid_argument("radius");}
+            if(!mode.empty()&&mode!="ALL"&&mode!="PICK")throw std::invalid_argument("mode");
+        }catch(...){RadarNotice("Enter an alert radius from 0 to 100 NM and choose ALL or PICK. Zero disables sound.");return true;}
+        CPosition position;
+        if(!ResolveWatchFix(fix,position)){RadarNotice("Waypoint "+fix+" was not found in the loaded sector.");return true;}
+        if(!m_waypointWatches.count(fix)&&m_waypointWatches.size()>=8){RadarNotice("Up to eight waypoint watches. Clear one before adding another.");return true;}
+        auto& watch=m_waypointWatches[fix];watch.position=position;watch.radius=radius;watch.all=mode=="ALL";watch.outside.clear();
+        if(!watch.all){m_radarPick="WATCH";m_pickWatch=fix;m_radarToolsVisible=true;}else if(m_radarPick=="WATCH"&&m_pickWatch==fix)m_radarPick.clear();
+        RadarNotice(fix+" highlighted. "+(watch.all?"Watching all aircraft.":"Click aircraft symbols to toggle them, then Done picking."));
+        return true;
+    }
+    bool RadarToolsEdit(int id,const char* value){
+        if(id==FUNC_RADAR_CALC){m_calcResult=RadarTools::Calculate(m_calcSelected,value?value:"");m_calcsVisible=true;return true;}
+        if(id==FUNC_RADAR_WATCH){if(value&&*value)HandleRadarToolsCommand(".FIXWATCH "+Upper(CollapseWhitespace(Trim(value))));return true;}
+        return false;
+    }
     bool m_pilotRosterVisible=false;
     int m_pilotRosterPage=0;
     std::map<std::string,CFlightPlan> m_pilotListMembers;
@@ -5864,6 +5983,7 @@ public:
         DrawConflictPoints(hDC);
         DrawPilotControls(hDC);
         DrawAircraftRoster(hDC);
+        DrawRadarTools(hDC);
         DrawGlobalAnnouncement(hDC);
         if (m_plugin->m_settingsVisible)
         {
@@ -5989,6 +6109,110 @@ public:
         for(const auto&[id,alert]:module.alerts){if(!alert.hasPoint||module.displayStage(id)==ca::Stage::None)continue;const auto key=id<alert.other?id+"|"+alert.other:alert.other+"|"+id;if(!drawn.insert(key).second)continue;const auto geo=ca::unproject(alert.point);CPosition position;position.m_Latitude=geo.first;position.m_Longitude=geo.second;const POINT point=ConvertCoordFromPositionToPixel(position);Ellipse(dc,point.x-3,point.y-3,point.x+4,point.y+4);}
         RestoreDC(dc,saved);
     }
+    void DrawRadarTools(HDC dc)
+    {
+        const auto& watches=m_plugin->m_waypointWatches;
+        const auto& pair=m_plugin->m_spacingPair;
+        const auto& pick=m_plugin->m_radarPick;
+        const double minutes=m_plugin->m_leaderMinutes;
+        const bool tools=m_plugin->m_radarToolsVisible,calc=m_plugin->m_calcsVisible;
+        if(!minutes&&watches.empty()&&pair.empty()&&!tools&&!calc)return;
+        const RECT radar=GetRadarArea();const int save=SaveDC(dc);if(!save)return;
+        IntersectClipRect(dc,radar.left,radar.top,radar.right,radar.bottom);
+        SelectObject(dc,GetStockObject(ANSI_FIXED_FONT));SelectObject(dc,GetStockObject(DC_PEN));
+        SelectObject(dc,GetStockObject(HOLLOW_BRUSH));SetBkMode(dc,TRANSPARENT);
+        SetTextColor(dc,RGB(144,237,215));SetDCPenColor(dc,RGB(87,192,179));
+        const auto label=[&](int x,int y,const std::string& s){TextOutA(dc,x,y,s.c_str(),static_cast<int>(s.size()));};
+        const auto point=[&](const TrainingPrediction::Point& q){CPosition p;p.m_Latitude=q.lat;p.m_Longitude=q.lon;return ConvertCoordFromPositionToPixel(p);};
+        const auto inside=[&](POINT p){return PtInRect(&radar,p)!=0;};
+        for(const auto& w:watches){
+            const auto p=ConvertCoordFromPositionToPixel(w.second.position);
+            if(inside(p)){Ellipse(dc,p.x-6,p.y-6,p.x+6,p.y+6);label(p.x+9,p.y-10,w.first);}
+            if(w.second.radius>0){
+                for(int n=0;n<=36;++n){
+                    TrainingPrediction::Point q;
+                    if(!TrainingPrediction::Project(w.second.position.m_Latitude,w.second.position.m_Longitude,(n%36)*10.0,w.second.radius*6,10,q))break;
+                    const auto px=point(q);if(!n)MoveToEx(dc,px.x,px.y,nullptr);else LineTo(dc,px.x,px.y);
+                }
+            }
+        }
+        const auto sel=m_plugin->RadarTargetSelectASEL();const std::string selected=sel.IsValid()?sel.GetCallsign():"";
+        if(minutes>0||!watches.empty()||!pick.empty())for(auto a=m_plugin->RadarTargetSelectFirst();a.IsValid();a=m_plugin->RadarTargetSelectNext(a)){
+            const auto data=a.GetPosition();if(!data.IsValid())continue;
+            const auto pos=data.GetPosition();const auto px=ConvertCoordFromPositionToPixel(pos);if(!inside(px))continue;
+            const std::string cs=a.GetCallsign();
+            if(minutes>0&&(m_plugin->m_leaderMode=="ALL"||(m_plugin->m_leaderMode=="SEL"&&cs==selected)||(m_plugin->m_leaderMode=="PICK"&&m_plugin->m_leaderAircraft.count(cs)))){
+                MoveToEx(dc,px.x,px.y,nullptr);
+                for(double t=.5;t<=minutes;t+=.5){
+                    TrainingPrediction::Point q;if(!TrainingPrediction::Project(pos.m_Latitude,pos.m_Longitude,data.GetReportedHeadingTrueNorth(),data.GetReportedGS(),t,q))break;
+                    const auto end=point(q);LineTo(dc,end.x,end.y);
+                    if(t==minutes||std::fmod(t,1.0)==0){MoveToEx(dc,end.x-2,end.y-2,nullptr);LineTo(dc,end.x+3,end.y+3);MoveToEx(dc,end.x,end.y,nullptr);}
+                }
+            }
+            const auto distance=m_plugin->WatchDistance(a);if(!distance.empty())label(px.x+8,px.y+7,distance);
+            if(!pick.empty()){
+                const bool marked=pick=="PAIR"?std::find(pair.begin(),pair.end(),cs)!=pair.end():pick=="LEADER"?m_plugin->m_leaderAircraft.count(cs)!=0:
+                    (watches.count(m_plugin->m_pickWatch)&&watches.at(m_plugin->m_pickWatch).aircraft.count(cs)!=0);
+                RECT hit{px.x-8,px.y-8,px.x+8,px.y+8};Rectangle(dc,hit.left,hit.top,hit.right,hit.bottom);
+                if(marked)label(px.x-4,px.y-7,"+");
+                AddScreenObject(SCREEN_OBJECT_RADAR_PICK,cs.c_str(),hit,false,"Toggle aircraft for radar tools");
+            }
+        }
+        std::string spacing;
+        if(pair.size()==2){
+            auto a=m_plugin->RadarTargetSelect(pair[0].c_str()),b=m_plugin->RadarTargetSelect(pair[1].c_str());
+            if(a.IsValid()&&b.IsValid()){
+                const auto p=a.GetPosition(),q=b.GetPosition();
+                if(p.IsValid()&&q.IsValid()){
+                    const auto x=p.GetPosition(),y=q.GetPosition();const double distance=x.DistanceTo(y);
+                    const auto u=ConvertCoordFromPositionToPixel(x),v=ConvertCoordFromPositionToPixel(y);
+                    MoveToEx(dc,u.x,u.y,nullptr);LineTo(dc,v.x,v.y);
+                    spacing=pair[0]+" / "+pair[1]+": "+RadarTools::Number(distance)+" NM | "+std::to_string(std::abs(p.GetPressureAltitude()-q.GetPressureAltitude()))+" ft (pressure)";
+                    if(distance<=50){
+                        const double bearing=RadarTools::TrueBearing(x.m_Latitude,x.m_Longitude,y.m_Latitude,y.m_Longitude);
+                        const auto result=RadarTools::Spacing(distance,bearing,p.GetReportedHeadingTrueNorth(),p.GetReportedGS(),q.GetReportedHeadingTrueNorth(),q.GetReportedGS());
+                        spacing+="\n"+RadarTools::Number(std::abs(result.closure),0)+" kt "+(result.closure>1?"closing":result.closure<-1?"opening":"steady")+
+                            " | "+RadarTools::Number(result.nm)+" NM at +"+RadarTools::Number(result.minutes)+"m";
+                    }
+                }
+            }
+            if(spacing.empty())spacing="Pair no longer available. Select a new pair.";
+        }
+        const int width=std::min(516,static_cast<int>(radar.right-radar.left)-20);
+        const int left=static_cast<int>(radar.left)+(static_cast<int>(radar.right-radar.left)-width)/2,top=radar.top+52;
+        if(width>=300&&radar.bottom-top>=278&&(tools||calc)){
+            SelectObject(dc,GetStockObject(DC_BRUSH));SetDCBrushColor(dc,RGB(11,27,34));Rectangle(dc,left,top,left+width,top+268);
+            const auto button=[&](int x,int y,int w,const std::string &id,const std::string &name){
+                RECT r{x,y,x+w,y+23};SetDCBrushColor(dc,RGB(25,52,63));Rectangle(dc,r.left,r.top,r.right,r.bottom);label(x+6,y+4,name);AddScreenObject(SCREEN_OBJECT_RADAR_TOOLS,id.c_str(),r,false,name.c_str());
+            };
+            button(left+width-62,top+6,54,"CLOSE","Close");
+            label(left+12,top+11,calc?"ZYZTools calculators":"ZYZTools radar tools");
+            if(calc){
+                const int columns=(width-28)/2;
+                for(int i=0;i<static_cast<int>(sizeof(RadarTools::Calculators)/sizeof(*RadarTools::Calculators));++i)
+                    button(left+10+(i%2)*(columns+8),top+40+(i/2)*29,columns,"CALC"+std::to_string(i),RadarTools::Calculators[i].name);
+                if(m_plugin->m_calcSelected>=0)label(left+12,top+164,RadarTools::Calculators[m_plugin->m_calcSelected].units);
+                label(left+12,top+188,m_plugin->m_calcResult);
+                label(left+12,top+232,"Planning estimates only; not separation guidance.");
+            }else{
+                const int columns=(width-28)/2;
+                button(left+10,top+40,columns,"LEADER","Half-minute leader");
+                button(left+18+columns,top+40,columns,"LEADER_OFF","Hide leader lines");
+                button(left+10,top+70,columns,"WATCH","Add waypoint watch");
+                button(left+18+columns,top+70,columns,"PAIR","Select spacing pair");
+                button(left+10,top+100,columns,"DONE","Done picking");
+                button(left+18+columns,top+100,columns,"CLEAR","Clear watches & pair");
+                label(left+12,top+130,pick.empty()?"Use .leader, .fixwatch, or .spacing for shortcuts.":pick=="WATCH"?"Click aircraft for "+m_plugin->m_pickWatch+".":pick=="LEADER"?"Click aircraft for leader lines.":"Click two aircraft symbols.");
+                if(!spacing.empty()){
+                    const auto split=spacing.find('\n');label(left+12,top+156,spacing.substr(0,split));
+                    if(split!=std::string::npos)label(left+12,top+178,spacing.substr(split+1));
+                }
+                label(left+12,top+232,"Prediction: constant tracks, 10 min maximum.");
+            }
+        }
+        RestoreDC(dc,save);
+    }
+
     void DrawTrainingPrediction(HDC hDC)
     {
         if(m_plugin->GetConnectionType()!=CONNECTION_TYPE_DIRECT)return;
@@ -6024,6 +6248,7 @@ public:
 
     void OnFunctionCall(int FunctionId, const char *sItemString, POINT, RECT) override
     {
+        if(m_plugin&&m_plugin->RadarToolsEdit(FunctionId,sItemString)){RequestRefresh();return;}
         if (m_plugin)
             m_plugin->HandleSettingsEdit(FunctionId, sItemString);
     }
@@ -6113,6 +6338,28 @@ public:
 
     void OnClickScreenObject(int ObjectType, const char *sObjectId, POINT Pt, RECT Area, int Button) override
     {
+        if(m_plugin&&sObjectId&&Button==BUTTON_LEFT&&ObjectType==SCREEN_OBJECT_RADAR_PICK){
+            m_plugin->PickRadarAircraft(sObjectId);RequestRefresh();return;
+        }
+        if(m_plugin&&sObjectId&&Button==BUTTON_LEFT&&ObjectType==SCREEN_OBJECT_RADAR_TOOLS){
+            const std::string id=sObjectId;
+            if(id=="CLOSE"){if(m_plugin->m_calcsVisible)m_plugin->m_calcsVisible=false;else{m_plugin->m_radarToolsVisible=false;m_plugin->m_radarPick.clear();}}
+            else if(id=="DONE")m_plugin->m_radarPick.clear();
+            else if(id=="CLEAR"){m_plugin->m_spacingPair.clear();m_plugin->HandleRadarToolsCommand(".FIXWATCH CLEAR ALL");}
+            else if(id=="PAIR")m_plugin->HandleRadarToolsCommand(".SPACING");
+            else if(id=="LEADER")m_plugin->HandleRadarToolsCommand(".LEADER 0.5 PICK");
+            else if(id=="LEADER_OFF")m_plugin->HandleRadarToolsCommand(".LEADER OFF");
+            else if(id=="WATCH"){m_plugin->RadarNotice("Enter waypoint, alert radius and scope: VERKO 5 PICK or VERKO 5 ALL. Zero disables sound.");m_plugin->OpenPopupEdit(Area,FUNC_RADAR_WATCH,"VERKO 5 PICK");}
+            else if(id.rfind("CALC",0)==0){
+                const int index=std::atoi(id.c_str()+4);
+                if(index>=0&&index<static_cast<int>(sizeof(RadarTools::Calculators)/sizeof(*RadarTools::Calculators))){
+                    m_plugin->m_calcSelected=index;m_plugin->m_calcResult.clear();
+                    m_plugin->RadarNotice(RadarTools::Calculators[index].units);
+                    m_plugin->OpenPopupEdit(Area,FUNC_RADAR_CALC,RadarTools::Calculators[index].example);
+                }
+            }
+            RequestRefresh();return;
+        }
         if(m_plugin&&ObjectType==SCREEN_OBJECT_ROSTER&&sObjectId&&Button==BUTTON_LEFT){
             const std::string action=sObjectId;
             if(action=="CLOSE")m_plugin->m_pilotRosterVisible=false;

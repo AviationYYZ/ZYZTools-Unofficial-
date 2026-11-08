@@ -17,7 +17,7 @@ const descriptions={
  appearance:'Set the workspace theme, typography and layout.',
  advanced:'Manage updates and advanced app settings.',
  operations:'Configure clearances, runway assignments and PDC templates.',
- calculators:'Estimate descent, spacing, time, heading changes and wind components.',
+ calculators:'Estimate descent, traffic spacing, time, vertical trends and wind components.',
  hoppie:'Set up the Hoppie connection and delivery options.',
  sids:'Review and edit the departure runway matrix.',
  conflicts:'Configure prediction and conflict alerts.',

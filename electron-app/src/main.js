@@ -1173,7 +1173,9 @@ guarded("test:publish", async (_event, options = {}) => {
     if (!fs.existsSync(installer)) throw new Error('Bundled publishing installer is missing. Reinstall the current test build.');
     const sourcePath = app.isPackaged ? path.join(process.resourcesPath, "TestSourceSnapshot.json") : path.join(__dirname, "../../build/TestSourceSnapshot.json");
     const snapshot = JSON.parse(fs.readFileSync(sourcePath, "utf8"));
-    const result = await publishTest({ token, version: app.getVersion(), installer, snapshot, stream: options.stream, essential: options.essential === true });
+    const serverName='ZYZTools-Server-Setup-'+app.getVersion()+'.exe';
+    const serverInstaller=options.stream==='stable'?path.join(app.isPackaged?path.join(process.resourcesPath,'Publishing'):path.join(process.env.LOCALAPPDATA,'ZYZTools/Builds/server-'+app.getVersion()),serverName):undefined;
+    const result = await publishTest({ token, version: app.getVersion(), installer, serverInstaller, snapshot, stream: options.stream, essential: options.essential === true });
     if (options.remember) {
       try { publishingAuth.save(app.getPath("userData"), token, safeStorage); }
       catch { result.authWarning = "Beta published, but GitHub access could not be remembered."; }
