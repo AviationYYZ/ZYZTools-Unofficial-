@@ -28,6 +28,7 @@ class AppPolicyClient{
   const next=normalize(raw);this.connected=true;
   if(next.revision<this.state.revision)return;
   this.state=next;
+  this.received=(this.received||0)+1;
   if(this.file)try{fs.writeFileSync(this.file,JSON.stringify(next));}catch{}
   this.onChange(this.snapshot());
  }
@@ -50,7 +51,8 @@ class AppPolicyClient{
   return result;
  }
  async refresh(){
-  try{const state=await this.call('/v2/policy');if(!this.closed&&this.socket?.readyState!==1)this.accept(state);}
+  const received=this.received||0;
+  try{const state=await this.call('/v2/policy');if(!this.closed&&received===(this.received||0))this.accept(state);}
   catch{if(this.socket?.readyState!==1){this.connected=false;this.onChange(this.snapshot());}}
  }
  connect(){
@@ -62,7 +64,7 @@ class AppPolicyClient{
    ws.addEventListener('close',retry);ws.addEventListener('error',retry);
   }catch{}
  }
- start(){this.closed=false;this.refresh();this.connect();this.poll=setInterval(()=>{if(this.socket?.readyState!==1)this.refresh();else this.onChange(this.snapshot());},60000);this.poll.unref?.();}
+ start(){this.closed=false;this.refresh();this.connect();this.poll=setInterval(()=>this.refresh(),30000);this.poll.unref?.();}
  stop(){this.closed=true;clearInterval(this.poll);clearTimeout(this.retry);const ws=this.socket;this.socket=null;ws?.close();}
 }
 module.exports={AppPolicyClient,FEATURES,normalize};

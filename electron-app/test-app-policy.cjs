@@ -19,3 +19,8 @@ test('policy gates apply in the main process, and code edits invalidate prior gr
  assert.throws(()=>app.assert('localTraining'),/maintenance/);
  assert.equal((await app.admin('a'.repeat(64),{action:'status'})).ok,true);
 });
+test('HTTPS refresh delivers an announcement even when the WebSocket stays open but misses an event',async()=>{
+ const message={message:'Local fixture announcement',until:Date.now()+60000};
+ const client=new AppPolicyClient({Socket:null,request:async()=>Response.json({revision:0,rules:{},maintenance:false,announcement:message})});
+ client.socket={readyState:1};await client.refresh();assert.deepEqual(client.snapshot().announcement,message);
+});

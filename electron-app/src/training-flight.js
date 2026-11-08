@@ -17,7 +17,8 @@ function turnMotion(a,dt){
  // The old error/3 rule produced a very long, widening tail to every turn.
  const currentRate=9.80665*Math.tan((a.bank||0)*rad)/v/rad;
  const rollout=currentRate*Math.abs(a.bank||0)/10;
- const remaining=error-rollout,requested=Math.sign(remaining)*Math.min(maxRate,Math.abs(remaining));
+ const remaining=error-rollout;
+ const requested=Math.sign(remaining)!==Math.sign(error)&&Math.sign(a.bank||0)===Math.sign(error)?0:Math.sign(remaining)*Math.min(maxRate,Math.abs(remaining));
  const targetBank=Math.atan(requested*rad*v/9.80665)/rad;
  a.bank=(a.bank||0)+Math.sign(targetBank-(a.bank||0))*Math.min(Math.abs(targetBank-(a.bank||0)),5*dt);
  const amount=9.80665*Math.tan(a.bank*rad)/v/rad*dt;
@@ -50,27 +51,33 @@ function isApproachFix(fix,runway,geometry){
  const along=g.distance*Math.cos(angle),cross=Math.abs(g.distance*Math.sin(angle));
  return along<0&&along>=-35&&cross<=.4;
 }
+function straightInJoin(fix,next,runway,geometry){
+ if(!isApproachFix(fix,runway,geometry)||!isApproachFix(next,runway,geometry))return false;
+ const axis=geometry(runway.threshold,runway.opposite).bearing,leg=geometry(fix,next);
+ return geometry(runway.threshold,fix).distance>=12&&leg.distance>.5&&Math.abs(delta(leg.bearing,axis))<=12;
+}
 function guideRoute(a,fixes,geometry,move,runway){
  if(a.flyBy){
   if(a.flyBy.next===a.remaining[0]){
    if(!a.flyBy.intercepting&&Math.abs(delta(a.heading,courseHeading(a,a.flyBy.course)))>.5){a.targetHeading=courseHeading(a,a.flyBy.course);return;}
    const anchor=a.flyBy.anchor;if(anchor){const g=geometry(anchor,a),cross=g.distance*Math.sin(delta(g.bearing,a.flyBy.course)*rad);
-    if(Math.abs(cross)>.035||Math.abs(delta(a.groundTrack??a.heading,a.flyBy.course))>1){a.flyBy.intercepting=true;const along=g.distance*Math.cos(delta(g.bearing,a.flyBy.course)*rad),look=Math.max(.5,turnRadius(a.speed)*1.5);a.targetHeading=courseHeading(a,geometry(a,move(anchor,Math.max(0,along)+look,a.flyBy.course)).bearing);return;}
+    if(Math.abs(cross)>.055||Math.abs(delta(a.groundTrack??a.heading,a.flyBy.course))>2){a.flyBy.intercepting=true;const look=Math.max(1,turnRadius(a.speed)*3,a.speed/3600*22),correction=Math.max(-20,Math.min(20,Math.atan2(cross,look)/rad));a.targetHeading=courseHeading(a,wrap(a.flyBy.course-correction));return;}
    }
   }a.flyBy=null;
  }
  let count=0;while(a.remaining.length&&count++<10){
   const fix=fixes.find(w=>w.name===a.remaining[0]);if(!fix){a.navigation='heading';a.navigationNotice='Missing route fix '+a.remaining[0];return;}
   const g=geometry(a,fix),start=a.legStart||a,leg=geometry(start,fix),following=fixes.find(w=>w.name===a.remaining[1]);
-  const approachFix=isApproachFix(fix,runway,geometry);
-  if(approachFix&&a.explicitDirectFix!==fix.name){
+  const approachFix=isApproachFix(fix,runway,geometry),join=straightInJoin(fix,following,runway,geometry);
+  const afterFollowing=fixes.find(w=>w.name===a.remaining[2]);
+  if(approachFix&&!join&&a.explicitDirectFix!==fix.name){
    a.navigation='heading';a.flyBy=null;a.turnDirection=0;a.routeCompleted=false;a.targetHeading=a.heading;
    a.navigationNotice='Approach discontinuity before '+fix.name+'; awaiting vectors or direct-to.';
    return;
   }
   const discontinuity=endsDownwind(start,fix,following,runway,geometry)||
-   isApproachFix(following,runway,geometry)||approachFix;
-  const next=discontinuity?null:following;
+   (isApproachFix(following,runway,geometry)&&!straightInJoin(following,afterFollowing,runway,geometry))||approachFix;
+  const next=discontinuity&&!join?null:following;
   const passed=leg.distance>.05&&g.distance*Math.cos(delta(g.bearing,leg.bearing)*rad)<-.01;
   let lead=.08,anticipated=false;
   if(next){
@@ -99,17 +106,19 @@ function guideRoute(a,fixes,geometry,move,runway){
    if(required>available&&angle>90)a.navigationNotice='Turn space limited at '+fix.name+'; reduce speed or vector.';
   }
   const projected=g.distance*Math.cos(delta(g.bearing,leg.bearing)*rad);
-  if(discontinuity&&(projected<=.08||passed)){
+  if(discontinuity&&(anticipated||projected<=(join?lead:.08)||passed)){
    a.remaining.shift();(a.passedFixes||(a.passedFixes=[])).push(fix.name);
    a.navigation='heading';a.flyBy=null;a.turnDirection=0;a.routeCompleted=false;
-   a.targetHeading=courseHeading(a,wrap(geometry(fix,start).bearing+180));
+   a.targetHeading=courseHeading(a,join?geometry(fix,following).bearing:wrap(geometry(fix,start).bearing+180));
    a.explicitDirectFix=null;
    a.navigationNotice='Route discontinuity at '+fix.name+'; awaiting vectors or direct-to.';
    return;
   }
   if(anticipated||projected<=lead||passed){a.remaining.shift();(a.passedFixes||(a.passedFixes=[])).push(fix.name);a.legStart={lat:fix.lat,lon:fix.lon};if(!a.remaining.length){a.routeCompleted=true;a.navigation='heading';a.targetHeading=leg.distance>.05?courseHeading(a,leg.bearing):a.heading;}else if(next&&Math.abs(delta(geometry(fix,next).bearing,leg.bearing))>5){a.flyBy={course:geometry(fix,next).bearing,next:next.name,anchor:{lat:fix.lat,lon:fix.lon}};a.targetHeading=courseHeading(a,a.flyBy.course);return;}continue;}
-  const fromStart=geometry(start,a),along=fromStart.distance*Math.cos(delta(fromStart.bearing,leg.bearing)*rad),look=Math.max(.4,turnRadius(a.speed)*1.5,a.speed/3600*12),aim=move(start,Math.max(0,Math.min(leg.distance,along+look)),leg.bearing);
-  a.targetHeading=courseHeading(a,geometry(a,aim).bearing);return;
+  if(leg.distance<=.05){a.targetHeading=courseHeading(a,g.bearing);return;}
+  const fromStart=geometry(start,a),cross=fromStart.distance*Math.sin(delta(fromStart.bearing,leg.bearing)*rad);
+  const look=Math.max(.75,turnRadius(a.speed)*2.5,a.speed/3600*17),correction=Math.max(-25,Math.min(25,Math.atan2(cross,look)/rad));
+  a.targetHeading=courseHeading(a,wrap(leg.bearing-correction));return;
  }
 }
 function guideApproach(a,runways,geometry){
