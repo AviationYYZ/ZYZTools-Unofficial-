@@ -435,6 +435,13 @@
       <section id="calculators">
         <p>Quick planning estimates. These calculators don't issue instructions or determine separation. Use the same direction reference for wind and runway inputs.</p>
         <div id="controllerCalculators" class="calculator-grid"></div>
+        <fieldset><legend>EuroScope radar shortcuts</legend>
+          <p>Optional command aliases. Use a dot followed by letters or numbers, such as .pair. Save and apply your plugin settings.</p>
+          <label for="spacingShortcut">Spacing pair (.spacing)</label><input id="spacingShortcut" maxlength="17" placeholder=".pair">
+          <label for="leaderShortcut">Leader lines (.leader)</label><input id="leaderShortcut" maxlength="17" placeholder=".ll">
+          <label for="fixwatchShortcut">Waypoint watch (.fixwatch)</label><input id="fixwatchShortcut" maxlength="17" placeholder=".fw">
+          <div class="buttons"><button id="saveRadarShortcutsBtn">Save shortcuts</button></div>
+        </fieldset>
       </section>
       <section id="operations">
         <div class="card">

@@ -2034,8 +2034,8 @@ public:
         if(ItemCode==TAG_WATCH_DISTANCE){
             sItemString[0]=0;*pColorCode=TAG_COLOR_DEFAULT;
             if(!target.IsValid()&&FlightPlan.IsValid())target=FlightPlan.GetCorrelatedRadarTarget();
-            const auto value=WatchDistance(target);
-            if(!value.empty()){strncpy_s(sItemString,16,value.c_str(),_TRUNCATE);*pColorCode=TAG_COLOR_RGB_DEFINED;*pRGB=RGB(100,226,203);}
+            const auto value=WatchDistance(target,true);
+            if(!value.empty()){strncpy_s(sItemString,16,value.c_str(),_TRUNCATE);*pColorCode=TAG_COLOR_RGB_DEFINED;*pRGB=RGB(100,226,203);if(fontSize&&*fontSize>0)*fontSize*=0.85;}
             return;
         }
         if(ItemCode>=TrainingPilotList::Altitude&&ItemCode<=TrainingPilotList::SFI){
@@ -2610,14 +2610,16 @@ private:
                 if(e.GetName()&&Upper(e.GetName())==name&&e.GetPosition(&p,0))return true;
         return false;
     }
-    std::string WatchDistance(CRadarTarget target) const{
+    std::string WatchDistance(CRadarTarget target,bool compact=false) const{
         if(!target.IsValid()||m_waypointWatches.empty())return {};
         const auto p=target.GetPosition();if(!p.IsValid())return {};
         std::string nearest;double distance=1e9;
         for(const auto& w:m_waypointWatches)if(w.second.includes(target.GetCallsign())){
             const double d=p.GetPosition().DistanceTo(w.second.position);if(d<distance){nearest=w.first;distance=d;}
         }
-        return nearest.empty()?"":nearest.substr(0,7)+" "+RadarTools::Number(distance)+"NM";
+        if(nearest.empty())return {};
+        if(compact)return nearest.substr(0,5)+" "+(distance<10?RadarTools::Number(distance):std::to_string(static_cast<int>(std::lround(distance))));
+        return nearest.substr(0,7)+" "+RadarTools::Number(distance)+"NM";
     }
     void TickWaypointAlerts(){
         if(GetConnectionType()==CONNECTION_TYPE_NO||GetConnectionType()==CONNECTION_TYPE_PLAYBACK){for(auto& w:m_waypointWatches)w.second.outside.clear();return;}
@@ -2654,6 +2656,11 @@ private:
     }
     bool HandleRadarToolsCommand(const std::string& line){
         std::istringstream args(line);std::string verb;args>>verb;
+        if(!verb.empty()&&verb!=".CALC"&&verb!=".RADARTOOLS"&&verb!=".SPACING"&&verb!=".LEADER"&&verb!=".FIXWATCH"&&verb!=".UI"&&verb!=".AIRCRAFT"&&verb!=".REPLAY"){
+            if(verb==m_cfg.spacingShortcut)verb=".SPACING";
+            else if(verb==m_cfg.leaderShortcut)verb=".LEADER";
+            else if(verb==m_cfg.fixwatchShortcut)verb=".FIXWATCH";
+        }
         if(verb==".CALC"){m_calcsVisible=true;return true;}
         if(verb==".RADARTOOLS"){m_radarToolsVisible=true;return true;}
         if(verb==".SPACING"){std::string option;args>>option;m_spacingPair.clear();m_radarPick=option=="OFF"?"":"PAIR";m_radarToolsVisible=option!="OFF";return true;}
@@ -2747,6 +2754,7 @@ private:
         std::string audioReplayProcesses = "trackaudio.exe";
         std::string audioReplayFolder = "Recordings";
         std::string audioReplaySaveCommand = "replay save";
+        std::string spacingShortcut,leaderShortcut,fixwatchShortcut;
         std::string trackAudioVersion = "auto";
         std::string settingsAppPath;
 
@@ -5668,6 +5676,9 @@ private:
             << "  \"audio_replay_processes\": \"" << JsonEscape(m_cfg.audioReplayProcesses) << "\",\n"
             << "  \"audio_replay_folder\": \"" << JsonEscape(m_cfg.audioReplayFolder) << "\",\n"
             << "  \"audio_replay_save_command\": \"" << JsonEscape(ReplaySaveCommandSuffix()) << "\",\n"
+            << "  \"radar_spacing_shortcut\": \"" << JsonEscape(m_cfg.spacingShortcut) << "\",\n"
+            << "  \"radar_leader_shortcut\": \"" << JsonEscape(m_cfg.leaderShortcut) << "\",\n"
+            << "  \"radar_fixwatch_shortcut\": \"" << JsonEscape(m_cfg.fixwatchShortcut) << "\",\n"
             << "  \"trackaudio_version\": \"" << JsonEscape(m_cfg.trackAudioVersion) << "\",\n"
             << "  \"settings_app_path\": \"" << JsonEscape(m_cfg.settingsAppPath) << "\",\n"
             << "  \"test_mode\": " << (m_cfg.testMode ? 1 : 0) << ",\n"
@@ -5777,6 +5788,13 @@ private:
         JsonStringValue(json, "hoppie_logon_code", m_cfg.logonCode);
         JsonStringValue(json, "station_code", m_cfg.stationCode);
         m_cfg.pdcTemplateBridge.clear(); m_cfg.pdcTemplateHoppie.clear();
+        for(const auto& alias : {std::pair{"radar_spacing_shortcut",&m_cfg.spacingShortcut},std::pair{"radar_leader_shortcut",&m_cfg.leaderShortcut},std::pair{"radar_fixwatch_shortcut",&m_cfg.fixwatchShortcut}}){
+            auto& value=*alias.second;value.clear();size_t pos=0;
+            if(FindJsonValueStart(json,alias.first,pos))ParseJsonStringAt(json,pos,value);
+            value=Upper(Trim(value));
+            if(value.size()<2||value.size()>17||value[0]!='.'||value[1]<'A'||value[1]>'Z'||
+                !std::all_of(value.begin()+1,value.end(),[](char c){return (c>='A'&&c<='Z')||(c>='0'&&c<='9');}))value.clear();
+        }
         size_t templatePos = 0;
         if (FindJsonValueStart(json, "pdc_template_bridge", templatePos)) ParseJsonStringAt(json, templatePos, m_cfg.pdcTemplateBridge);
         if (FindJsonValueStart(json, "pdc_template_hoppie", templatePos)) ParseJsonStringAt(json, templatePos, m_cfg.pdcTemplateHoppie);
@@ -6143,12 +6161,14 @@ public:
             const auto pos=data.GetPosition();const auto px=ConvertCoordFromPositionToPixel(pos);if(!inside(px))continue;
             const std::string cs=a.GetCallsign();
             if(minutes>0&&(m_plugin->m_leaderMode=="ALL"||(m_plugin->m_leaderMode=="SEL"&&cs==selected)||(m_plugin->m_leaderMode=="PICK"&&m_plugin->m_leaderAircraft.count(cs)))){
+                const auto previousPenColor=SetDCPenColor(dc,RGB(255,230,65));
                 MoveToEx(dc,px.x,px.y,nullptr);
                 for(double t=.5;t<=minutes;t+=.5){
                     TrainingPrediction::Point q;if(!TrainingPrediction::Project(pos.m_Latitude,pos.m_Longitude,data.GetReportedHeadingTrueNorth(),data.GetReportedGS(),t,q))break;
                     const auto end=point(q);LineTo(dc,end.x,end.y);
                     if(t==minutes||std::fmod(t,1.0)==0){MoveToEx(dc,end.x-2,end.y-2,nullptr);LineTo(dc,end.x+3,end.y+3);MoveToEx(dc,end.x,end.y,nullptr);}
                 }
+                SetDCPenColor(dc,previousPenColor);
             }
             const auto distance=m_plugin->WatchDistance(a);if(!distance.empty())label(px.x+8,px.y+7,distance);
             if(!pick.empty()){
@@ -6168,6 +6188,7 @@ public:
                     const auto x=p.GetPosition(),y=q.GetPosition();const double distance=x.DistanceTo(y);
                     const auto u=ConvertCoordFromPositionToPixel(x),v=ConvertCoordFromPositionToPixel(y);
                     MoveToEx(dc,u.x,u.y,nullptr);LineTo(dc,v.x,v.y);
+                    label((u.x+v.x)/2+4,(u.y+v.y)/2-14,RadarTools::Number(distance)+" NM");
                     spacing=pair[0]+" / "+pair[1]+": "+RadarTools::Number(distance)+" NM | "+std::to_string(std::abs(p.GetPressureAltitude()-q.GetPressureAltitude()))+" ft (pressure)";
                     if(distance<=50){
                         const double bearing=RadarTools::TrueBearing(x.m_Latitude,x.m_Longitude,y.m_Latitude,y.m_Longitude);

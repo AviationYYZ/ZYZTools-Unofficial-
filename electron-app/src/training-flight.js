@@ -127,9 +127,9 @@ function straightInJoin(fix,next,runway,geometry){
 // Capture the leg with a bounded intercept. Track-rate damping starts the
 // rollout before the centerline, instead of waiting for cross-track error to
 // change sign while the aircraft is still banked toward it.
-function legHeading(a,anchor,course,geometry,limit=20){
+function legHeading(a,anchor,course,geometry,limit=20,lookCap=Infinity){
  const g=geometry(anchor,a),cross=g.distance*Math.sin(delta(g.bearing,course)*rad);
- const look=Math.max(1,turnRadius(a.speed)*4,(a.groundSpeed||a.speed)/3600*25);
+ const look=Math.min(lookCap,Math.max(1,turnRadius(a.speed)*4,(a.groundSpeed||a.speed)/3600*25));
  const bank=a.bank||0,rate=9.80665*Math.tan(bank*rad)/(Math.max(30,a.speed)*.514444)/rad;
  const settling=Math.min(2.5,Math.abs(bank)/10);
  const track=delta(a.groundTrack??a.heading,course)*rad;
@@ -172,7 +172,7 @@ function guideRoute(a,fixes,geometry,move,runway){
       }
      }
     }
-    if(!rejoinReached&&(Math.abs(cross)>.055||Math.abs(delta(a.groundTrack??a.heading,a.flyBy.course))>2||Math.abs(a.bank||0)>2)){a.flyBy.intercepting=true;a.targetHeading=legHeading(a,anchor,a.flyBy.course,geometry,a.flyBy.directCapture?30:20);return;}
+    if(!rejoinReached&&(Math.abs(cross)>.055||Math.abs(delta(a.groundTrack??a.heading,a.flyBy.course))>2||Math.abs(a.bank||0)>2)){a.flyBy.intercepting=true;a.targetHeading=legHeading(a,anchor,a.flyBy.course,geometry,a.flyBy.directCapture?35:20,a.flyBy.directCapture?Math.max(1.5,turnRadius(a.speed)*2):Infinity);return;}
    }
   }
   if(a.flyBy.directCapture)a.navigationNotice='';
@@ -194,7 +194,9 @@ function guideRoute(a,fixes,geometry,move,runway){
   const filed=direct?String(a.route||'').split(' '):null;
   const filedIndex=filed?.indexOf(fix.name)??-1;
   const downwindStart=direct?(filedIndex>0?fixes.find(w=>w.name===filed[filedIndex-1]):null):start;
-  const discontinuity=(downwindStart&&endsDownwind(downwindStart,fix,following,runway,geometry))||
+  // PENGO is a published STAR split, not the end of a downwind.
+  const nuberSplit=fix.name==='PENGO'&&['MANUP','BOTUM'].includes(following?.name)&&a.procedures?.includes('NUBER6');
+  const discontinuity=(!nuberSplit&&downwindStart&&endsDownwind(downwindStart,fix,following,runway,geometry))||
    (isApproachFix(following,runway,geometry)&&!straightInJoin(following,afterFollowing,runway,geometry))||approachFix;
   const next=discontinuity&&!join?null:following;
   if(direct&&g.distance>.08){

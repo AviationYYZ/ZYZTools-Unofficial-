@@ -172,6 +172,10 @@ function formToConfig() {
   next.audio_replay_processes = "trackaudio.exe";
   next.audio_replay_folder = $("recordingsFolder").value.trim() || "Recordings";
   next.audio_replay_save_command = commandSuffix();
+  for (const tool of ["spacing","leader","fixwatch"]) {
+    const alias=$(tool+"Shortcut").value.trim().toLowerCase();
+    next["radar_"+tool+"_shortcut"]=/^\.[a-z][a-z0-9]{0,15}$/.test(alias)?alias:"";
+  }
   next.trackaudio_version = $("trackAudioVersion").value;
   next.test_mode = boolInt("testMode");
   next.debug_mode = boolInt("debugMode");
@@ -211,6 +215,7 @@ function configToForm(next) {
   updateTxRadioIntensityLabel();
   $("recordingsFolder").value = config.audio_replay_folder || "Recordings";
   $("saveCommand").value = String(config.audio_replay_save_command || "replay save").replace(/^\.+/, "");
+  for (const tool of ["spacing","leader","fixwatch"]) $(tool+"Shortcut").value=config["radar_"+tool+"_shortcut"]||"";
   $("trackAudioVersion").value = config.trackaudio_version || "auto";
   setBool("testMode", config.test_mode);
   setBool("debugMode", config.debug_mode);
@@ -639,6 +644,12 @@ async function checkUpdates(background = false) {
 }
 $("checkUpdatesBtn").addEventListener('click', () => checkUpdates());
 window.ZYZCalculators?.mount($('controllerCalculators'));
+$("saveRadarShortcutsBtn").addEventListener("click", () => {
+  const aliases=["spacing","leader","fixwatch"].map(tool=>$(tool+"Shortcut").value.trim().toLowerCase()).filter(Boolean);
+  if(aliases.some(alias=>!/^\.[a-z][a-z0-9]{0,15}$/.test(alias)))return setStatus("Use a dot followed by a letter, then up to 15 letters or digits.", "error");
+  if(new Set(aliases).size!==aliases.length||aliases.some(alias=>[".ui",".calc",".radartools",".spacing",".leader",".fixwatch",".aircraft",".replay"].includes(alias)))return setStatus("Choose a different, unused shortcut for each tool.", "error");
+  saveConfig("Radar shortcuts saved.").catch(error=>setStatus(error.message,"error"));
+});
 let releaseHistoryGeneration=0;
 function clearReleaseHistory(){
  releaseHistoryGeneration++;

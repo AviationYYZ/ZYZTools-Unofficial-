@@ -211,7 +211,7 @@ class LocalTraining{
   if(a.speedMode==='published')a.targetIAS=flight.publishedIAS(a,this.scenario.speedRules,this.runtimeWaypoints||this.scenario.waypoints,geometry,this.scenario.runways);
   a.revision=(a.revision||0)+1;return this.status();
  }
- divert(callsign,runway){
+ divert(callsign,runway,fields={}){
   const a=this.aircraft.find(a=>a.callsign===callsign&&a.active);
   if(!a)throw Error('Select an active simulated aircraft.');
   if(a.arrivalRunway===runway)throw Error('Aircraft is already assigned runway '+runway+'.');
@@ -224,6 +224,8 @@ class LocalTraining{
   const points=new Map([...library.fixes,...(this.runtimeWaypoints?.length?this.runtimeWaypoints:this.scenario.waypoints)].map(w=>[w.name,w]));
   const resolved={route:variant.fixes.join(' '),waypoints:variant.fixes.map(n=>points.get(n)),arrivalRunway:runway,procedures:[variant.name]};
   const track=a.groundTrack??a.heading;
+  const oldRoute=a.route.split(' '),oldNext=a.remaining[0],oldIndex=oldRoute.indexOf(oldNext),newIndex=variant.fixes.indexOf(oldNext);
+  const keepLeg=a.navigation==='route'&&!a.explicitDirectFix&&!a.flyBy&&a.approachState==='off'&&oldIndex>0&&newIndex>0&&oldRoute[oldIndex-1]===variant.fixes[newIndex-1];
   const angle=(x,y)=>Math.abs((x-y+540)%360-180);
   const axis=geometry(threshold.threshold,threshold.opposite).bearing;
   const eligible=resolved.waypoints.map(w=>{
@@ -233,9 +235,10 @@ class LocalTraining{
   }).filter(w=>!w.onFinal&&w.distance>=.15&&w.turn<=100);
   const next=eligible.find(w=>w.name===a.remaining[0]&&a.navigation==='route')||eligible.sort((x,y)=>x.distance+x.turn/20-y.distance-y.turn/20)[0];
   const wasGlide=a.approachState==='glideslope captured';
-  this.amend(callsign,{arrivalRunway:runway,flightPlanRoute:plan},resolved);
+  this.amend(callsign,{...fields,arrivalRunway:runway,flightPlanRoute:plan},resolved);
   if(wasGlide)a.targetAltitude=a.altitude;
-  if(next){this.command(callsign,'DCT '+next.name);a.navigationNotice='Diverted to '+runway+' via '+next.name+'; approach clearance required.';}
+  if(keepLeg){a.navigationNotice='Runway '+runway+' assigned; continuing on the shared STAR leg.';}
+  else if(next){this.command(callsign,'DCT '+next.name);a.navigationNotice='Diverted to '+runway+' via '+next.name+'; approach clearance required.';}
   else{a.navigation='heading';a.explicitDirectFix=null;a.flyBy=null;a.turnDirection=0;a.targetHeading=a.heading;a.navigationNotice='Runway '+runway+' route loaded. No suitable forward rejoin; vector or issue direct-to.';}
   return this.status();
  }
@@ -255,6 +258,7 @@ class LocalTraining{
   if(routeChanged){
    const root=plan=>String(plan).toUpperCase().replace(/\/\d{2}[LRC]?(?=\s|$)/g,'').split(/\s+/).filter(t=>t&&t!==a.destination).join(' ');
    const runwayOnly=candidate.arrivalRunway!==a.arrivalRunway&&candidate.origin===a.origin&&candidate.destination===a.destination&&root(candidate.flightPlanRoute)===root(a.flightPlanRoute);
+   if(!preparedRoute&&runwayOnly&&hasGeometry&&a.navigation==='route'&&require('./training-route-variants.json').procedures.some(p=>p.airport===a.destination&&p.runway===candidate.arrivalRunway&&a.procedures.includes(p.name)))return this.divert(callsign,candidate.arrivalRunway,fields);
    const points=this.runtimeWaypoints?.length?this.runtimeWaypoints:this.scenario.waypoints;
    const assignForVectors=()=>{
     const tokens=String(candidate.flightPlanRoute).toUpperCase().split(/\s+/).filter(t=>t&&t.split('/')[0]!==candidate.destination&&!a.procedures.includes(t.split('/')[0]));
