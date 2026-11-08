@@ -1,4 +1,5 @@
 #pragma once
+#include <set>
 #include "conflict/Engine.h"
 // Included after the plugin's JSON helpers. Local requests are bounded and never
 // contact an external host; the desktop app performs authenticated sim actions.
@@ -16,6 +17,8 @@ private:
     DWORD lastPort = 0;
     unsigned sequence = 0;
     int predictionMinutes=0; ULONGLONG predictionVerified=0; std::string predictionCallsigns;
+    ULONGLONG rosterVerified=0;std::string rosterContext,rosterCallsigns;
+    ULONGLONG lastFlightPlanRecovery=0;
     bool pilotControls=false;
     static std::vector<ca::Waypoint> DecodeRoute(const std::string&encoded){std::vector<ca::Waypoint> out;std::istringstream input(encoded);std::string row;while(std::getline(input,row,';')&&out.size()<200){std::replace(row.begin(),row.end(),',',' ');std::istringstream fields(row);std::string name;double lat,lon;if(fields>>name>>lat>>lon&&name.size()<=16&&std::isfinite(lat)&&std::isfinite(lon)&&std::abs(lat)<=90&&std::abs(lon)<=180)out.push_back({name,ca::project(lat,lon),0});}return out;}
     struct TagOverlay {std::string callsign,id,nonce;int type=0;ULONGLONG until=0;};
@@ -113,6 +116,20 @@ public:
     std::string PilotContext(const std::string &cs) const {std::string nonce,session;return Callsign(cs)&&PilotAircraft(cs)&&Binding(nonce,session)&&TrainingSocketPort()?nonce+"|"+session:"";}
     const std::vector<PilotTag>& PilotTags() const {static const std::vector<PilotTag> empty;return GetTickCount64()-pilotTagsVerified<2500?pilotTags:empty;}
     std::string PilotLayoutContext() const {return GetTickCount64()-pilotTagsVerified<2500?pilotTagsContext:"";}
+    std::string PilotRosterContext() const {return GetTickCount64()-rosterVerified<12000?rosterContext:"";}
+    std::set<std::string> PilotRoster() const {
+        std::set<std::string> out;if(PilotRosterContext().empty())return out;
+        std::istringstream items(rosterCallsigns);std::string cs;while(std::getline(items,cs,','))if(Callsign(cs))out.insert(cs);return out;
+    }
+    void RecoverFlightPlans(const std::string& controller,const std::vector<std::string>& missing){
+        if(missing.empty()||controller.empty()||GetTickCount64()-lastFlightPlanRecovery<8000)return;
+        std::string nonce,session;if(!Binding(nonce,session)||PilotRosterContext()!=nonce+"|"+session)return;
+        const DWORD port=TrainingSocketPort();if(!port)return;
+        lastFlightPlanRecovery=GetTickCount64();
+        std::string names;
+        for(size_t i=0;i<missing.size()&&i<30;i++)if(Callsign(missing[i])){if(!names.empty())names+=",";names+="\""+missing[i]+"\"";}
+        if(!names.empty())Request(L"POST",L"/flight-plans",nonce,"{"+Payload("",controller,port,session)+",\"aircraft\":["+names+"]}");
+    }
     bool ConflictTelemetry(std::vector<ca::Aircraft>& out) const {
         out.clear();if(PilotLayoutContext().empty()||!TrainingContext())return false;
         for(const auto&tag:PilotTags()){
@@ -133,6 +150,8 @@ public:
         int minutes=0;std::string callsigns;const DWORD port=!controller.empty() && Binding(nonce,session,&minutes,&callsigns)?TrainingSocketPort():0;
         predictionMinutes=port?minutes:0;predictionCallsigns=port?callsigns:"";predictionVerified=port?GetTickCount64():0;
         pilotControls=false;if(port){std::ifstream f(BindingFile(),std::ios::binary);const std::string json((std::istreambuf_iterator<char>(f)),std::istreambuf_iterator<char>());int enabled=0;pilotControls=json.size()<=4096&&JsonIntValue(json,"pilot_controls",enabled)&&enabled==1;}
+        if(port&&pilotControls){rosterContext=nonce+"|"+session;rosterCallsigns=callsigns;rosterVerified=GetTickCount64();}
+        else if(controller.empty()||!TrainingSocketPort()){rosterContext.clear();rosterCallsigns.clear();rosterVerified=0;}
         pilotTags.clear();pilotTagsVerified=0;
         if(port&&pilotControls){const auto response=Request(L"GET",L"/pilot-state?port="+std::to_wstring(port),nonce);std::vector<std::string> rows;std::string received;if(JsonStringValue(response,"sessionId",received)&&received==session&&JsonStringArrayValue(response,"tags",rows)&&rows.size()<=100){for(const auto &row:rows){std::vector<std::string> parts;std::istringstream stream(row);std::string part;while(std::getline(stream,part,'|'))parts.push_back(part);if((parts.size()!=41&&parts.size()!=48&&parts.size()!=58)||!Callsign(parts[0]))continue;PilotTag tag;tag.callsign=parts[0];tag.type=parts[1];tag.owner=parts[2];for(int i=0;i<8;++i){tag.values[i]=parts[3+i*3];tag.matches[i]=parts[4+i*3]=="1";tag.states[i]=parts[5+i*3];}tag.altitude=atoi(parts[27].c_str());tag.groundSpeed=atoi(parts[28].c_str());tag.ias=atoi(parts[29].c_str());tag.heading=atoi(parts[30].c_str());tag.verticalSpeed=atoi(parts[31].c_str());tag.nextFix=parts[32];tag.destination=parts[33];tag.squawk=parts[34];tag.scratchpad=parts[35];tag.clearedAltitude=atoi(parts[36].c_str());tag.cruiseAltitude=atoi(parts[37].c_str());tag.altMode=parts[38];tag.speedMode=parts[39];tag.navMode=parts[40];if(parts.size()>=48){tag.lat=atof(parts[41].c_str());tag.lon=atof(parts[42].c_str());tag.approachCleared=parts[43]=="1";tag.ifr=parts[44]=="I";tag.wake=parts[45].empty()?'M':parts[45][0];tag.targetAltitude=atoi(parts[46].c_str());tag.trueHeading=atof(parts[47].c_str());tag.telemetry=std::isfinite(tag.lat)&&std::isfinite(tag.lon)&&std::abs(tag.lat)<=90&&std::abs(tag.lon)<=180&&std::isfinite(tag.trueHeading);}if(parts.size()==58){tag.richTelemetry=true;tag.assignedHeading=atof(parts[48].c_str());tag.navigation=parts[49];tag.targetIAS=atof(parts[50].c_str());tag.turnDirection=atoi(parts[51].c_str());tag.bank=atof(parts[52].c_str());tag.remainingEncoded=parts[53];tag.filedEncoded=parts[54];tag.flightSpeedMode=parts[55];tag.targetMach=atof(parts[56].c_str());tag.rate=atoi(parts[57].c_str());}pilotTags.push_back(tag);}pilotTagsContext=nonce+"|"+session;pilotTagsVerified=GetTickCount64();}}
         if (port) {

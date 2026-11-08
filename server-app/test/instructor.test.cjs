@@ -11,8 +11,9 @@ test('instructor controls all slots remotely; student keys denied; uploads valid
  async function act(slot,action,payload,epoch=manager.slot(slot).epoch,requestId=crypto.randomUUID()){return req('/api/instructor/action',{requestId,slot,action,epoch,payload});}
  try{
   await hub.start();base='http://127.0.0.1:'+hub.port;assert.equal((await req('/api/instructor/status',undefined,'bad')).status,401);assert.equal((await req('/api/instructor/status')).data.role,'instructor');
-  for(const id of [1,2,3]){const raw=demo();raw.name='Uploaded '+id;raw.aircraft[1].spawnTime=60;assert.equal((await act(id,'import',{scenario:raw})).status,200);assert.equal((await act(id,'start')).status,200);}
-  const snapshots=[];for(const id of [1,2,3])snapshots[id]=(await req('/api/instructor/aircraft/'+id)).data;
+  for(const id of [1,2,3,4,5,6]){const raw=demo();raw.name='Uploaded '+id;raw.aircraft[1].spawnTime=60;assert.equal((await act(id,'import',{scenario:raw})).status,200);assert.equal((await act(id,'start')).status,200);}
+  const snapshots=[];for(const id of [1,2,3,4,5,6])snapshots[id]=(await req('/api/instructor/aircraft/'+id)).data;
+  assert.equal(snapshots[6].name,'Uploaded 6');
   assert(snapshots[1].aircraft.length===2);assert.notEqual(snapshots[1].sessionId,snapshots[2].sessionId);
   assert.equal(snapshots[1].role,'student-pilot');assert.equal(snapshots[1].readOnly,false);assert.equal(snapshots[1].allowPausedCommands,true);assert.equal(snapshots[1].capabilities.sessionAdministration,false);
   assert.equal((await act(1,'initialOwner',{sessionId:snapshots[1].sessionId,callsign:'TEACHER_CTR'})).status,400,'Old scenarios do not silently auto-assume');
@@ -23,8 +24,13 @@ test('instructor controls all slots remotely; student keys denied; uploads valid
   assert.equal((await act(2,'command',{...payload,command:'LHDG 330, ALT 3000, IAS 210'})).status,200);let multi=(await req('/api/instructor/aircraft/2')).data.aircraft[0];assert.equal(multi.targetAltitude,3000);assert.equal(multi.targetIAS,210);assert.equal(multi.turnDirection,-1);
   assert.equal((await act(2,'command',{...payload,command:'ALT 4000, DCT MISSING'})).status,400);assert.equal((await req('/api/instructor/aircraft/2')).data.aircraft[0].targetAltitude,3000);
   const rid=crypto.randomUUID(),epoch=manager.slot(2).epoch;const original=await act(2,'command',payload,epoch,rid);assert.equal((await act(2,'command',payload,epoch,rid)).data.sessionId,original.data.sessionId);assert.equal((await act(2,'command',{...payload,command:'ALT 9000'},epoch,rid)).status,400);
+  const journal=(await req('/api/instructor/aircraft/2')).data.instructorJournal;
+  assert.deepEqual(journal.map(e=>e.action),['ALT 7000','LHDG 330, ALT 3000, IAS 210','ALT 7000']);
+  assert(journal.every(e=>e.callsign==='TEST101'&&Number.isFinite(e.time)));
+  assert.deepEqual((await req('/api/instructor/aircraft/1')).data.instructorJournal,[]);
   assert.equal((await act(2,'command',{...payload,command:'DELETE AIRCRAFT'})).status,200);assert.equal((await req('/api/instructor/aircraft/2')).data.aircraft.length,1);assert.equal((await req('/api/instructor/aircraft/1')).data.aircraft.length,2);
   await act(2,'reset');assert.equal((await act(2,'command',payload)).status,400);assert.equal((await act(2,'run',{},epoch)).status,400);
+  assert.deepEqual((await req('/api/instructor/aircraft/2')).data.instructorJournal,[]);
   const before=manager.slot(1).child;assert.equal((await act(1,'import',{scenario:{}})).status,400);assert.equal(manager.slot(1).child,before);
   const liveBefore=(await req('/api/instructor/aircraft/2')).data;await act(2,'run');await act(2,'command',{sessionId:liveBefore.sessionId,callsign:'TEST101',command:'IAS 180'});const liveProfile=[{ceiling:60000,ias:205}];await act(2,'speedProfile',{profile:liveProfile});const liveAfter=(await req('/api/instructor/aircraft/2')).data;assert.equal(liveAfter.sessionId,liveBefore.sessionId);assert.equal(liveAfter.running,true);assert.equal(liveAfter.aircraft.find(a=>a.callsign==='TEST101').targetIAS,180);assert.equal(liveAfter.aircraft.find(a=>a.callsign==='TEST202').targetIAS,205);await act(2,'pause');
   const replacement=demo();replacement.name='Replacement from client';assert.equal((await act(1,'import',{scenario:replacement})).status,200);assert.equal(manager.status().slots[0].state,'stopped');assert.equal(manager.status().slots[0].scenarioName,replacement.name);assert(manager.slot(3).child);

@@ -14,6 +14,14 @@ let customTheme = window.ZyzCustomTheme.normalize();
 const customFields = { background: 'customBackground', header: 'customHeader', navigation: 'customNavigation', panel: 'customPanel', text: 'customText', muted: 'customMuted', accent: 'customAccent', title: 'customTitle', font: 'customFont', layout: 'customLayout', titleSize: 'customTitleSize', radius: 'customRadius', titleCase: 'customTitleCase' };
 
 const $ = (id) => document.getElementById(id);
+function setRuntimeStatus(state){
+  if(!state)return;
+  window.zyzRuntime=state;
+  window.dispatchEvent(new CustomEvent('zyz:runtime',{detail:state}));
+}
+api.onRuntimeStatus?.(setRuntimeStatus);
+const workspaceThemes = window.ZYZWorkspaceThemes;
+for (const [id, { label }] of Object.entries(workspaceThemes)) $("workspaceThemeOptions").append(new Option(label,id));
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -39,6 +47,7 @@ function setInstalled(value) {
 
 function normalizeTheme(value) {
   const theme = String(value || "current").trim().toLowerCase();
+  if (Object.hasOwn(workspaceThemes,theme)) return theme;
   if (theme === "vatcan" || theme === "vatcansitu") return "vatcan";
   if (theme === "navcan" || theme === "navcanada") return "navcan";
   if (theme === "custom") return "custom";
@@ -49,11 +58,22 @@ function normalizeTheme(value) {
 function applyTheme(value) {
   const theme = normalizeTheme(value);
   document.body.dataset.theme = theme;
+  window.dispatchEvent(new CustomEvent('zyz:theme',{detail:theme}));
+  const workspace = workspaceThemes[theme];
+  for (const key of Object.keys(workspaceThemes.spaces.variables)) document.body.style.removeProperty(key);
   for (const key of Object.keys(window.ZyzCustomTheme.variables(customTheme))) document.body.style.removeProperty(key);
   if (theme === 'custom') {
     for (const [key, value] of Object.entries(window.ZyzCustomTheme.variables(customTheme))) document.body.style.setProperty(key, value);
     document.body.dataset.customLayout = customTheme.layout;
   } else delete document.body.dataset.customLayout;
+  if (workspace) {
+    document.body.dataset.workspaceLayout = workspace.layout;
+    document.body.toggleAttribute('data-workspace-dark',workspace.dark);
+    for (const [key,value] of Object.entries(workspace.variables)) document.body.style.setProperty(key,value);
+  } else {
+    delete document.body.dataset.workspaceLayout;
+    document.body.removeAttribute('data-workspace-dark');
+  }
   $('customThemeEditor').hidden = theme !== 'custom';
   updateThemeTitle();
   if ($("uiTheme")) $("uiTheme").value = theme;
@@ -378,6 +398,7 @@ async function boot() {
   $("appTitle").textContent = state.appDisplayName;
   document.title = state.appDisplayName;
   currentAppVersion = state.appVersion;
+  setRuntimeStatus(state.runtime);
   $("testPublishPanel").hidden = !state.isTestBuild;
   parentFolder = state.defaultParentFolder;
   installFolder = state.installFolder;
@@ -388,6 +409,7 @@ async function boot() {
   configToForm(state.config);
   setStatus("Ready. Use Install / Update EuroScope Plugin after changing destination or settings.");
   checkUpdates();
+  if (!state.isTestBuild) setInterval(() => checkUpdates(true), 120000);
   await refreshRecordings(false);
   await refreshTrackAudioTapStatus(false);
   await refreshStatistics(false);
@@ -395,6 +417,12 @@ async function boot() {
 
 document.querySelectorAll("nav button[data-tab]").forEach((button) => {
   button.addEventListener("click", async () => {
+    if(window.zyzRuntime?.blocked&&button.dataset.tab!=='install'){
+      setStatus('Close EuroScope, then install the matching plugin DLL.','error');
+      document.querySelector('[data-tab=install]').click();return;
+    }
+    const group = button.closest("details");
+    if (group) group.open = true;
     document.querySelectorAll("nav button[data-tab]").forEach((item) => {
       item.classList.toggle("primary", item === button);
       if (item === button) item.setAttribute("aria-current", "page");
@@ -440,6 +468,7 @@ $("browseBtn").addEventListener("click", async () => {
   if (result.canceled) return;
   parentFolder = result.parentFolder;
   installFolder = result.installFolder;
+  api.runtimeStatus?.(installFolder).then(setRuntimeStatus).catch(()=>{});
   $("parentFolder").value = parentFolder;
   $("installFolder").textContent = installFolder;
   configToForm(await api.loadConfig(installFolder));
@@ -452,6 +481,7 @@ $("installPluginBtn").addEventListener("click", async () => {
   try {
     const result = await api.installPlugin(parentFolder, formToConfig());
     installFolder = result.destination;
+    api.runtimeStatus?.(installFolder).then(setRuntimeStatus).catch(()=>{});
     $("installFolder").textContent = installFolder;
     configToForm(result.config);
     setInstalled(true);
@@ -561,28 +591,96 @@ $("statisticsFilesTable").addEventListener("click", async (event) => {
 
 boot().catch((error) => setStatus(error.message, "error"));
 
-async function checkUpdates() {
+let offeredUpdate, updateCheckRunning = false, updateDownloading = false;
+const dismissedUpdates = new Set(), downloadedUpdates = new Set();
+function updateDownloadProgress(percent) {
+  $("updateDownloadPercent").textContent = percent + '%';
+}
+api.onUpdateProgress?.(({tag,percent}) => {
+  if (updateDownloading && offeredUpdate?.tag === tag && Number.isInteger(percent) && percent >= 0 && percent <= 100) updateDownloadProgress(percent);
+});
+function renderUpdateNotice() {
+  const release = offeredUpdate;
+  $("updateNotice").hidden = !release || dismissedUpdates.has(release.tag);
+  $("installUpdateBtn").hidden = !release;
+  $("installUpdateBtn").disabled = $("updateNoticeDownload").disabled = updateDownloading || (downloadedUpdates.has(release?.tag) && !release?.essential);
+  if (!release) return;
+  const downloaded = downloadedUpdates.has(release.tag);
+  const completedLabel = release.essential ? 'Install now' : 'Installing…';
+  $("updateNoticeDownload").textContent = downloaded ? completedLabel : 'Download now';
+  $("installUpdateBtn").textContent = downloaded ? completedLabel : 'Download update';
+  $("updateNoticeText").textContent = release.essential
+    ? `Essential update ${release.tag} ${downloaded ? 'downloaded' : 'available'}. It will install the next time you open ZYZTools.`
+    : `ZYZTools ${release.tag} is ${downloaded ? 'installing' : 'available. ZYZTools will close to install the update'}.`;
+}
+async function checkUpdates(background = false) {
+  if (updateCheckRunning || updateDownloading) return;
+  updateCheckRunning = true;
   $("checkUpdatesBtn").disabled = true;
-  $("installUpdateBtn").hidden = true;
-  $("updateStatus").textContent = 'Checking GitHub releases…';
+  if (!background) $("updateStatus").textContent = 'Checking GitHub releases…';
+  const stream = $("updateStream").value;
   try {
-    const result = await api.checkUpdates($("updateStream").value);
+    const result = await api.checkUpdates(stream);
+    if (stream !== $("updateStream").value) return;
+    offeredUpdate = result.available ? result : null;
+    renderUpdateNotice();
     $("updateStatus").textContent = result.message;
-    $("installUpdateBtn").hidden = !result.available;
     if (result.currentVersionPublished) {
       betaPublished = true;
       $("publishTestBtn").disabled = true;
       $("publishStatus").textContent = `Beta ${currentAppVersion} is already published.`;
     }
-  } catch (error) { $("updateStatus").textContent = error.message; }
-  finally { $("checkUpdatesBtn").disabled = false; }
+  } catch (error) { if (!background) $("updateStatus").textContent = error.message; }
+  finally {
+    updateCheckRunning = false;
+    $("checkUpdatesBtn").disabled = false;
+    if (stream !== $("updateStream").value) checkUpdates();
+  }
 }
-$("checkUpdatesBtn").addEventListener('click', checkUpdates);
-$("installUpdateBtn").addEventListener('click', async () => {
-  $("installUpdateBtn").disabled = true;
+$("checkUpdatesBtn").addEventListener('click', () => checkUpdates());
+async function downloadOfferedUpdate() {
+  const release = offeredUpdate;
+  if (!release || updateDownloading || updateCheckRunning) return;
+  if (downloadedUpdates.has(release.tag)) {
+    if (!release.essential) return;
+    updateDownloading = true;
+    renderUpdateNotice();
+    try {
+      const result = await api.installStagedUpdate(release.tag);
+      if (result.installing) $("updateStatus").textContent = 'Installer opened. ZYZTools is closing.';
+    } catch (error) {
+      $("updateStatus").textContent = error.message;
+      $("updateNoticeText").textContent += ' Installation failed: ' + error.message;
+    } finally {
+      updateDownloading = false;
+      $("installUpdateBtn").disabled = $("updateNoticeDownload").disabled = false;
+    }
+    return;
+  }
+  updateDownloading = true;
+  renderUpdateNotice();
+  updateDownloadProgress(0);
+  $("updateDownloadProgress").hidden = false;
   $("updateStatus").textContent = 'Downloading the latest installer…';
-  try { await api.installUpdate(); }
-  catch (error) { $("updateStatus").textContent = error.message; $("installUpdateBtn").disabled = false; }
+  $("updateNoticeText").textContent = release.essential ? 'Downloading now. Installation waits until the next launch.' : 'Downloading the update. ZYZTools will close when the installer opens.';
+  let failure;
+  try {
+    const result = await api.downloadUpdate(release.tag);
+    downloadedUpdates.add(release.tag);
+    $("updateStatus").textContent = result.essential ? 'Downloaded. Installs next time you open ZYZTools.' : 'Installer opened. ZYZTools is closing.';
+  } catch (error) { failure = error.message; $("updateStatus").textContent = failure; }
+  finally {
+    updateDownloading = false;
+    $("updateDownloadProgress").hidden = true;
+    renderUpdateNotice();
+    if (failure) $("updateNoticeText").textContent += ' Download failed: ' + failure;
+  }
+}
+$("installUpdateBtn").addEventListener('click', downloadOfferedUpdate);
+$("updateNoticeDownload").addEventListener('click', downloadOfferedUpdate);
+$("updateNoticeDismiss").addEventListener('click', () => {
+  if (offeredUpdate) dismissedUpdates.add(offeredUpdate.tag);
+  renderUpdateNotice();
 });
 
 async function publishBeta(options = {}) {
@@ -614,7 +712,7 @@ async function publishBeta(options = {}) {
 $("publishTestBtn").addEventListener("click", () => publishBeta());
 $("publishStream").addEventListener('change', () => { betaPublished = false; $("publishTestBtn").disabled = false; $("publishConfirmBtn").disabled = false; });
 $("updateStream").value = localStorage.getItem('updateStream') || 'stable';
-$("updateStream").addEventListener('change', () => { localStorage.setItem('updateStream', $("updateStream").value); checkUpdates(); });
+$("updateStream").addEventListener('change', () => { localStorage.setItem('updateStream', $("updateStream").value); offeredUpdate = null; renderUpdateNotice(); checkUpdates(); });
 $("openGitHubTokenBtn").addEventListener("click", () => api.openTokenSettings());
 $("publishConfirmBtn").addEventListener("click", () => {
   const token = $("publishToken").value.trim();

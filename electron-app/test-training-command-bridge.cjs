@@ -1,12 +1,18 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const {TrainingCommandBridge,normalizeCommand}=require('./src/training-command-bridge'),{LocalTraining}=require('./src/local-training');
 test('local instructor bridge: selection, scoped commands, stale/session/peer/role rejection, no retries',{timeout:15000},async()=>{
- const folder=fs.mkdtempSync(path.join(os.tmpdir(),'zyz-command-')),sim=new LocalTraining();sim.load(require('./src/training-demo.json'));const connector={server:true,generation:1,peerForPort:p=>p===43210?{controller:'INSTR_APP'}:null};let calls=0;
+ const folder=fs.mkdtempSync(path.join(os.tmpdir(),'zyz-command-')),sim=new LocalTraining();sim.load(require('./src/training-demo.json'));const forwarded=[],peer={controller:'INSTR_APP',forward:async lines=>forwarded.push(...lines)};const connector={server:true,generation:1,peerForPort:p=>p===43210?peer:null};let calls=0;
  const client={pair:{url:'https://synthetic.trycloudflare.com',token:'a'.repeat(64)},state:async()=>({slots:[{id:1,epoch:'epoch1'}]}),aircraft:async()=>({...sim.status(),listening:true}),action:async(slot,action,epoch,payload)=>{assert.equal(slot,1);assert.equal(action,'command');assert.equal(epoch,'epoch1');assert.equal(payload.sessionId,sim.sessionId);calls++;sim.command(payload.callsign,payload.command);}};
  const bridge=new TrainingCommandBridge(folder,'test',client,connector,{port:0});
  try{await bridge.bind(1);const cfg=JSON.parse(fs.readFileSync(bridge.file));const base='http://127.0.0.1:'+bridge.port,v={callsign:'TEST101',controller:'INSTR_APP',port:43210,pid:1234,sent_at:Math.floor(Date.now()/1000),sessionId:sim.sessionId};
   assert.equal(cfg.prediction_minutes,0);bridge.prediction(3);await bridge.refresh();const ptl=JSON.parse(fs.readFileSync(bridge.file));assert.equal(ptl.prediction_minutes,3);assert(ptl.prediction_callsigns.includes(',TEST101,'));assert.equal(new TrainingCommandBridge(folder,'test',client,connector,{port:0}).prediction().minutes,3);assert.throws(()=>bridge.prediction(100),/Prediction line/);
   const req=async(route,data,token=cfg.nonce)=>{const r=await fetch(base+route,{method:data?'POST':'GET',headers:{Authorization:'Bearer '+token,...(data?{'Content-Type':'application/json'}:{})},body:data?JSON.stringify(data):undefined});return {status:r.status,data:await r.json()};};
+  const recovery={...v,callsign:'',aircraft:['TEST101']};
+  assert.equal((await req('/flight-plans',recovery)).data.state,'queued');
+  assert.deepEqual(forwarded,['$CQINSTR_APP:SERVER:FP:TEST101']);
+  assert.equal((await req('/flight-plans',recovery)).data.state,'waiting');
+  assert.equal((await req('/flight-plans',{...recovery,aircraft:['LIVE123']})).status,400);
+  assert.equal((await req('/flight-plans',{...recovery,port:99})).status,400);
   assert.equal((await req('/selection',{...v,changed_at:100})).status,200);assert.equal(bridge.selection().callsign,'TEST101');assert.equal(bridge.selection().slot,1);
   assert.equal((await req('/command',{...v,id:'command-0001',command:'HDG 270'})).status,202);
   let done;for(let i=0;i<30;i++){done=await req('/result?id=command-0001');if(done.data.state!=='pending')break;await new Promise(r=>setTimeout(r,20));}assert.equal(done.data.state,'done');assert.equal(calls,1);

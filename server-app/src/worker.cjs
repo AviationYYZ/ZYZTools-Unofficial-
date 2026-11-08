@@ -1,11 +1,18 @@
 const fs=require('node:fs'),path=require('node:path'),engine=require('./engine.cjs');
 const {LocalTraining}=engine('local-training'),{TrainingMultiplayer}=engine('training-multiplayer'),{TrainingTunnel}=engine('training-tunnel'),{DirectoryLease}=engine('training-directory');
 const slot=Number(process.argv[2]),folder=process.argv[3],helper=process.argv[4];
-if(![1,2,3].includes(slot)||!folder)process.exit(2);
+if(![1,2,3,4,5,6].includes(slot)||!folder)process.exit(2);
 const training=new LocalTraining('127.0.0.1',{liveWeather:process.env.ZYZTOOLS_CALM_WEATHER!=='1'}),shared=new TrainingMultiplayer(training,16810+slot,{pilotControls:true}),tunnel=new TrainingTunnel(helper,()=>shared.server?shared.status().url:null,{launch:(...args)=>{const child=require('node:child_process').spawn(...args);child.once('spawn',()=>send({tunnelPid:child.pid}));return child;}}),lease=new DirectoryLease();
 const readiness=new (engine('training-fsd-tunnel').FsdConnector)('127.0.0.2');
 tunnel.configFolder=folder;
 let stopping=false,operation=Promise.resolve(),networkBusy=false,nextLease=0,nextTunnel=0,verifiedURL='',publicError='';
+const instructorJournal=[];
+function recordInstruction(callsign,action){
+ instructorJournal.push({callsign,action,time:training.elapsed});
+ if(instructorJournal.length>100)instructorJournal.shift();
+}
+// Keep the instructor journal off the student-facing multiplayer snapshot.
+function instructorSnapshot(){return {...shared.snapshot(),instructorJournal:instructorJournal.slice()};}
 function send(message){if(process.connected)process.send(message);}
 function status(){const s=training.status(),t=tunnel.status(),l=lease.status();return {slot,engineMode:'zyztools',positionUpdateHz:s.positionUpdateHz,listening:s.listening,running:s.running,elapsed:s.elapsed,clients:s.clients,aircraft:s.scenario.aircraft.length,active:s.aircraft.filter(a=>a.active).length,name:s.scenario.name,tunnel:t.state==='ready'&&verifiedURL!==t.url?'verifying':t.state,code:t.state==='ready'&&verifiedURL===t.url?l.code:'',error:publicError||l.error||t.error||s.error,fsdPort:training.port||16800+slot,panelPort:16810+slot};}
 async function network(){
@@ -36,21 +43,22 @@ process.on('message',m=>{operation=operation.then(async()=>{
    if(m.run)training.run();await network();
   }else if(m.action==='pause')training.pause();
   else if(m.action==='run')training.run();
-  else if(m.action==='reset')training.reset();
+  else if(m.action==='reset'){training.reset();instructorJournal.length=0;}
   else if(m.action==='updateRate')training.updateRate(m.hz);
   else if(m.action==='speedProfile')training.speedProfile(m.profile);
   else if(m.action==='instructor'){
-   if(m.operation==='snapshot'){send({id:m.id,result:shared.snapshot()});return;}
+   if(m.operation==='snapshot'){send({id:m.id,result:instructorSnapshot()});return;}
    if(m.sessionId!==training.sessionId)throw Error('Scenario changed. Refresh the aircraft dashboard.');
    if(!training.server)throw Error('Start this server first.');
    if(m.operation==='initialOwner')training.registerInstructor(m.callsign);
-   else if(m.operation==='command')training.command(m.callsign,m.command);
+   else if(m.operation==='command'){training.command(m.callsign,m.command);recordInstruction(m.callsign,m.command);}
    else if(m.operation==='amend'){
     const allowed=['flightRules','type','wake','equipment','origin','destination','alternate','cruiseAltitude','cruiseSpeed','departureTime','actualDepartureTime','enrouteHours','enrouteMinutes','fuelHours','fuelMinutes','remarks','flightPlanRoute','arrivalRunway','squawk'];
     if(!m.fields||typeof m.fields!=='object'||Array.isArray(m.fields)||Object.keys(m.fields).some(k=>!allowed.includes(k)))throw Error('Unsupported flight-plan field.');
     training.amend(m.callsign,m.fields);
+    recordInstruction(m.callsign,'Flight plan amended');
    }else throw Error('Unsupported instructor operation.');
-   send({id:m.id,result:shared.snapshot()});return;
+   send({id:m.id,result:instructorSnapshot()});return;
   }
   else if(m.action==='invite'){const t=tunnel.status();if(t.state!=='ready')throw Error('Wait for the internet connection to be ready.');send({id:m.id,result:engine('training-invite').makeInvite(t.url,shared.token)});return;}
   else if(m.action==='shutdown'){await shutdown();return;}

@@ -14,7 +14,7 @@ class InstructorClient{
  status(){return {connected:!!this.pair,remembered:fs.existsSync(this.file)};}
  async call(route,value){if(!this.pair)throw Error('Pair with your server PC first.');return this.transport(this.pair,route,value);}
  async state(){return this.call('/api/instructor/status');}
- async aircraft(slot){if(![1,2,3].includes(slot))throw Error('Choose a server.');return this.call('/api/instructor/aircraft/'+slot);}
+ async aircraft(slot){if(![1,2,3,4,5,6].includes(slot))throw Error('Choose a server.');return this.call('/api/instructor/aircraft/'+slot);}
  async action(slot,action,epoch,payload){return this.call('/api/instructor/action',{requestId:crypto.randomUUID(),slot,action,epoch,payload});}
  disconnect(forget=false){this.pair=null;if(forget&&fs.existsSync(this.file))fs.unlinkSync(this.file);return this.status();}
 }

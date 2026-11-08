@@ -40,11 +40,20 @@ function normalize(raw){
 function geometry(a,b){const p=a.lat*rad,q=b.lat*rad,d=(b.lon-a.lon)*rad;const h=Math.sin((q-p)/2)**2+Math.cos(p)*Math.cos(q)*Math.sin(d/2)**2;return {distance:2*nm*Math.asin(Math.sqrt(Math.min(1,h))),bearing:wrap(Math.atan2(Math.sin(d)*Math.cos(q),Math.cos(p)*Math.sin(q)-Math.sin(p)*Math.cos(q)*Math.cos(d))/rad)};}
 function move(a,distance,heading){const p=a.lat*rad,l=a.lon*rad,t=heading*rad,d=distance/nm;const q=Math.asin(Math.sin(p)*Math.cos(d)+Math.cos(p)*Math.sin(d)*Math.cos(t));return {lat:q/rad,lon:((l+Math.atan2(Math.sin(t)*Math.sin(d)*Math.cos(p),Math.cos(d)-Math.sin(p)*Math.sin(q)))/rad+540)%360-180};}
 function approach(v,target,step){return v+Math.sign(target-v)*Math.min(Math.abs(target-v),step);}
-function position(a){return '@'+(a.identActive?'Y':a.squawkMode||'N')+':'+a.callsign+':'+a.squawk+':1:'+a.lat.toFixed(7)+':'+a.lon.toFixed(7)+':'+Math.round(a.groundSpeed??a.speed)+':'+((Math.round(wrap(a.groundTrack??a.heading)*1024/360)&1023)<<2)+':0';}
+function position(a){return '@'+(a.identActive?'Y':a.squawkMode||'N')+':'+a.callsign+':'+a.squawk+':1:'+a.lat.toFixed(7)+':'+a.lon.toFixed(7)+':'+Math.round(a.altitude)+':'+Math.round(a.groundSpeed??a.speed)+':'+((Math.round(wrap(a.groundTrack??a.heading)*1024/360)&1023)<<2)+':0';}
 // Delete-pilot's second field is a certificate ID, not a receiver/server name.
 // Local synthetic pilots have no network identity; use numeric dummy ID 0.
 function deletion(a){return '#DP'+a.callsign+':0';}
-function flightPlan(a,recipient='*A'){const type=(['H','J'].includes(a.wake)?a.wake+'/':'')+a.type+'/'+a.equipment;const filed=a.arrivalRunway?[...String(a.flightPlanRoute).split(/\s+/).filter(t=>t&&!new RegExp('^'+a.destination+'(?:/\\d{2}[LRC]?)?$','i').test(t)),a.destination+'/'+a.arrivalRunway].join(' '):a.flightPlanRoute;return '$FP'+a.callsign+':'+recipient+':'+a.flightRules+':'+type+':'+Math.round(a.cruiseSpeed)+':'+a.origin+':'+a.departureTime+':'+a.actualDepartureTime+':'+Math.round(a.cruiseAltitude)+':'+a.destination+':'+a.enrouteHours+':'+a.enrouteMinutes+':'+a.fuelHours+':'+a.fuelMinutes+':'+a.alternate+':'+a.remarks+':'+filed;}
+function flightPlan(a,recipient='*A'){
+ const type=(['H','J'].includes(a.wake)?a.wake+'/':'')+a.type+'/'+a.equipment;
+ const tokens=String(a.flightPlanRoute).split(/\s+/).filter(Boolean);
+ const arrival=tokens.findLastIndex((t,i)=>(a.procedures||[]).includes(t)&&tokens.slice(i+1).every(x=>x.split('/')[0]===a.destination));
+ // Explicitly select the runway variant in EuroScope's route extractor,
+ // without changing the scenario's compact route or sending expanded fixes.
+ if(a.arrivalRunway&&arrival>=0)tokens[arrival]+='/'+a.arrivalRunway;
+ const filed=a.arrivalRunway?[...tokens.filter(t=>!new RegExp('^'+a.destination+'(?:/\\d{2}[LRC]?)?$','i').test(t)),a.destination+'/'+a.arrivalRunway].join(' '):a.flightPlanRoute;
+ return '$FP'+a.callsign+':'+recipient+':'+a.flightRules+':'+type+':'+Math.round(a.cruiseSpeed)+':'+a.origin+':'+a.departureTime+':'+a.actualDepartureTime+':'+Math.round(a.cruiseAltitude)+':'+a.destination+':'+a.enrouteHours+':'+a.enrouteMinutes+':'+a.fuelHours+':'+a.fuelMinutes+':'+a.alternate+':'+a.remarks+':'+filed;
+}
 class LocalTraining{
  constructor(host='127.0.0.1',{liveWeather=false}={}){if(!['127.0.0.1','127.0.0.2'].includes(host))throw Error('Only fixed loopback addresses are supported.');this.host=host;this.liveWeather=liveWeather;this.scenario=normalize({format:'ZYZTools-training',version:1,name:'New scenario',waypoints:[],aircraft:[]});this.clients=new Set();this.aircraft=[];this.running=false;this.elapsed=0;this.scale=1;this.reset();}
  load(raw){if(this.server||this.starting)throw Error('Stop the local server before editing or loading a scenario.');this.scenario=normalize(raw);this.reset();return this.status();}
@@ -177,6 +186,7 @@ class LocalTraining{
   if(parts[0]==='RESTRICTIONS'){if(parts[1]==='SPEED'){restrictions.clearSpeed(a);a.targetIAS=flight.publishedIAS(a,this.scenario.speedRules,this.runtimeWaypoints||this.scenario.waypoints,geometry,this.scenario.runways);}else restrictions.clearCross(a);a.revision=(a.revision||0)+1;return this.status();}
   if(parts[0]==='IDENT'&&parts.length===1){a.revision=(a.revision||0)+1;a.identUntil=this.elapsed+18;a.identActive=true;return this.status();}if(parts.length!==2)throw Error('Use ALT, RATE, SPD, HDG/LHDG/RHDG, DCT, SQ, MODE, IDENT or ROUTE RESUME.');
   const [verb,arg]=parts;
+  if(['HDG','LHDG','RHDG','ROUTE','APP','DCT'].includes(verb)){a.directGuidance=null;a.navigationNotice='';}
   if(['HDG','LHDG','RHDG','ROUTE','APP'].includes(verb))a.explicitDirectFix=null;
   if(verb==='HDG'&&arg==='PRESENT'){a.targetHeading=a.heading;a.turnDirection=0;a.bank=0;a.navigation='heading';a.flyBy=null;if(a.approachState!=='off'){a.approachState='armed';a.approachVectorTarget=a.targetHeading;}a.revision=(a.revision||0)+1;return this.status();}
   if(verb==='ALT'){const target=number(arg,0,60000,'Target altitude (feet)');if(a.approachState!=='off'&&target>a.altitude+50){a.approachState='off';a.approachVectorTarget=null;a.approachNotice='Go-around: climb to assigned altitude; approach guidance cancelled.';a.navigation='heading';a.flyBy=null;a.targetHeading=a.heading;a.turnDirection=0;a.routeCompleted=false;}a.targetAltitude=target;a.initialDescentActive=false;restrictions.clearCross(a);}
@@ -202,14 +212,28 @@ class LocalTraining{
  amend(callsign,fields){
   const a=this.aircraft.find(a=>a.callsign===callsign&&a.active);if(!a)throw Error('Select an active simulated aircraft.');let candidate={...a,...fields},expanded;
   if(Object.hasOwn(fields,'flightPlanRoute')&&!Object.hasOwn(fields,'arrivalRunway'))candidate.arrivalRunway=assignedRunway(fields.flightPlanRoute,candidate.destination)||candidate.arrivalRunway;
-  const routeChanged=candidate.arrivalRunway!==a.arrivalRunway||['flightPlanRoute','arrivalRunway','origin','destination'].some(k=>Object.hasOwn(fields,k)&&fields[k]!==a[k]);
+  // Strip only the redundant wire suffix when EuroScope echoes a plan.
+  if(Object.hasOwn(fields,'flightPlanRoute')&&candidate.arrivalRunway){
+   const tokens=String(candidate.flightPlanRoute).trim().split(/\s+/);
+   const i=tokens.findLastIndex((t,j)=>t.endsWith('/'+candidate.arrivalRunway)&&a.procedures.includes(t.split('/')[0])&&tokens.slice(j+1).some(x=>x===candidate.destination+'/'+candidate.arrivalRunway));
+   if(i>=0){tokens[i]=tokens[i].split('/')[0];candidate.flightPlanRoute=tokens.join(' ');}
+  }
+  const routeChanged=['flightPlanRoute','arrivalRunway','origin','destination'].some(k=>candidate[k]!==a[k]);
   if(routeChanged){
    const root=plan=>String(plan).toUpperCase().replace(/\/\d{2}[LRC]?(?=\s|$)/g,'').split(/\s+/).filter(t=>t&&t!==a.destination).join(' ');
-   if(candidate.arrivalRunway!==a.arrivalRunway&&candidate.origin===a.origin&&candidate.destination===a.destination&&root(candidate.flightPlanRoute)===root(a.flightPlanRoute)){
+   if(!a.procedures.length&&candidate.arrivalRunway!==a.arrivalRunway&&candidate.origin===a.origin&&candidate.destination===a.destination&&root(candidate.flightPlanRoute)===root(a.flightPlanRoute)){
     const points=this.runtimeWaypoints||this.scenario.waypoints,route=a.route.split(' ').filter(Boolean),r=this.scenario.runways.find(r=>r.airport===candidate.destination&&r.name===candidate.arrivalRunway);let added=[];
     if(r&&(/^(?:ILS\d{2}[LRC]?)$/.test(route.at(-1)||'')||new RegExp('^'+candidate.destination+'_\\d{2}[LRC]?$').test(route.at(-1)||''))){const name=candidate.destination+'_'+candidate.arrivalRunway;route[route.length-1]=name;added=[{name,...r.threshold}];}
     expanded={route:route.join(' '),waypoints:[...points,...added],arrivalRunway:candidate.arrivalRunway,procedures:a.procedures};candidate={...candidate,...expanded};
-   }else{candidate.compiledPlan=null;expanded=this.planResolver?this.planResolver(candidate):require('./training-routes').expandRoute(candidate,{fixes:this.runtimeWaypoints||this.scenario.waypoints},[]);candidate={...candidate,...expanded};}
+   }else{
+    // Re-resolve the entire STAR, not just its runway threshold. A rejected
+    // amendment leaves the old route and its assigned runway intact.
+    if(Object.hasOwn(fields,'arrivalRunway')&&candidate.arrivalRunway){
+     const prefix=candidate.destination+'/';
+     candidate.flightPlanRoute=[...String(candidate.flightPlanRoute).split(/\s+/).filter(t=>t&&t.toUpperCase()!==candidate.destination&&!t.toUpperCase().startsWith(prefix)),prefix+candidate.arrivalRunway].join(' ');
+    }
+    candidate.compiledPlan=null;expanded=this.planResolver?this.planResolver(candidate):require('./training-routes').expandRoute(candidate,{fixes:this.runtimeWaypoints||this.scenario.waypoints},[]);candidate={...candidate,...expanded};
+   }
   }
   if(expanded&&candidate.initialDescent&&!candidate.route.split(' ').includes(candidate.initialDescent.fix))candidate.initialDescent=undefined;
   const points=expanded?[...(this.runtimeWaypoints||this.scenario.waypoints),...expanded.waypoints]:this.runtimeWaypoints||this.scenario.waypoints;

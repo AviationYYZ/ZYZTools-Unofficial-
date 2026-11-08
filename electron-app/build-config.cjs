@@ -8,6 +8,7 @@ base.productName = name;
 base.artifactName = test ? 'ZYZTools-Test-Setup-${version}.exe' : 'ZYZTools-Setup.exe';
 base.directories.output = require('node:path').join(outputRoot, kind);
 base.nsis.shortcutName = name;
+base.nsis.include = require('node:path').join(__dirname, 'installer-progress.nsh');
 base.extraMetadata = { name: test ? 'zyztools-test' : 'zyztools', zyzBuildChannel: kind, displayName: name };
 base.extraResources.find(resource => resource.to === 'plugin').from = `../build/channels/${kind}/plugin`;
 base.extraResources.push({from:'../build/Tunnel/cloudflared.exe',to:'tunnel/cloudflared.bin'});

@@ -375,9 +375,24 @@
       body[data-theme="navcan"] main > div { padding: 18px 14px; }
       body[data-theme="navcan"] .card { padding: 18px; }
     }
+    .menu-group { min-width: 0; margin-bottom: 6px; }
+    .menu-group summary { cursor: pointer; padding: 9px 10px; color: var(--text); border: 1px solid var(--line); border-radius: 4px; }
+    .menu-group:has([aria-current="page"]) summary { border-color: var(--accent); font-weight: 700; }
+    .menu-group summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .menu-pages { display: flex; flex-direction: column; gap: 4px; padding: 5px 0 2px 9px; }
+    nav .menu-pages button { margin: 0; }
+    body[data-theme="current"] .menu-pages, body[data-theme="navcan"] .menu-pages { flex-direction: row; flex-wrap: wrap; }
+    body[data-theme="navcan"] .menu-group { margin: 6px; }
+    body[data-theme="navcan"] .menu-group summary { color: white; border-color: #ffffff70; }
+    body[data-theme="navcan"] .menu-group:has([aria-current="page"]) summary { border-color: white; }
+    #updateNotice { margin: 10px 14px; padding: 10px 12px; border: 1px solid var(--accent); background: var(--panel); border-radius: 5px; }
+    #updateNotice .buttons { margin-top: 6px; }
+    #updateDownloadProgress { text-align:center; margin-top:8px; }
   </style>
   <link rel="stylesheet" href="vatcan-theme.css" />
   <link rel="stylesheet" href="custom-theme.css" />
+  <link rel="stylesheet" href="workspace-themes.css" />
+  <link rel="stylesheet" href="workspace-ui.css" />
 </head>
 <body data-theme="current">
   <header>
@@ -389,23 +404,18 @@
   </header>
 
   <main>
-    <nav>
-      <button data-tab="install" class="primary" aria-current="page">Install / Link</button>
-      <button data-tab="operations">Operations</button>
-      <button data-tab="conflicts">Conflict alerts</button>
-      <button data-tab="training">Training</button>
-      <button data-tab="trainingBuilder">Scenario Builder</button>
-      <button data-tab="discord">Discord status</button>
-      <button data-tab="hoppie">Hoppie</button>
-      <button data-tab="sids">SID Matrix</button>
-      <button data-tab="replay">Replay & Recordings</button>
-      <button data-tab="statistics">Statistics</button>
-      <button data-tab="appearance">Appearance</button>
-      <button data-tab="advanced">Advanced</button>
-    </nav>
+    <nav aria-label="ZYZTools menu"></nav>
 
     <div>
       <div id="status" class="status">Loading...</div>
+      <div id="globalMaintenance" class="status" role="status" hidden>Maintenance: starting new local training and editing scenarios may be unavailable. Running sessions are not stopped.</div>
+      <aside id="updateNotice" aria-label="App update" hidden>
+        <div id="updateNoticeText" role="status"></div>
+        <div id="updateDownloadProgress" hidden><span id="updateDownloadPercent">0%</span></div>
+        <div class="buttons"><button id="updateNoticeDownload">Download now</button><button id="updateNoticeDismiss">Dismiss</button></div>
+      </aside>
+      <section id="admin"></section>
+      <section id="launchConfig"></section>
       <section id="install" class="active">
         <div class="card">
           <div class="caption">EuroScope plugin destination</div>
@@ -561,17 +571,18 @@
             <label>Host tunnel URL<input id="trainingJoinUrl" placeholder="https://example.trycloudflare.com" /></label><label>Host access key<input id="trainingJoinKey" type="password" autocomplete="off" /></label><div class="buttons"><button id="trainingJoinStart">Start EuroScope connector</button><button id="trainingJoinStop">Stop connector</button></div><p id="trainingJoinStatus" role="status">Remote connector off.</p>
           </details>
           <div class="card" id="instructorCard" data-training-pane="instructor" hidden><div class="caption">Instructor · manage your server PC</div>
-            <p>Pair once with the server app's instructor code. Manage all three slots from here; aircraft processing stays on the server. Students receive a separate student invite.</p>
+            <p>Pair once with the server app's instructor code. Manage all six slots from here; aircraft processing stays on the server. Students receive a separate student invite.</p>
             <div id="instructorPair"><label>Instructor pairing code<input id="instructorPairing" type="password" autocomplete="off" placeholder="Code from server app → Remote instructor access"></label><label class="check"><input id="instructorRemember" type="checkbox"> Remember this connection using Windows-encrypted storage</label><div class="buttons"><button id="instructorConnect">Pair with server PC</button><button id="instructorRestore">Reconnect saved server</button></div></div>
             <p id="instructorMessage" role="status">Not paired.</p><div class="buttons"><button id="instructorDisconnect">Disconnect</button><button id="instructorForget">Forget saved pairing</button></div>
             <div id="instructorControls" hidden><h3>1 · Select server</h3><div class="buttons" id="instructorSlots"></div><p id="instructorSlotStatus"></p>
-            <h3>2 · Scenario and session</h3><details><summary>Pilot presets - speed, altitude and quick slots</summary><p>Save a name, IAS and until-waypoint for each slot. Apply speed-until slots from the aircraft IAS dropdown; its route must include the fix. Presets are local to this app, separate for test/production.</p><div id="instructorSpeedPresets"></div></details><details><summary>Automatic jet speed profile · selected server</summary><p>Changes apply live to this slot and persist across scenario imports and restarts. Scenario files do not override the server profile. Before approach clearance, speed bands use the instructor target altitude; while approach clearance is active, they use current altitude. Manual speed assignments remain unchanged.</p><div id="instructorSpeedProfile"></div></details><p>ZYZTools runs the simulation on your private server.</p><p>Instructor pilot tags: compact Situ-style data blocks with live aircraft data appear beside active aircraft. Wheel-scroll dropdowns without hover auto-scroll or Next/Previous pages. Three rows: callsign (left route / right handoff), actual altitude and groundspeed, aircraft type (Advanced on either click) and destination (left direct-to / right heading). Altitude opens on either click; left/right speed selects IAS / Mach. Compact dark-gray dropdowns show altitude as 080 for 8,000 ft. Advanced: squawk, IDENT, delete aircraft, clear speed restrictions (return to automatic), custom IAS until a fix, or crossing altitude at a fix; drag the callsign header to reposition the tag. Actual data stays visible with blue assigned targets beside it (e.g. actual 110, assigned 080). A green check means the student annotation matches, not that the maneuver is complete. Regular Situ fields remain annotations and real ownership is preserved. Update the instructor DLL and server app. The new ZYZTools All Aircraft list opens automatically in the private instructor connection and includes every spawned target regardless of CTR/APP sector filters. It has preconfigured maneuver columns. Alternatively, Sector Inbound/Exit list columns can use the ZYZTools PILOT click functions: altitude, IAS/Mach, heading/direct waypoint, and Advanced. Configure these once in your instructor list column settings; keep student/live profiles unchanged.</p><label>ZYZTools prediction line · selected training aircraft<select id="instructorPrediction"><option value="0">Off</option><option value="1">1 minute</option><option value="2">2 minutes</option><option value="3">3 minutes</option><option value="5">5 minutes</option><option value="10">10 minutes</option></select></label><p class="subtle">Cyan dotted line with one-minute marks, using reported heading and groundspeed—not speed estimated from update timestamps. Constant-motion reference, not a turn/route or separation forecast. Requires the updated ZYZTools DLL and Connect my EuroScope; turn off the external PTL to avoid duplicates.</p><label>Aircraft position updates<select id="instructorUpdateRate" disabled><option value="0.2">Every 5 seconds (fixed)</option></select></label><p class="subtle">Aircraft positions update every 5 seconds, fixed. Physics continues between updates.</p><div class="buttons"><button id="instructorUpload">Load scenario · JSON / SweatBox TXT</button><button id="instructorDemo">Load demo</button><button id="instructorStart">Start paused</button><button id="instructorRun">Run</button><button id="instructorPause">Pause</button><button id="instructorReset">Reset</button><button id="instructorStop">Stop</button><button id="instructorStudentInvite">Copy student invite</button><button id="instructorEuroScope">Connect my EuroScope</button></div>
+            <h3>2 · Scenario and session</h3><div class="instructor-session-actions"><div><span>Scenario</span><div class="buttons"><button id="instructorUpload">Load scenario</button><button id="instructorDemo">Load demo</button></div></div><div><span>Session</span><div class="buttons"><button id="instructorStart" class="primary">Start paused</button><button id="instructorRun" class="primary">Run</button><button id="instructorPause">Pause</button><button id="instructorReset">Reset</button><button id="instructorStop" class="warn">Stop</button></div></div><div><span>Participants</span><div class="buttons"><button id="instructorEuroScope">Connect my EuroScope</button><button id="instructorStudentInvite">Copy student invite</button></div></div></div><details class="instructor-reference"><summary>Session settings and EuroScope reference</summary><details><summary>Pilot presets - speed, altitude and quick slots</summary><p>Save a name, IAS and until-waypoint for each slot. Apply speed-until slots from the aircraft IAS dropdown; its route must include the fix. Presets are local to this app, separate for test/production.</p><div id="instructorSpeedPresets"></div></details><details><summary>Automatic jet speed profile · selected server</summary><p>Changes apply live to this slot and persist across scenario imports and restarts. Scenario files do not override the server profile. Before approach clearance, speed bands use the instructor target altitude; while approach clearance is active, they use current altitude. Manual speed assignments remain unchanged.</p><div id="instructorSpeedProfile"></div></details><details class="instructor-reference"><summary>EuroScope controls and setup</summary><p>Use <code>.aircraft</code> to open the draggable All Aircraft roster. It includes every spawned target, regardless of sector. The pilot tag and roster use left / right click for IAS / Mach, direct-to / heading, and route / handoff. Open Advanced for squawk, IDENT, crossing restrictions, or deletion.</p><p>Blue values are instructor assignments; a green check means the student annotation matches. Sector lists can also use ZYZTools PILOT column functions. Keep student and live profiles unchanged.</p></details><label>ZYZTools prediction line · selected training aircraft<select id="instructorPrediction"><option value="0">Off</option><option value="1">1 minute</option><option value="2">2 minutes</option><option value="3">3 minutes</option><option value="5">5 minutes</option><option value="10">10 minutes</option></select></label><p class="subtle">Cyan dotted line with one-minute marks, using reported heading and groundspeed—not speed estimated from update timestamps. Constant-motion reference, not a turn/route or separation forecast. Requires the updated ZYZTools DLL and Connect my EuroScope; turn off the external PTL to avoid duplicates.</p><label>Aircraft position updates<select id="instructorUpdateRate" disabled><option value="0.2">Every 5 seconds (fixed)</option></select></label><p class="subtle">Aircraft positions update every 5 seconds, fixed. Physics continues between updates.</p></details>
             <p>Loading a scenario replaces only this slot and stops its current session. Build/export scenarios in Scenario Builder. Copy student invite after the slot's internet connection is ready.</p>
-            <h3>3 · Aircraft dashboard</h3><p>With the updated plugin installed and Connect my EuroScope active, clicking an aircraft in EuroScope (ASEL) selects it here. Use <code>.ALT 5000</code>, <code>.HDG 240</code>, <code>.DCT LERAT</code>, <code>.APP CLEAR</code>, etc. <code>.sim help</code> lists commands; the old .sim prefix still works. Shortcuts are enabled only in this instructor training connection.</p><div class="training-table"><table><thead><tr><th>Callsign</th><th>Altitude</th><th>IAS / GS</th><th>Heading M</th><th>Route / state</th><th>Squawk</th></tr></thead><tbody id="instructorAircraft"></tbody></table></div>
-            <label>Aircraft<select id="instructorSelected"></select></label><p id="instructorAircraftGuidance" class="subtle"></p><label>Manual instructions (comma-separated)<input id="instructorCommand" maxlength="512" placeholder="LHDG 330, ALT 3000"></label><div class="buttons"><button id="instructorSend">Apply commands</button><button data-instructor-command="PAUSE ON">Pause aircraft</button><button data-instructor-command="PAUSE OFF">Resume aircraft</button><button data-instructor-command="IDENT">IDENT</button><button data-instructor-command="APP CLEAR">Cleared approach</button><button data-instructor-command="APP CANCEL">Cancel approach</button><button data-instructor-command="SPEED PUBLISHED">Automatic speed profile</button><button id="instructorDeleteAircraft">Delete selected aircraft</button></div>
+            <h3>3 · Aircraft dashboard</h3><p>Select an aircraft here or on your connected instructor EuroScope. Use the quick controls below or enter a command such as <code>DCT VERKO, ALT 6000</code>.</p><div class="instructor-monitor" aria-label="Traffic overview"><div><small>Next spawn</small><strong id="instructorNextSpawn">—</strong><button id="instructorShowQueue" type="button" disabled>Show queue</button></div><div><small>Runway workload</small><p id="instructorRunways">—</p></div><div><small>Selected aircraft</small><strong id="instructorMonitorSelection">—</strong><button id="instructorRevealAircraft" type="button" disabled>Find in roster</button></div></div><div class="instructor-roster-tools"><label>Find aircraft<input id="instructorAircraftSearch" type="search" placeholder="Callsign, runway, or waypoint"></label><label>Traffic<select id="instructorAircraftFilter"><option value="all">All traffic</option><option value="active">Spawned</option><option value="queued">Queued</option><option value="direct">Direct-to</option><option value="paused">Paused</option></select></label><label>Order by<select id="instructorAircraftSort"><option value="callsign">Callsign</option><option value="altitude">Altitude</option><option value="runway">Runway</option><option value="spawn">Spawn time</option></select></label></div><div class="instructor-roster-summary"><p id="instructorAircraftCount"></p><button id="instructorExportRoster" type="button" disabled>Export roster CSV</button></div><div class="training-table"><table><thead><tr><th>Callsign</th><th>Altitude</th><th>IAS / GS</th><th>Heading M</th><th>Runway</th><th>Route / state</th><th>Squawk</th></tr></thead><tbody id="instructorAircraft"></tbody></table></div>
+            <label>Aircraft<select id="instructorSelected"></select></label><p id="instructorAircraftGuidance" class="subtle"></p><ol id="instructorRouteStrip" class="instructor-route-strip" aria-label="Upcoming simulator waypoints" hidden></ol><label>Manual instructions (comma-separated)<input id="instructorCommand" maxlength="512" placeholder="LHDG 330, ALT 3000"></label><div class="buttons"><button id="instructorSend">Apply commands</button><button data-instructor-command="PAUSE ON">Pause aircraft</button><button data-instructor-command="PAUSE OFF">Resume aircraft</button><button data-instructor-command="IDENT">IDENT</button><button data-instructor-command="APP CLEAR">Cleared approach</button><button data-instructor-command="APP CANCEL">Cancel approach</button><button data-instructor-command="SPEED PUBLISHED">Automatic speed profile</button><button id="instructorDeleteAircraft">Delete selected aircraft</button></div>
             <details><summary>Edit selected aircraft's flight plan</summary><button id="instructorEdit">Load selected flight plan</button><div class="instructor-fields" id="instructorFields"></div><button id="instructorSave">Apply flight plan</button></details>
+            <details class="instructor-reference"><summary>Instructor debrief · command journal</summary><p>Accepted instructor instructions and flight-plan edits in this slot. Export before stopping or resetting the session. Student commands are not included.</p><div class="buttons"><label class="check"><input id="instructorJournalSelected" type="checkbox"> Selected callsign only</label><button id="instructorExportJournal" type="button" disabled>Export journal CSV</button></div><p id="instructorJournalStatus"></p><ol id="instructorJournal" class="instructor-journal"></ol></details>
             <details><summary>Command reference</summary><p>ALT feet · RATE ft/min · SPD/IAS knots · HDG/LHDG/RHDG magnetic · DCT fix · SQ code · MODE C/STBY · IDENT · ROUTE RESUME · APP CLEAR/CANCEL. Manual commands, no AI pilot or readback.</p></details>
-            </div><details><summary>Pairing and privacy</summary><p>The instructor code grants control of all three slots. Never share it with students. Remember is optional and encrypted for this Windows account. Scenario changes do not require pairing again; restarting the server app or recreating its management tunnel can require a new pairing code.</p></details>
+            </div><details><summary>Pairing and privacy</summary><p>The instructor code grants control of all six slots. Never share it with students. Remember is optional and encrypted for this Windows account. Scenario changes do not require pairing again; restarting the server app or recreating its management tunnel can require a new pairing code.</p></details>
           </div>
         </section>
         <section id="trainingBuilder">
@@ -768,12 +779,16 @@
           <div class="caption">Theme</div>
           <p>Preview a theme immediately, then save it. Themes change the colors, fonts, layout and controls for this app only.</p>
           <label for="uiTheme">Choose theme</label>
+          <div id="reactThemeGallery"></div>
           <select id="uiTheme">
+            <optgroup id="workspaceThemeOptions" label="Workspace themes"></optgroup>
+            <optgroup label="Legacy and custom">
             <option value="current">ZYZTools dark</option>
             <option value="vatcan">VATCAN website</option>
             <option value="navcan">NAV CANADA website</option>
             <option value="plugincore">Classic</option>
             <option value="custom">Custom theme</option>
+            </optgroup>
           </select>
           <div class="buttons">
             <button data-theme-choice="current">ZYZTools dark</button>
@@ -847,12 +862,15 @@
   </main>
 
   <script src="custom-theme.js"></script>
+  <script src="workspace-themes.js"></script>
+  <script src="generated-workspace-ui.js"></script>
   <script src="pdc-templates.js"></script>
   <script src="renderer.js"></script>
   <script src="training-layout.js"></script>
   <script src="training-speed-editor.js"></script>
   <script src="training-ui.js"></script>
   <script src="training-multiplayer-ui.js"></script>
+  <script src="app-policy-ui.js"></script>
   <script src="training-instructor-ui.js"></script>
   <script src="training-presets-ui.js"></script>
   <script src="training-control-presets-ui.js"></script>

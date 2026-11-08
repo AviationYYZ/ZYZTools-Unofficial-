@@ -4,17 +4,22 @@ const root = path.resolve(__dirname, '..');
 const pkg = require('./package.json');
 const files = [];
 function add(relative) {
+  if(relative==='electron-app/src/generated-workspace-ui.js')return;
   if (/(^|\/)(?:\.env(?:\..*)?|[^/]+\.env(?:\..*)?|openai-key\.bin|chatgpt-plan\.bin(?:\..*)?|pilot-bridge\.json|training-sector\.json)$/i.test(relative)) return;
   const file = path.join(root, relative);
   if (fs.statSync(file).isDirectory()) {
     for (const name of fs.readdirSync(file)) add(`${relative}/${name}`);
-  } else if (/\.(cpp|h|js|cjs|html|css|json|md|bat|ps1|patch|rc|manifest|wav|csv|ini|txt)$/.test(relative) || relative === '.gitignore') {
+  } else if (/\.(cpp|h|js|jsx|cjs|mjs|ts|html|css|json|jsonc|md|bat|ps1|patch|rc|manifest|wav|csv|ini|txt|nsh)$/.test(relative) || relative === '.gitignore') {
     const binary = relative.endsWith('.wav');
     files.push({ path: relative.replaceAll('\\', '/'), content: fs.readFileSync(file, binary ? 'base64' : 'utf8'), encoding: binary ? 'base64' : 'utf-8' });
   }
 }
 for (const entry of ['src', 'tools', 'docs', 'scenarios', 'assets/sounds', 'assets/conflict', 'electron-app/src', 'electron-app/package.json', 'electron-app/package-lock.json',
-  'electron-app/build-test-source.cjs', 'electron-app/build-channel.cjs', 'electron-app/build-config.cjs', 'server-app/src', 'server-app/test', 'server-app/package.json', 'server-app/build.cjs', 'README.md', '.gitignore', 'build.bat', 'PreferredCYYZPdcPlugin.json', 'installer/CHANGELOG.md']) add(entry);
+  'electron-app/build-test-source.cjs', 'electron-app/build-channel.cjs', 'electron-app/build-config.cjs', 'electron-app/installer-progress.nsh', 'server-app/src', 'server-app/test', 'server-app/package.json', 'server-app/build.cjs', 'README.md', '.gitignore', 'build.bat', 'PreferredCYYZPdcPlugin.json', 'installer/CHANGELOG.md']) add(entry);
+for (const entry of ['src','test','wrangler.jsonc','tsconfig.json','package.json','package-lock.json','worker-configuration.d.ts','README.md']) add('cloudflare/room-directory/'+entry);
+add('electron-app/test-app-policy.cjs');
+add('electron-app/test-euroscope-launch.cjs');
+add('electron-app/build-workspace-ui.cjs');
 const config = JSON.parse(files.find(file => file.path === 'PreferredCYYZPdcPlugin.json').content);
 add('electron-app/test-training-control-presets.cjs');
 add('electron-app/test-training-conflict-telemetry.cjs');
