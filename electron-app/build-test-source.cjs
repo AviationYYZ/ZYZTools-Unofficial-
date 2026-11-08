@@ -9,8 +9,8 @@ function add(relative) {
   const file = path.join(root, relative);
   if (fs.statSync(file).isDirectory()) {
     for (const name of fs.readdirSync(file)) add(`${relative}/${name}`);
-  } else if (/\.(cpp|h|js|jsx|cjs|mjs|ts|html|css|json|jsonc|md|bat|ps1|patch|rc|manifest|wav|csv|ini|txt|nsh)$/.test(relative) || relative === '.gitignore') {
-    const binary = relative.endsWith('.wav');
+  } else if (/\.(cpp|h|js|jsx|cjs|mjs|ts|html|css|json|jsonc|md|bat|ps1|patch|rc|manifest|webmanifest|svg|png|wav|csv|ini|txt|nsh)$/.test(relative) || relative === '.gitignore') {
+    const binary = /\.(wav|png)$/.test(relative);
     files.push({ path: relative.replaceAll('\\', '/'), content: fs.readFileSync(file, binary ? 'base64' : 'utf8'), encoding: binary ? 'base64' : 'utf-8' });
   }
 }
@@ -19,6 +19,8 @@ for (const entry of ['src', 'tools', 'docs', 'scenarios', 'assets/sounds', 'asse
 for (const entry of ['src','test','wrangler.jsonc','tsconfig.json','package.json','package-lock.json','worker-configuration.d.ts','README.md']) add('cloudflare/room-directory/'+entry);
 add('electron-app/test-app-policy.cjs');
 add('electron-app/test-euroscope-launch.cjs');
+add('electron-app/test-controller-calculators.cjs');
+add('electron-app/test-instructor-pwa.cjs');
 add('electron-app/build-workspace-ui.cjs');
 const config = JSON.parse(files.find(file => file.path === 'PreferredCYYZPdcPlugin.json').content);
 add('electron-app/test-training-control-presets.cjs');

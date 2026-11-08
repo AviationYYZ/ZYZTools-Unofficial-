@@ -1181,6 +1181,15 @@ guarded("test:publish", async (_event, options = {}) => {
     return result;
   } finally { token = null; publicationInProgress = false; }
 });
+let releaseHistoryTags=new Set();
+guarded('updates:history',async (_event,stream)=>{
+ const list=await updates.releaseHistory(stream);
+ releaseHistoryTags=new Set(list.map(r=>r.tag));return list;
+});
+guarded('updates:openRelease',async (_event,tag)=>{
+ if(!releaseHistoryTags.has(tag))throw Error('Load the release list and select a version first.');
+ await shell.openExternal('https://github.com/'+updates.DEFAULT_REPOSITORY+'/releases/tag/'+encodeURIComponent(tag));
+});
 guarded("updates:check", async (_event, stream) => {
   stream = stream === 'beta' ? 'beta' : stream === 'stable' ? 'stable' : selectedUpdateStream();
   if (selectedUpdateStream() !== stream) {

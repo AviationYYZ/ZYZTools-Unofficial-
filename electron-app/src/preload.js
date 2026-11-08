@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld("preferredCyyzPdc", {
   launchOpen: id => ipcRenderer.invoke('launch:open',id),
   saveCustomTheme: (theme) => ipcRenderer.invoke('theme:saveCustom', theme),
   checkUpdates: (stream) => ipcRenderer.invoke("updates:check", stream),
+  releaseHistory: stream => ipcRenderer.invoke("updates:history",stream),
+  openRelease: tag => ipcRenderer.invoke("updates:openRelease",tag),
   appPolicy: () => ipcRenderer.invoke('appPolicy:state'),
   redeemFeature: code => ipcRenderer.invoke('appPolicy:redeem',code),
   adminPolicy: action => ipcRenderer.invoke('appPolicy:admin',action),

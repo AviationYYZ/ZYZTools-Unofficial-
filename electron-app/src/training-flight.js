@@ -242,7 +242,7 @@ function guideRoute(a,fixes,geometry,move,runway){
   if(rejoinReached||direct||anticipated||projected<=lead||passed){
    rejoinReached=false;
    a.remaining.shift();(a.passedFixes||(a.passedFixes=[])).push(fix.name);a.legStart={lat:fix.lat,lon:fix.lon};
-   if(!a.remaining.length){a.routeCompleted=true;a.navigation='heading';a.targetHeading=direct?a.heading:leg.distance>.05?courseHeading(a,leg.bearing):a.heading;}
+   if(!a.remaining.length){a.routeCompleted=!a.vectorOnlyRunway;a.navigation='heading';a.targetHeading=direct?a.heading:leg.distance>.05?courseHeading(a,leg.bearing):a.heading;}
    else if(direct&&next){startRejoin(a,fix,next,geometry,move);return;}
    else if(next&&Math.abs(delta(geometry(fix,next).bearing,leg.bearing))>5){a.flyBy={course:geometry(fix,next).bearing,next:next.name,anchor:{lat:fix.lat,lon:fix.lon}};a.targetHeading=courseHeading(a,a.flyBy.course);return;}
    continue;

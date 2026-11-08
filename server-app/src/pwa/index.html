@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+ <meta charset="utf-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+ <meta name="theme-color" content="#101e29">
+ <meta name="apple-mobile-web-app-capable" content="yes">
+ <meta name="apple-mobile-web-app-title" content="ZYZ Instructor">
+ <link rel="manifest" href="manifest.webmanifest">
+ <link rel="apple-touch-icon" href="icon.png">
+ <link rel="stylesheet" href="app.css">
+ <title>ZYZ Instructor</title>
+ <script src="calculators.js" defer></script>
+ <script src="app.js" defer></script>
+</head>
+<body>
+ <header><img src="icon.svg" width="38" height="38" alt=""><div><h1>ZYZ Instructor</h1><p>Private training · controller tools</p></div></header>
+ <nav aria-label="Sections"><button data-page="traffic" aria-pressed="true">Traffic</button><button data-page="tools" aria-pressed="false">Calculators</button><button data-page="journal" aria-pressed="false">Journal</button></nav>
+ <main>
+  <p id="notice" role="status"></p>
+  <section id="traffic">
+   <form id="pairForm" class="panel"><h2>Pair with your server</h2><p>Enter the current instructor code from Remote instructor access. It stays in this session and is not saved.</p><label>Instructor code<input id="code" type="password" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="11" required></label><button class="accent">Pair</button></form>
+   <div id="session" hidden>
+    <div class="panel"><label>Server slot<select id="slot"></select></label><p id="sessionState"></p><p id="queue"></p><div class="actions"><button id="run" type="button">Run</button><button id="pause" type="button">Pause</button><button id="disconnect" type="button">Disconnect</button></div></div>
+    <label>Find aircraft<input id="search" type="search" placeholder="Callsign, runway, or next fix"></label>
+    <p id="rosterCount"></p><div id="roster"></div>
+   </div>
+   <details class="panel"><summary>Install on iPhone</summary><p>Open this page in Safari, then choose Share → Add to Home Screen. Turn on Open as Web App if offered. Use the new icon to return.</p><p>If your server gets a new tunnel URL, open the new link and add that page again.</p></details>
+  </section>
+  <section id="tools" hidden><h2>Controller calculators</h2><p>Planning estimates, not separation or clearance guidance. Use the same direction reference for both wind and runway inputs.</p><div id="calculators" class="calculator-grid"></div></section>
+  <section id="journal" hidden><h2>Instructor journal</h2><p>Accepted commands and flight plan edits, newest first.</p><ol id="entries"></ol></section>
+ </main>
+ <dialog id="aircraftDialog" aria-labelledby="aircraftTitle">
+  <div class="dialog-heading"><h2 id="aircraftTitle"></h2><button id="closeAircraft" type="button">Close</button></div>
+  <p id="aircraftDetails"></p>
+  <form id="commandForm"><label>Instruction<input id="instruction" maxlength="512" autocapitalize="characters" spellcheck="false" placeholder="DCT VERKO, ALT 6000"></label>
+   <div class="actions"><button type="button" data-draft="ALT ">Altitude</button><button type="button" data-draft="HDG ">Heading</button><button type="button" data-draft="IAS ">Speed</button><button type="button" data-draft="DCT ">Direct</button><button type="button" data-draft="APP CLEAR">Clear approach</button><button type="button" data-draft="SPEED PUBLISHED">Auto speed</button></div>
+   <button id="sendInstruction" class="accent">Review &amp; send</button>
+  </form>
+  <details><summary>Change runway or planned route</summary><form id="routeForm">
+   <label>Arrival runway<input id="runway" list="runwayChoices" maxlength="3" autocapitalize="characters" spellcheck="false" placeholder="e.g. 24L"><datalist id="runwayChoices"></datalist></label>
+   <label>Filed route<textarea id="filedRoute" rows="3" maxlength="1500"></textarea></label>
+   <p>The new route is validated by the server. An aircraft on a heading stays on that heading until you issue a direct or resume instruction.</p>
+   <button id="sendRoute">Review route change</button>
+  </form></details>
+  <p id="aircraftNotice" role="status"></p>
+ </dialog>
+</body>
+</html>

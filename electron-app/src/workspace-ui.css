@@ -33,6 +33,11 @@ nav .workspace-search-button { align-self:start; display:flex; justify-content:s
 #instructorAircraftCount { color:var(--muted); margin:7px 0; }
 .instructor-roster-summary { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin:8px 0; }
 .instructor-reference { padding:8px 10px; margin:10px 0; border:1px solid var(--line); border-radius:6px; }
+.calculator-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr)); gap:10px; }
+.calculator-card { border:1px solid var(--line); background:var(--panel); border-radius:8px; padding:12px; }
+.calculator-card h3 { margin:0 0 7px; }
+.calculator-card label { margin:6px 0; }
+.calculator-card output { display:block; padding:7px 0 0; color:var(--accent); font-weight:700; }
 .instructor-monitor { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr)); gap:8px; margin:10px 0; }
 .instructor-monitor>div { display:grid; justify-items:start; align-content:start; gap:5px; padding:9px 11px; background:var(--panel-alt); border:1px solid var(--line); border-radius:6px; }
 .instructor-monitor small { color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }

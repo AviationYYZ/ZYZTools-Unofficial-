@@ -4,6 +4,13 @@ const profileEditor=new window.ZYZSpeedProfileEditor('instructorSpeedProfile',as
 const fields=['flightRules','type','wake','equipment','origin','destination','alternate','cruiseAltitude','cruiseSpeed','departureTime','actualDepartureTime','enrouteHours','enrouteMinutes','fuelHours','fuelMinutes','remarks','flightPlanRoute','arrivalRunway','squawk'];
 const labels={flightRules:'Flight rules (I / V)',type:'Aircraft type',wake:'Wake category',equipment:'Equipment',origin:'Departure',destination:'Arrival',alternate:'Alternate',cruiseAltitude:'Cruise altitude · ft',cruiseSpeed:'Cruise speed · kt',departureTime:'Estimated departure · HHMM',actualDepartureTime:'Actual departure · HHMM',enrouteHours:'Enroute hours',enrouteMinutes:'Enroute minutes',fuelHours:'Fuel hours',fuelMinutes:'Fuel minutes',remarks:'Remarks',flightPlanRoute:'Filed route',arrivalRunway:'Arrival runway',squawk:'Squawk'};
 for(const field of fields){const label=document.createElement('label');label.textContent=labels[field];const input=document.createElement(['remarks','flightPlanRoute'].includes(field)?'textarea':'input');input.id='instructorField_'+field;label.append(input);$('instructorFields').append(label);}
+const runwayChoices=document.createElement('datalist');runwayChoices.id='instructorRunwayChoices';$('instructorFields').append(runwayChoices);
+$('instructorField_arrivalRunway').setAttribute('list',runwayChoices.id);
+function refreshRunwayChoices(){
+ const destination=$('instructorField_destination').value.trim().toUpperCase();
+ runwayChoices.replaceChildren(...(aircraft?.runways||[]).filter(r=>r.airport===destination).map(r=>new Option(r.name,r.name)));
+}
+$('instructorField_destination').addEventListener('input',refreshRunwayChoices);
 const message=text=>$('instructorMessage').textContent=text;
 const callsignOrder=new Intl.Collator('en',{numeric:true});
 const compare=(a,b)=>callsignOrder.compare(a.callsign,b.callsign);
@@ -127,7 +134,7 @@ function sendDraft(){
 $('instructorSend').onclick=sendDraft;commandBox.onkeydown=e=>{if(e.key==='Enter'&&!e.isComposing)sendDraft();};for(const b of document.querySelectorAll('[data-instructor-command]'))b.onclick=()=>command(b.dataset.instructorCommand);
 $('instructorDeleteAircraft').onclick=()=>{const name=$('instructorSelected').value;if(name&&confirm('Delete '+name+' from this server session? Reset/reloading restores it.'))command('DELETE AIRCRAFT');};
 $('instructorSelected').onchange=()=>{editing=null;draw();};
-$('instructorEdit').onclick=()=>{const a=aircraft?.aircraft.find(a=>a.callsign===$('instructorSelected').value);if(!a)return;editing={callsign:a.callsign,sessionId:aircraft.sessionId};for(const field of fields)$('instructorField_'+field).value=a[field]??'';$('instructorSave').disabled=false;};
+$('instructorEdit').onclick=()=>{const a=aircraft?.aircraft.find(a=>a.callsign===$('instructorSelected').value);if(!a)return;editing={callsign:a.callsign,sessionId:aircraft.sessionId};for(const field of fields)$('instructorField_'+field).value=a[field]??'';refreshRunwayChoices();$('instructorSave').disabled=false;};
 $('instructorSave').onclick=()=>{if(!editing||editing.sessionId!==aircraft?.sessionId||editing.callsign!==$('instructorSelected').value)return message('Load the selected aircraft flight plan first.');const values={};for(const field of fields)values[field]=$('instructorField_'+field).value;action('amend',{...editing,fields:values});};
 $('instructorConnect').onclick=()=>connect();$('instructorRestore').onclick=()=>connect(true);
 $('instructorEuroScope').onclick=async()=>{if(busy||!state)return;busy=true;draw();try{const s=state.slots.find(s=>s.id===slot),r=await api('connectEuroScope',{slot,epoch:s.epoch});message('EuroScope connector ready: '+r.address+' (copied). Complete EuroScope’s non-VATSIM connection dialog.');}catch(e){message(e.message);}finally{busy=false;draw();}};

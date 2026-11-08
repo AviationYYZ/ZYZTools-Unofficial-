@@ -7,12 +7,22 @@ const readiness=new (engine('training-fsd-tunnel').FsdConnector)('127.0.0.2');
 tunnel.configFolder=folder;
 let stopping=false,operation=Promise.resolve(),networkBusy=false,nextLease=0,nextTunnel=0,verifiedURL='',publicError='';
 const instructorJournal=[];
+training.planResolver=a=>{
+ const library=engine('training-route-variants.json');
+ const points=training.runtimeWaypoints?.length?training.runtimeWaypoints:training.scenario.waypoints;
+ const procedures=new Map(library.procedures.map(p=>[p.airport+'/'+p.name+'/'+p.runway,p]));
+ for(const plane of training.scenario.aircraft)for(const name of plane.procedures){
+  const bed=name.replace(/\d+$/,''),legs=plane.route.split(' '),i=legs.indexOf(bed);
+  if(i>=0)procedures.set(plane.destination+'/'+name+'/'+plane.arrivalRunway,{kind:'STAR',airport:plane.destination,name,runway:plane.arrivalRunway,fixes:legs.slice(i)});
+ }
+ return engine('training-routes').expandRoute(a,{fixes:library.fixes,procedures:[...procedures.values()]},points);
+};
 function recordInstruction(callsign,action){
  instructorJournal.push({callsign,action,time:training.elapsed});
  if(instructorJournal.length>100)instructorJournal.shift();
 }
 // Keep the instructor journal off the student-facing multiplayer snapshot.
-function instructorSnapshot(){return {...shared.snapshot(),instructorJournal:instructorJournal.slice()};}
+function instructorSnapshot(){return {...shared.snapshot(),instructorJournal:instructorJournal.slice(),runways:training.scenario.runways.map(({airport,name})=>({airport,name}))};}
 function send(message){if(process.connected)process.send(message);}
 function status(){const s=training.status(),t=tunnel.status(),l=lease.status();return {slot,engineMode:'zyztools',positionUpdateHz:s.positionUpdateHz,listening:s.listening,running:s.running,elapsed:s.elapsed,clients:s.clients,aircraft:s.scenario.aircraft.length,active:s.aircraft.filter(a=>a.active).length,name:s.scenario.name,tunnel:t.state==='ready'&&verifiedURL!==t.url?'verifying':t.state,code:t.state==='ready'&&verifiedURL===t.url?l.code:'',error:publicError||l.error||t.error||s.error,fsdPort:training.port||16800+slot,panelPort:16810+slot};}
 async function network(){

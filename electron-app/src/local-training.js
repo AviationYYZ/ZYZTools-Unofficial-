@@ -210,8 +210,11 @@ class LocalTraining{
   a.revision=(a.revision||0)+1;return this.status();
  }
  amend(callsign,fields){
-  const a=this.aircraft.find(a=>a.callsign===callsign&&a.active);if(!a)throw Error('Select an active simulated aircraft.');let candidate={...a,...fields},expanded;
+  const a=this.aircraft.find(a=>a.callsign===callsign&&a.active);if(!a)throw Error('Select an active simulated aircraft.');let candidate={...a,...fields},expanded,vectorsOnly=false;
   if(Object.hasOwn(fields,'flightPlanRoute')&&!Object.hasOwn(fields,'arrivalRunway'))candidate.arrivalRunway=assignedRunway(fields.flightPlanRoute,candidate.destination)||candidate.arrivalRunway;
+  const runwayChanged=candidate.arrivalRunway!==a.arrivalRunway||candidate.destination!==a.destination;
+  if(runwayChanged&&candidate.arrivalRunway&&!/^(?:0[1-9]|[12][0-9]|3[0-6])[LRC]?$/.test(candidate.arrivalRunway))throw Error('Enter a runway designator from 01 to 36, optionally followed by L, C or R.');
+  const hasGeometry=!candidate.arrivalRunway||this.scenario.runways.some(r=>r.airport===candidate.destination&&r.name===candidate.arrivalRunway);
   // Strip only the redundant wire suffix when EuroScope echoes a plan.
   if(Object.hasOwn(fields,'flightPlanRoute')&&candidate.arrivalRunway){
    const tokens=String(candidate.flightPlanRoute).trim().split(/\s+/);
@@ -221,25 +224,53 @@ class LocalTraining{
   const routeChanged=['flightPlanRoute','arrivalRunway','origin','destination'].some(k=>candidate[k]!==a[k]);
   if(routeChanged){
    const root=plan=>String(plan).toUpperCase().replace(/\/\d{2}[LRC]?(?=\s|$)/g,'').split(/\s+/).filter(t=>t&&t!==a.destination).join(' ');
-   if(!a.procedures.length&&candidate.arrivalRunway!==a.arrivalRunway&&candidate.origin===a.origin&&candidate.destination===a.destination&&root(candidate.flightPlanRoute)===root(a.flightPlanRoute)){
+   const runwayOnly=candidate.arrivalRunway!==a.arrivalRunway&&candidate.origin===a.origin&&candidate.destination===a.destination&&root(candidate.flightPlanRoute)===root(a.flightPlanRoute);
+   const points=this.runtimeWaypoints?.length?this.runtimeWaypoints:this.scenario.waypoints;
+   const assignForVectors=()=>{
+    const tokens=String(candidate.flightPlanRoute).toUpperCase().split(/\s+/).filter(t=>t&&t.split('/')[0]!==candidate.destination&&!a.procedures.includes(t.split('/')[0]));
+    candidate.flightPlanRoute=[...tokens,candidate.destination+(candidate.arrivalRunway?'/'+candidate.arrivalRunway:'')].join(' ');
+    vectorsOnly=true;
+    return {route:'',waypoints:[],arrivalRunway:candidate.arrivalRunway,procedures:[]};
+   };
+   if(runwayOnly&&(!hasGeometry||a.vectorOnlyRunway)){expanded=assignForVectors();candidate={...candidate,...expanded};}
+   else if(!a.procedures.length&&candidate.arrivalRunway!==a.arrivalRunway&&candidate.origin===a.origin&&candidate.destination===a.destination&&root(candidate.flightPlanRoute)===root(a.flightPlanRoute)){
     const points=this.runtimeWaypoints||this.scenario.waypoints,route=a.route.split(' ').filter(Boolean),r=this.scenario.runways.find(r=>r.airport===candidate.destination&&r.name===candidate.arrivalRunway);let added=[];
     if(r&&(/^(?:ILS\d{2}[LRC]?)$/.test(route.at(-1)||'')||new RegExp('^'+candidate.destination+'_\\d{2}[LRC]?$').test(route.at(-1)||''))){const name=candidate.destination+'_'+candidate.arrivalRunway;route[route.length-1]=name;added=[{name,...r.threshold}];}
     expanded={route:route.join(' '),waypoints:[...points,...added],arrivalRunway:candidate.arrivalRunway,procedures:a.procedures};candidate={...candidate,...expanded};
    }else{
     // Re-resolve the entire STAR, not just its runway threshold. A rejected
     // amendment leaves the old route and its assigned runway intact.
-    if(Object.hasOwn(fields,'arrivalRunway')&&candidate.arrivalRunway){
+    if(Object.hasOwn(fields,'arrivalRunway')){
      const prefix=candidate.destination+'/';
-     candidate.flightPlanRoute=[...String(candidate.flightPlanRoute).split(/\s+/).filter(t=>t&&t.toUpperCase()!==candidate.destination&&!t.toUpperCase().startsWith(prefix)),prefix+candidate.arrivalRunway].join(' ');
+     const tokens=String(candidate.flightPlanRoute).toUpperCase().split(/\s+/).filter(t=>t&&t!==candidate.destination&&!t.startsWith(prefix));
+     const last=tokens.at(-1),suffix=last?.match(/^([A-Z0-9]+)\/(\d{2}[LRC]?)$/);
+     if(suffix&&a.procedures.includes(suffix[1]))tokens[tokens.length-1]=suffix[1];
+     candidate.flightPlanRoute=[...tokens,candidate.arrivalRunway?prefix+candidate.arrivalRunway:candidate.destination].join(' ');
     }
-    candidate.compiledPlan=null;expanded=this.planResolver?this.planResolver(candidate):require('./training-routes').expandRoute(candidate,{fixes:this.runtimeWaypoints||this.scenario.waypoints},[]);candidate={...candidate,...expanded};
+    candidate.compiledPlan=null;
+    try{expanded=this.planResolver?this.planResolver(candidate):require('./training-routes').expandRoute(candidate,{fixes:points},[]);}
+    catch(e){if(!runwayOnly||!a.procedures.length)throw e;expanded=assignForVectors();}
+    if(Object.hasOwn(fields,'arrivalRunway')&&expanded.arrivalRunway!==candidate.arrivalRunway)throw Error('The filed STAR suffix conflicts with the selected runway.');
+    candidate={...candidate,...expanded};
    }
   }
   if(expanded&&candidate.initialDescent&&!candidate.route.split(' ').includes(candidate.initialDescent.fix))candidate.initialDescent=undefined;
   const points=expanded?[...(this.runtimeWaypoints||this.scenario.waypoints),...expanded.waypoints]:this.runtimeWaypoints||this.scenario.waypoints;
   const clean=normalize({...this.scenario,waypoints:[...new Map(points.map(w=>[w.name,w])).values()],aircraft:[candidate]}).aircraft[0];
   for(const key of ['type','category','origin','destination','squawk','squawkMode','arrivalRunway','procedures','compiledPlan','compiledRunway','route',...Object.keys(flightFields(clean))])a[key]=clean[key];
-  if(expanded){a.flyBy=null;this.runtimeWaypoints=[...new Map(points.map(w=>[w.name,w])).values()];const first=a.remaining[0],i=expanded.route.split(' ').indexOf(first);a.remaining=expanded.route.split(' ').filter(Boolean).slice(Math.max(0,i));a.legStart={lat:a.lat,lon:a.lon};if(a.navigation==='route'&&!a.remaining.length)a.navigation='heading';if(a.approachState!=='off')a.approachState='armed';}
+  if(expanded){
+   a.vectorOnlyRunway=vectorsOnly;
+   a.flyBy=null;a.directGuidance=null;this.runtimeWaypoints=[...new Map(points.map(w=>[w.name,w])).values()];
+   const route=expanded.route.split(' ').filter(Boolean),first=a.remaining?.[0],i=route.indexOf(first);
+   const continuing=a.navigation==='route'&&i>=0&&!(runwayChanged&&a.approachState!=='off');
+   a.remaining=route.slice(Math.max(0,i));a.routeCompleted=false;
+   if(!continuing){
+    if(a.navigation==='route'){a.targetHeading=a.heading;a.turnDirection=0;}
+    a.navigation='heading';a.explicitDirectFix=null;a.legStart={lat:a.lat,lon:a.lon};
+    a.navigationNotice=vectorsOnly?(hasGeometry?'Runway assigned. No matching STAR; holding heading for vectors or a new route.':'Runway assigned. No simulated runway geometry; vectors only until geometry is imported.'):'Plan amended. Holding heading until direct-to or route resume.';
+   }else if(a.explicitDirectFix!==first)a.explicitDirectFix=null;
+   if(runwayChanged){a.approachState='off';a.approachVectorTarget=null;a.approachNotice='Runway changed; new approach clearance required.';}
+  }
   if(expanded&&!candidate.initialDescent){delete a.initialDescent;a.initialDescentActive=false;}
   if(Object.hasOwn(fields,'squawk'))a.assignedSquawk=a.squawk;a.revision=(a.revision||0)+1;this.announce(a,undefined,false);return this.status();
  }

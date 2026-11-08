@@ -638,6 +638,26 @@ async function checkUpdates(background = false) {
   }
 }
 $("checkUpdatesBtn").addEventListener('click', () => checkUpdates());
+window.ZYZCalculators?.mount($('controllerCalculators'));
+let releaseHistoryGeneration=0;
+function clearReleaseHistory(){
+ releaseHistoryGeneration++;
+ $('releaseVersion').replaceChildren();$('releaseVersion').disabled=true;$('openReleaseVersion').disabled=true;$('loadReleaseHistory').disabled=false;
+ $('releaseHistoryStatus').textContent='';
+}
+$('updateStream').addEventListener('change',clearReleaseHistory);
+$('loadReleaseHistory').onclick=async()=>{
+ clearReleaseHistory();const id=releaseHistoryGeneration,stream=$('updateStream').value;
+ $('loadReleaseHistory').disabled=true;$('releaseHistoryStatus').textContent='Loading published '+stream+' builds…';
+ try{
+  const versions=await api.releaseHistory(stream);if(id!==releaseHistoryGeneration)return;
+  $('releaseVersion').replaceChildren(...versions.map(r=>new Option(r.tag+(r.essential?' · essential':''),r.tag)));
+  $('releaseVersion').disabled=$('openReleaseVersion').disabled=!versions.length;
+  $('releaseHistoryStatus').textContent=versions.length?versions.length+' published builds with installers. Back up settings before downgrading.':'No published installers found in this stream.';
+ }catch(e){if(id===releaseHistoryGeneration)$('releaseHistoryStatus').textContent=e.message;}
+ finally{if(id===releaseHistoryGeneration)$('loadReleaseHistory').disabled=false;}
+};
+$('openReleaseVersion').onclick=async()=>{try{await api.openRelease($('releaseVersion').value);}catch(e){$('releaseHistoryStatus').textContent=e.message;}};
 async function downloadOfferedUpdate() {
   const release = offeredUpdate;
   if (!release || updateDownloading || updateCheckRunning) return;

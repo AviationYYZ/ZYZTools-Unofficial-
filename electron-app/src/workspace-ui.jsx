@@ -6,7 +6,7 @@ import {LaunchButton,LaunchConfiguration} from './launch-ui.jsx';
 
 const groups=[
  ['App settings',[['install','Install / Link'],['appearance','Appearance'],['advanced','Advanced']]],
- ['Controller tools',[['operations','Operations'],['hoppie','Hoppie'],['sids','SID Matrix'],['conflicts','Conflict alerts'],['launchConfig','Launch configuration']]],
+ ['Controller tools',[['operations','Operations'],['calculators','Calculators'],['hoppie','Hoppie'],['sids','SID Matrix'],['conflicts','Conflict alerts'],['launchConfig','Launch configuration']]],
  ['Sweatbox',[['training','Training'],['trainingBuilder','Scenario Builder']]],
  ['Session history',[['replay','Replay & Recordings'],['statistics','Statistics']]],
  ['Integrations',[['discord','Discord status']]],
@@ -17,6 +17,7 @@ const descriptions={
  appearance:'Set the workspace theme, typography and layout.',
  advanced:'Manage updates and advanced app settings.',
  operations:'Configure clearances, runway assignments and PDC templates.',
+ calculators:'Estimate descent, spacing, time, heading changes and wind components.',
  hoppie:'Set up the Hoppie connection and delivery options.',
  sids:'Review and edit the departure runway matrix.',
  conflicts:'Configure prediction and conflict alerts.',

@@ -23,6 +23,7 @@ else{
    if(action==='instructorEnable'){await hub.start();manager.config.instructorEnabled=true;manager.save();return {...manager.status(),instructor:hub.status()};}
    if(action==='instructorDisable'){await hub.stop();manager.config.instructorEnabled=false;manager.save();return {...manager.status(),instructor:hub.status()};}
    if(action==='instructorCopy'){const s=hub.status();if(!s.code)throw Error('Wait for the instructor pairing code.');clipboard.writeText(s.code);return {...manager.status(),instructor:s};}
+   if(action==='instructorWebApp'){const s=hub.status();if(!s.webApp)throw Error('Wait for instructor access to be ready.');clipboard.writeText(s.webApp);return {...manager.status(),instructor:s};}
    if(action==='startup'){if(typeof value!=='boolean')throw Error('Invalid startup setting.');app.setLoginItemSettings({openAtLogin:value});manager.config.startup=value;manager.save();return manager.status();}
    if(action==='configure')return manager.configure(id,value||{});
    if(action==='updateRate')return manager.updateRate(id,value);

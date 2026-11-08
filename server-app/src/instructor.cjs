@@ -2,6 +2,17 @@
 // these endpoints. No arbitrary path, URL, shell command or filesystem API exists.
 const http=require('node:http'),crypto=require('node:crypto'),path=require('node:path'),fs=require('node:fs'),engine=require('./engine.cjs');
 const {TrainingTunnel}=engine('training-tunnel'),{DirectoryLease}=engine('training-directory');
+const webAssets={
+ '/instructor/':['index.html','text/html'],
+ '/instructor/app.js':['app.js','text/javascript'],
+ '/instructor/app.css':['app.css','text/css'],
+ '/instructor/manifest.webmanifest':['manifest.webmanifest','application/manifest+json'],
+ '/instructor/sw.js':['sw.js','text/javascript'],
+ '/instructor/icon.svg':['icon.svg','image/svg+xml'],
+ '/instructor/icon.png':['icon.png','image/png'],
+ '/instructor/icon-192.png':['icon-192.png','image/png'],
+ '/instructor/calculators.js':['controller-calculators.js','text/javascript']
+};
 function equal(a,b){return Buffer.byteLength(a)===Buffer.byteLength(b)&&crypto.timingSafeEqual(Buffer.from(a),Buffer.from(b));}
 class InstructorHub{
  constructor(manager,helper,options={}){
@@ -9,7 +20,7 @@ class InstructorHub{
   this.tunnel=options.tunnel||new TrainingTunnel(helper,()=>this.server?'http://127.0.0.1:'+this.port:null);
   this.tunnel.configFolder=path.join(manager.folder,'instructor-tunnel');this.lease=options.lease||new DirectoryLease();this.readiness=new (engine('training-fsd-tunnel').FsdConnector)('127.0.0.2');
  }
- status(){const t=this.tunnel.status(),l=this.lease.status();return {enabled:!!this.server,state:t.state,code:t.state==='ready'?l.code:'',error:this.error||l.error||t.error||''};}
+ status(){const t=this.tunnel.status(),l=this.lease.status();return {enabled:!!this.server,state:t.state,code:t.state==='ready'?l.code:'',webApp:t.state==='ready'&&l.code?new URL('/instructor/',t.url).href:'',error:this.error||l.error||t.error||''};}
  reply(res,status,data){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'none'; frame-ancestors 'none'"});res.end(JSON.stringify(data));}
  async start(){
   if(this.server||this.starting)throw Error('Instructor access is already enabled or starting.');this.starting=true;const generation=++this.generation;this.token=crypto.randomBytes(32).toString('hex');this.requests.clear();this.count=0;this.window=Date.now();
@@ -29,6 +40,24 @@ class InstructorHub{
    if(Date.now()-this.window>60000){this.window=Date.now();this.count=0;}if(++this.count>600)return this.reply(res,429,{error:'Too many instructor requests.'});
    // Non-sensitive marker used only by the bundled helper's local origin probe.
    if(req.method==='GET'&&req.url==='/')return this.reply(res,200,{service:'ZYZTools shared sweatbox instructor gateway'});
+   if(req.method==='GET'&&Object.hasOwn(webAssets,req.url)){
+    const [file,type]=webAssets[req.url],folder=path.join(__dirname,'pwa');
+    const source=file==='controller-calculators.js'&&!fs.existsSync(path.join(folder,file))?path.resolve(__dirname,'../../electron-app/src',file):path.join(folder,file);
+    const bytes=fs.readFileSync(source);
+    res.writeHead(200,{'Content-Type':type+(type==='image/png'?'':'; charset=utf-8'),'Cache-Control':'no-cache','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'"});
+    res.end(bytes);return;
+   }
+   if(req.method==='POST'&&req.url==='/instructor/pair'){
+    if(req.headers['sec-fetch-site']&&req.headers['sec-fetch-site']!=='same-origin')return this.reply(res,403,{error:'Open pairing from the instructor web app.'});
+    if(!/^application\/json(?:;|$)/i.test(req.headers['content-type']||''))return this.reply(res,415,{error:'JSON required.'});
+    if(!this.pairWindow||Date.now()-this.pairWindow>=60000){this.pairWindow=Date.now();this.pairAttempts=0;}
+    if(++this.pairAttempts>12)return this.reply(res,429,{error:'Too many pairing attempts. Try again in a minute.'});
+    const generation=this.generation;let raw='';for await(const b of req){raw+=b;if(raw.length>128)throw Error('Invalid pairing request.');}
+    let code;try{code=require('./engine.cjs')('training-directory').code(JSON.parse(raw)?.code);}catch{return this.reply(res,400,{error:'Enter the ten-character instructor code.'});}
+    const active=this.status().code;
+    if(generation!==this.generation||!this.server||!this.token||!active||!equal(code,active))return this.reply(res,401,{error:'Code not accepted. Use the current instructor code from your server.'});
+    return this.reply(res,200,{token:this.token});
+   }
    if(!this.token||!equal(req.headers.authorization||'','Bearer '+this.token))return this.reply(res,401,{error:'Instructor pairing is required.'});
    if(req.headers['sec-fetch-site']==='cross-site')return this.reply(res,403,{error:'Cross-site requests are not allowed.'});
    if(req.method==='GET'&&req.url==='/api/instructor/status')return this.reply(res,200,{service:'ZYZTools Instructor',role:'instructor',apiVersion:1,...this.manager.status()});
