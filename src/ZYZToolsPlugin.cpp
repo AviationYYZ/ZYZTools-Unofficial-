@@ -2034,8 +2034,8 @@ public:
         if(ItemCode==TAG_WATCH_DISTANCE){
             sItemString[0]=0;*pColorCode=TAG_COLOR_DEFAULT;
             if(!target.IsValid()&&FlightPlan.IsValid())target=FlightPlan.GetCorrelatedRadarTarget();
-            const auto value=WatchDistance(target,true);
-            if(!value.empty()){strncpy_s(sItemString,16,value.c_str(),_TRUNCATE);*pColorCode=TAG_COLOR_RGB_DEFINED;*pRGB=RGB(100,226,203);if(fontSize&&*fontSize>0)*fontSize*=0.85;}
+            const auto value=WatchDistance(target);
+            if(!value.empty()){strncpy_s(sItemString,16,value.c_str(),_TRUNCATE);*pColorCode=TAG_COLOR_RGB_DEFINED;*pRGB=RGB(100,226,203);if(fontSize&&*fontSize>0)*fontSize*=0.75;}
             return;
         }
         if(ItemCode>=TrainingPilotList::Altitude&&ItemCode<=TrainingPilotList::SFI){
@@ -2592,8 +2592,19 @@ private:
     struct WaypointWatch{
         CPosition position;double radius=0;bool all=false;
         std::set<std::string> aircraft;
+        std::set<std::string> stars;
         std::map<std::string,bool> outside;
-        bool includes(const std::string& cs)const{return all||aircraft.count(cs)!=0;}
+        bool includes(CRadarTarget target)const{
+            if(all)return true;
+            if(stars.empty())return aircraft.count(target.GetCallsign())!=0;
+            const auto fp=target.GetCorrelatedFlightPlan();if(!fp.IsValid())return false;
+            const auto data=fp.GetFlightPlanData();
+            if(const char* star=data.GetStarName();star&&*star)return stars.count(Upper(Split(star,'/').front()))!=0;
+            const char* route=data.GetRoute();if(!route)return false;
+            std::istringstream words(Upper(route));std::string word;
+            while(words>>word)if(stars.count(word.substr(0,word.find('/'))))return true;
+            return false;
+        }
     };
     std::map<std::string,WaypointWatch> m_waypointWatches;
     std::vector<std::string> m_spacingPair;
@@ -2610,16 +2621,15 @@ private:
                 if(e.GetName()&&Upper(e.GetName())==name&&e.GetPosition(&p,0))return true;
         return false;
     }
-    std::string WatchDistance(CRadarTarget target,bool compact=false) const{
+    std::string WatchDistance(CRadarTarget target) const{
         if(!target.IsValid()||m_waypointWatches.empty())return {};
         const auto p=target.GetPosition();if(!p.IsValid())return {};
         std::string nearest;double distance=1e9;
-        for(const auto& w:m_waypointWatches)if(w.second.includes(target.GetCallsign())){
+        for(const auto& w:m_waypointWatches)if(w.second.includes(target)){
             const double d=p.GetPosition().DistanceTo(w.second.position);if(d<distance){nearest=w.first;distance=d;}
         }
         if(nearest.empty())return {};
-        if(compact)return nearest.substr(0,5)+" "+(distance<10?RadarTools::Number(distance):std::to_string(static_cast<int>(std::lround(distance))));
-        return nearest.substr(0,7)+" "+RadarTools::Number(distance)+"NM";
+        return distance<10?RadarTools::Number(distance):std::to_string(static_cast<int>(std::lround(distance)));
     }
     void TickWaypointAlerts(){
         if(GetConnectionType()==CONNECTION_TYPE_NO||GetConnectionType()==CONNECTION_TYPE_PLAYBACK){for(auto& w:m_waypointWatches)w.second.outside.clear();return;}
@@ -2628,7 +2638,7 @@ private:
             if(w.second.radius<=0)continue;
             std::set<std::string> seen;
             for(auto a=RadarTargetSelectFirst();a.IsValid();a=RadarTargetSelectNext(a)){
-                const std::string cs=a.GetCallsign();if(!w.second.includes(cs))continue;
+                const std::string cs=a.GetCallsign();if(!w.second.includes(a))continue;
                 const auto p=a.GetPosition();if(!p.IsValid())continue;seen.insert(cs);
                 const double d=p.GetPosition().DistanceTo(w.second.position);
                 auto entry=w.second.outside.emplace(cs,d>w.second.radius);
@@ -2677,18 +2687,25 @@ private:
         if(verb!=".FIXWATCH")return false;
         std::string fix,range,mode;args>>fix>>range>>mode;
         if(fix=="CLEAR"){if(range.empty()||range=="ALL")m_waypointWatches.clear();else m_waypointWatches.erase(range);if(!m_waypointWatches.count(m_pickWatch)&&m_radarPick=="WATCH")m_radarPick.clear();return true;}
-        if(fix.empty()){RadarNotice("Use .fixwatch FIX [alert NM] [ALL or PICK]. Use .fixwatch clear FIX or clear all.");return true;}
+        if(fix.empty()){RadarNotice("Use .fixwatch FIX [alert NM] ALL, PICK, or STAR LINNG3,NUBER6. Use .fixwatch clear FIX or clear all.");return true;}
+        std::string starList;
+        if(range=="STAR"){starList=mode;mode=range;range.clear();}
+        else if(mode=="STAR")args>>starList;
         if(range=="ALL"||range=="PICK"){mode=range;range.clear();}
+        std::set<std::string> stars;
         double radius=0;
         try{if(!range.empty()){size_t end=0;radius=std::stod(range,&end);if(end!=range.size()||!std::isfinite(radius)||radius<0||radius>100)throw std::invalid_argument("radius");}
-            if(!mode.empty()&&mode!="ALL"&&mode!="PICK")throw std::invalid_argument("mode");
-        }catch(...){RadarNotice("Enter an alert radius from 0 to 100 NM and choose ALL or PICK. Zero disables sound.");return true;}
+            if(mode=="STAR"){
+                for(const auto& star:Split(starList,',')){if(!std::regex_match(star,std::regex("[A-Z][A-Z0-9]{1,9}")))throw std::invalid_argument("star");stars.insert(star);}
+                if(stars.empty())throw std::invalid_argument("star");
+            }else if(!mode.empty()&&mode!="ALL"&&mode!="PICK")throw std::invalid_argument("mode");
+        }catch(...){RadarNotice("Use .fixwatch FIX [0–100 NM] ALL, PICK, or STAR LINNG3,NUBER6. Zero disables sound.");return true;}
         CPosition position;
         if(!ResolveWatchFix(fix,position)){RadarNotice("Waypoint "+fix+" was not found in the loaded sector.");return true;}
         if(!m_waypointWatches.count(fix)&&m_waypointWatches.size()>=8){RadarNotice("Up to eight waypoint watches. Clear one before adding another.");return true;}
-        auto& watch=m_waypointWatches[fix];watch.position=position;watch.radius=radius;watch.all=mode=="ALL";watch.outside.clear();
-        if(!watch.all){m_radarPick="WATCH";m_pickWatch=fix;m_radarToolsVisible=true;}else if(m_radarPick=="WATCH"&&m_pickWatch==fix)m_radarPick.clear();
-        RadarNotice(fix+" highlighted. "+(watch.all?"Watching all aircraft.":"Click aircraft symbols to toggle them, then Done picking."));
+        auto& watch=m_waypointWatches[fix];watch.position=position;watch.radius=radius;watch.all=mode=="ALL";watch.stars=std::move(stars);watch.outside.clear();
+        if(!watch.all&&watch.stars.empty()){m_radarPick="WATCH";m_pickWatch=fix;m_radarToolsVisible=true;}else if(m_radarPick=="WATCH"&&m_pickWatch==fix)m_radarPick.clear();
+        RadarNotice(fix+" highlighted. "+(watch.all?"Watching all aircraft.":!watch.stars.empty()?"Watching STAR "+starList+".":"Click aircraft symbols to toggle them, then Done picking."));
         return true;
     }
     bool RadarToolsEdit(int id,const char* value){
@@ -6146,13 +6163,10 @@ public:
         const auto inside=[&](POINT p){return PtInRect(&radar,p)!=0;};
         for(const auto& w:watches){
             const auto p=ConvertCoordFromPositionToPixel(w.second.position);
-            if(inside(p)){Ellipse(dc,p.x-6,p.y-6,p.x+6,p.y+6);label(p.x+9,p.y-10,w.first);}
-            if(w.second.radius>0){
-                for(int n=0;n<=36;++n){
-                    TrainingPrediction::Point q;
-                    if(!TrainingPrediction::Project(w.second.position.m_Latitude,w.second.position.m_Longitude,(n%36)*10.0,w.second.radius*6,10,q))break;
-                    const auto px=point(q);if(!n)MoveToEx(dc,px.x,px.y,nullptr);else LineTo(dc,px.x,px.y);
-                }
+            if(inside(p)){
+                MoveToEx(dc,p.x-4,p.y,nullptr);LineTo(dc,p.x+5,p.y);
+                MoveToEx(dc,p.x,p.y-4,nullptr);LineTo(dc,p.x,p.y+5);
+                label(p.x+7,p.y-10,w.first);
             }
         }
         const auto sel=m_plugin->RadarTargetSelectASEL();const std::string selected=sel.IsValid()?sel.GetCallsign():"";
@@ -6170,7 +6184,6 @@ public:
                 }
                 SetDCPenColor(dc,previousPenColor);
             }
-            const auto distance=m_plugin->WatchDistance(a);if(!distance.empty())label(px.x+8,px.y+7,distance);
             if(!pick.empty()){
                 const bool marked=pick=="PAIR"?std::find(pair.begin(),pair.end(),cs)!=pair.end():pick=="LEADER"?m_plugin->m_leaderAircraft.count(cs)!=0:
                     (watches.count(m_plugin->m_pickWatch)&&watches.at(m_plugin->m_pickWatch).aircraft.count(cs)!=0);

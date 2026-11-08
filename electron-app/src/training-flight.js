@@ -181,7 +181,7 @@ function guideRoute(a,fixes,geometry,move,runway){
  let count=0;while(a.remaining.length&&count++<10){
   const fix=fixes.find(w=>w.name===a.remaining[0]);if(!fix){a.navigation='heading';a.navigationNotice='Missing route fix '+a.remaining[0];return;}
   const g=geometry(a,fix),start=a.legStart||a,leg=geometry(start,fix),following=fixes.find(w=>w.name===a.remaining[1]);
-  const direct=a.explicitDirectFix===fix.name;
+  let direct=a.explicitDirectFix===fix.name;
   const approachFix=isApproachFix(fix,runway,geometry),join=straightInJoin(fix,following,runway,geometry);
   const afterFollowing=fixes.find(w=>w.name===a.remaining[2]);
   if(approachFix&&!join&&a.explicitDirectFix!==fix.name){
@@ -189,8 +189,7 @@ function guideRoute(a,fixes,geometry,move,runway){
    a.navigationNotice='Approach discontinuity before '+fix.name+'; awaiting vectors or direct-to.';
    return;
   }
-  // A direct clearance is a fly-over. A vector-to-fix line that happens
-  // to look like a downwind is not a STAR discontinuity.
+  // Use the filed leg, not the vector-to-fix line, to detect downwinds.
   const filed=direct?String(a.route||'').split(' '):null;
   const filedIndex=filed?.indexOf(fix.name)??-1;
   const downwindStart=direct?(filedIndex>0?fixes.find(w=>w.name===filed[filedIndex-1]):null):start;
@@ -199,6 +198,21 @@ function guideRoute(a,fixes,geometry,move,runway){
   const discontinuity=(!nuberSplit&&downwindStart&&endsDownwind(downwindStart,fix,following,runway,geometry))||
    (isApproachFix(following,runway,geometry)&&!straightInJoin(following,afterFollowing,runway,geometry))||approachFix;
   const next=discontinuity&&!join?null:following;
+  // A direct-to that rejoins a filed STAR uses the actual inbound track
+  // after the vector, then anticipates the fixed outbound fix-to-fix leg.
+  // Do not anticipate while still banking to establish the direct leg.
+  let directFlyBy=false;
+  if(direct&&next&&filed?.[filedIndex+1]===next.name&&filedIndex>=0&&a.directGuidance?.mode==='track'){
+   const inbound=a.groundTrack??a.heading,outbound=geometry(fix,next);
+   const angle=Math.abs(delta(outbound.bearing,inbound));
+   if(angle>5&&angle<135&&Math.abs(delta(g.bearing,inbound))<5&&Math.abs(a.bank||0)<3){
+    const lead=Math.min(turnLead(a.speed,angle),outbound.distance*.75);
+    if(g.distance<=lead&&g.distance>.08){
+     a.explicitDirectFix=null;a.directGuidance=null;a.turnDirection=0;
+     direct=false;directFlyBy=true;
+    }
+   }
+  }
   if(direct&&g.distance>.08){
    guideDirect(a,fix,g,geometry,move);
    return;
@@ -206,7 +220,7 @@ function guideRoute(a,fixes,geometry,move,runway){
   if(direct){a.explicitDirectFix=null;a.directGuidance=null;a.turnDirection=0;a.navigationNotice='';}
   const passed=leg.distance>.05&&g.distance*Math.cos(delta(g.bearing,leg.bearing)*rad)<-.01;
   let lead=.08,anticipated=false;
-  if(next&&!direct){
+  if(next&&!direct&&!directFlyBy){
    const outgoing=geometry(fix,next),angle=Math.min(179,Math.abs(delta(outgoing.bearing,leg.bearing)));
    // A near-reversal needs MUCH more anticipation than a 90-degree corner.
    // Capping the angle at 150 underestimated LINNG's 172-degree turn by miles.
@@ -241,10 +255,11 @@ function guideRoute(a,fixes,geometry,move,runway){
    a.navigationNotice='Route discontinuity at '+fix.name+'; awaiting vectors or direct-to.';
    return;
   }
-  if(rejoinReached||direct||anticipated||projected<=lead||passed){
+  if(rejoinReached||direct||directFlyBy||anticipated||projected<=lead||passed){
    rejoinReached=false;
    a.remaining.shift();(a.passedFixes||(a.passedFixes=[])).push(fix.name);a.legStart={lat:fix.lat,lon:fix.lon};
    if(!a.remaining.length){a.routeCompleted=!a.vectorOnlyRunway;a.navigation='heading';a.targetHeading=direct?a.heading:leg.distance>.05?courseHeading(a,leg.bearing):a.heading;}
+   else if(directFlyBy&&next){a.flyBy={course:geometry(fix,next).bearing,next:next.name,anchor:{lat:fix.lat,lon:fix.lon},directCapture:true};a.targetHeading=courseHeading(a,a.flyBy.course);return;}
    else if(direct&&next){startRejoin(a,fix,next,geometry,move);return;}
    else if(next&&Math.abs(delta(geometry(fix,next).bearing,leg.bearing))>5){a.flyBy={course:geometry(fix,next).bearing,next:next.name,anchor:{lat:fix.lat,lon:fix.lon}};a.targetHeading=courseHeading(a,a.flyBy.course);return;}
    continue;

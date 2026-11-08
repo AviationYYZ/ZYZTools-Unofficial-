@@ -5,7 +5,8 @@ app.whenReady().then(async()=>{
  if(!/^\d+\.\d+\.\d+$/.test(version))throw Error('Pass the explicitly approved server version.');
  const token=require('../electron-app/src/publishing-auth').load(path.join(process.env.APPDATA,'ZYZTools-test'),safeStorage);
  if(!token)throw Error('No saved GitHub publishing credential.');
- const repo='AviationYYZ/ZYZTools-Unofficial-',tag='v'+version,name='ZYZTools-Server-Setup-'+version+'.exe';
+ const beta=process.argv[3]==='--beta';
+ const repo='AviationYYZ/ZYZTools-Unofficial-',tag='v'+version+(beta?'-beta':''),name='ZYZTools-Server-Setup-'+version+'.exe';
  const built=fs.readFileSync(path.join(process.env.LOCALAPPDATA,'ZYZTools/Builds/server-'+version,name));
  const bytes=fs.readFileSync(path.join(process.env.USERPROFILE,'Downloads',name));
  if(!bytes.equals(built)||bytes.subarray(0,2).toString()!=='MZ')throw Error('Installer does not match verified build.');
@@ -19,7 +20,7 @@ app.whenReady().then(async()=>{
  if((await api('/user'))?.login?.toLowerCase()!=='aviationyyz')throw Error('Saved GitHub account is not AviationYYZ.');
  const root='/repos/'+repo;
  if(await api(root+'/releases/tags/'+tag))throw Error('A release already exists; refusing to replace it.');
- const draft=await api(root+'/releases','POST',{tag_name:tag,name:'ZYZTools Server '+version,body:'Server-only stable release. Includes alternate-runway routing and four default 70 AAR scenarios.',draft:true,prerelease:false});
+ const draft=await api(root+'/releases','POST',{tag_name:tag,name:'ZYZTools Server '+version+(beta?' beta':''),body:beta?'Server-only beta. Anticipates the turn onto the filed outbound leg after a vector-to-direct rejoin. Install manually to test.':'Server-only stable release. Improves outbound STAR track capture after vector-to-direct and fixes the NUBER6 runway 23 branch at PENGO.',draft:true,prerelease:beta});
  const upload=new URL(draft.upload_url.replace(/\{.*$/,''));
  if(upload.origin!=='https://uploads.github.com')throw Error('Invalid upload endpoint.');
  upload.searchParams.set('name',name);
@@ -27,6 +28,6 @@ app.whenReady().then(async()=>{
  if(!response.ok)throw Error('Installer upload failed ('+response.status+'); release remains draft.');
  const asset=await response.json();
  if(asset.size!==bytes.length||asset.digest!=='sha256:'+crypto.createHash('sha256').update(bytes).digest('hex'))throw Error('Upload verification failed; release remains draft.');
- const release=await api(root+'/releases/'+draft.id,'PATCH',{draft:false,prerelease:false,make_latest:'false'});
+ const release=await api(root+'/releases/'+draft.id,'PATCH',{draft:false,prerelease:beta,make_latest:'false'});
  console.log(release.html_url);
 }).then(()=>app.exit(0)).catch(e=>{console.error(e.message);app.exit(1);});
