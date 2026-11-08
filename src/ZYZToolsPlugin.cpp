@@ -5011,6 +5011,9 @@ private:
     void TryAssignArrivalRunway(CFlightPlan fp)
     {
         if (!fp.IsValid() || !m_cfg.arrivalAssignmentEnabled || m_arrivalAssignmentInProgress) return;
+        // The private simulator owns the runway/STAR pairing. Scratchpad SFI
+        // annotations must not apply the workstation's live arrival flow.
+        if (GetConnectionType() == CONNECTION_TYPE_DIRECT && m_trainingCommands.TrainingContext()) return;
         auto fpd = fp.GetFlightPlanData();
         if (Upper(Trim(fpd.GetDestination() ? fpd.GetDestination() : "")) != "CYYZ") return;
         const std::string sp = fp.GetControllerAssignedData().GetScratchPadString() ? fp.GetControllerAssignedData().GetScratchPadString() : "";

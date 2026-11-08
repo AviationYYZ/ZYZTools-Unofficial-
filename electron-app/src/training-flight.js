@@ -56,12 +56,25 @@ function straightInJoin(fix,next,runway,geometry){
  const axis=geometry(runway.threshold,runway.opposite).bearing,leg=geometry(fix,next);
  return geometry(runway.threshold,fix).distance>=12&&leg.distance>.5&&Math.abs(delta(leg.bearing,axis))<=12;
 }
+// Capture the leg with a bounded intercept. Track-rate damping starts the
+// rollout before the centerline, instead of waiting for cross-track error to
+// change sign while the aircraft is still banked toward it.
+function legHeading(a,anchor,course,geometry){
+ const g=geometry(anchor,a),cross=g.distance*Math.sin(delta(g.bearing,course)*rad);
+ const look=Math.max(1,turnRadius(a.speed)*4,(a.groundSpeed||a.speed)/3600*25);
+ const bank=a.bank||0,rate=9.80665*Math.tan(bank*rad)/(Math.max(30,a.speed)*.514444)/rad;
+ const settling=Math.min(2.5,Math.abs(bank)/10);
+ const track=delta(a.groundTrack??a.heading,course)*rad;
+ const drift=(a.groundSpeed||a.speed)/3600*settling*Math.sin(track+rate*settling*rad/2);
+ const correction=Math.max(-20,Math.min(20,Math.atan2(cross+drift,look)/rad));
+ return courseHeading(a,wrap(course-correction));
+}
 function guideRoute(a,fixes,geometry,move,runway){
  if(a.flyBy){
   if(a.flyBy.next===a.remaining[0]){
    if(!a.flyBy.intercepting&&Math.abs(delta(a.heading,courseHeading(a,a.flyBy.course)))>.5){a.targetHeading=courseHeading(a,a.flyBy.course);return;}
    const anchor=a.flyBy.anchor;if(anchor){const g=geometry(anchor,a),cross=g.distance*Math.sin(delta(g.bearing,a.flyBy.course)*rad);
-    if(Math.abs(cross)>.055||Math.abs(delta(a.groundTrack??a.heading,a.flyBy.course))>2){a.flyBy.intercepting=true;const look=Math.max(1,turnRadius(a.speed)*3,a.speed/3600*22),correction=Math.max(-20,Math.min(20,Math.atan2(cross,look)/rad));a.targetHeading=courseHeading(a,wrap(a.flyBy.course-correction));return;}
+    if(Math.abs(cross)>.055||Math.abs(delta(a.groundTrack??a.heading,a.flyBy.course))>2||Math.abs(a.bank||0)>2){a.flyBy.intercepting=true;a.targetHeading=legHeading(a,anchor,a.flyBy.course,geometry);return;}
    }
   }a.flyBy=null;
  }
@@ -86,7 +99,10 @@ function guideRoute(a,fixes,geometry,move,runway){
    // Capping the angle at 150 underestimated LINNG's 172-degree turn by miles.
    const required=turnLead(a.speed,angle),available=Math.min(outgoing.distance*.95,leg.distance*.95);
    lead=Math.max(.08,Math.min(required,available));
-   if(angle>5&&g.distance<=available){
+   // A rollout crossing alone is ambiguous when the jet is off the inbound
+   // leg. Only arm it in the expected lead window, never far up the leg.
+   const inWindow=angle>5&&g.distance<=Math.min(available,required+Math.max(.12,a.speed/3600*2));
+   if(inWindow){
     // Test where the rolling turn will finish against the actual outbound
     // great-circle line. This also handles convergence on long near-reversals.
     const targetHeading=courseHeading(a,outgoing.bearing),signed=delta(targetHeading,a.heading),shape=turnShape(a.speed,Math.abs(signed));
@@ -116,9 +132,7 @@ function guideRoute(a,fixes,geometry,move,runway){
   }
   if(anticipated||projected<=lead||passed){a.remaining.shift();(a.passedFixes||(a.passedFixes=[])).push(fix.name);a.legStart={lat:fix.lat,lon:fix.lon};if(!a.remaining.length){a.routeCompleted=true;a.navigation='heading';a.targetHeading=leg.distance>.05?courseHeading(a,leg.bearing):a.heading;}else if(next&&Math.abs(delta(geometry(fix,next).bearing,leg.bearing))>5){a.flyBy={course:geometry(fix,next).bearing,next:next.name,anchor:{lat:fix.lat,lon:fix.lon}};a.targetHeading=courseHeading(a,a.flyBy.course);return;}continue;}
   if(leg.distance<=.05){a.targetHeading=courseHeading(a,g.bearing);return;}
-  const fromStart=geometry(start,a),cross=fromStart.distance*Math.sin(delta(fromStart.bearing,leg.bearing)*rad);
-  const look=Math.max(.75,turnRadius(a.speed)*2.5,a.speed/3600*17),correction=Math.max(-25,Math.min(25,Math.atan2(cross,look)/rad));
-  a.targetHeading=courseHeading(a,wrap(leg.bearing-correction));return;
+  a.targetHeading=legHeading(a,start,leg.bearing,geometry);return;
  }
 }
 function guideApproach(a,runways,geometry){
