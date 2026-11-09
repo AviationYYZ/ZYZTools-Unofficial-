@@ -36,6 +36,8 @@ contextBridge.exposeInMainWorld("preferredCyyzPdc", {
   publishTest: (options = {}) => ipcRenderer.invoke("test:publish", options),
   openTokenSettings: () => ipcRenderer.invoke("test:tokenSettings"),
   pluginAction: (folder, action, callsign) => ipcRenderer.invoke("plugin:action", folder, action, callsign),
+  takeFixWatch: () => ipcRenderer.invoke("fixwatch:take"),
+  applyFixWatch: (fields) => ipcRenderer.invoke("fixwatch:apply",fields),
   browseParentFolder: (currentPath) => ipcRenderer.invoke("folder:browseParent", currentPath),
   loadConfig: (installFolder) => ipcRenderer.invoke("config:load", installFolder),
   saveLocalConfig: (config) => ipcRenderer.invoke("config:saveLocal", config),

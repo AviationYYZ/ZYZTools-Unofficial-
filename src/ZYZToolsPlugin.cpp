@@ -2038,8 +2038,8 @@ public:
         if(ItemCode==TAG_WATCH_DISTANCE){
             sItemString[0]=0;*pColorCode=TAG_COLOR_DEFAULT;
             if(!target.IsValid()&&FlightPlan.IsValid())target=FlightPlan.GetCorrelatedRadarTarget();
-            const auto value=WatchDistance(target);
-            if(!value.empty()){strncpy_s(sItemString,16,value.c_str(),_TRUNCATE);*pColorCode=TAG_COLOR_RGB_DEFINED;*pRGB=RGB(100,226,203);if(fontSize&&*fontSize>0)*fontSize*=0.75;}
+            const auto value=WatchDistance(target,FlightPlan);
+            if(!value.empty()){m_watchTagDrawn[target.GetCallsign()]=GetTickCount64();strncpy_s(sItemString,16,value.c_str(),_TRUNCATE);*pColorCode=TAG_COLOR_RGB_DEFINED;*pRGB=RGB(100,226,203);if(fontSize&&*fontSize>0)*fontSize*=0.75;}
             return;
         }
         if(ItemCode>=TrainingPilotList::Altitude&&ItemCode<=TrainingPilotList::SFI){
@@ -2598,12 +2598,12 @@ private:
         std::set<std::string> aircraft;
         std::set<std::string> stars;
         std::map<std::string,bool> outside;
-        bool includes(CRadarTarget target)const{
+        bool includes(CRadarTarget target,CFlightPlan fp={})const{
             if(all)return true;
             if(stars.empty())return aircraft.count(target.GetCallsign())!=0;
-            const auto fp=target.GetCorrelatedFlightPlan();if(!fp.IsValid())return false;
+            if(!fp.IsValid())fp=target.GetCorrelatedFlightPlan();if(!fp.IsValid())return false;
             const auto data=fp.GetFlightPlanData();
-            if(const char* star=data.GetStarName();star&&*star)return stars.count(Upper(Split(star,'/').front()))!=0;
+            if(const char* star=data.GetStarName();star&&*star&&stars.count(Upper(Trim(Split(star,'/').front()))))return true;
             const char* route=data.GetRoute();if(!route)return false;
             std::istringstream words(Upper(route));std::string word;
             while(words>>word)if(stars.count(word.substr(0,word.find('/'))))return true;
@@ -2611,6 +2611,7 @@ private:
         }
     };
     std::map<std::string,WaypointWatch> m_waypointWatches;
+    std::map<std::string,ULONGLONG> m_watchTagDrawn;
     std::vector<std::string> m_spacingPair;
     std::set<std::string> m_leaderAircraft;
     std::string m_radarPick,m_pickWatch,m_calcResult;
@@ -2650,11 +2651,11 @@ private:
                 if(e.GetName()&&Upper(e.GetName())==name&&e.GetPosition(&p,0))return true;
         return false;
     }
-    std::string WatchDistance(CRadarTarget target) const{
+    std::string WatchDistance(CRadarTarget target,CFlightPlan fp={}) const{
         if(!target.IsValid()||m_waypointWatches.empty())return {};
         const auto p=target.GetPosition();if(!p.IsValid())return {};
         std::string nearest;double distance=1e9;
-        for(const auto& w:m_waypointWatches)if(w.second.includes(target)){
+        for(const auto& w:m_waypointWatches)if(w.second.includes(target,fp)){
             const double d=p.GetPosition().DistanceTo(w.second.position);if(d<distance){nearest=w.first;distance=d;}
         }
         if(nearest.empty())return {};
@@ -3059,7 +3060,7 @@ private:
             log << line.str();
     }
 
-    bool LaunchSettingsApp(std::string &errorOut)
+    bool LaunchSettingsApp(std::string &errorOut,const std::string& watchFix={})
     {
         std::vector<std::string> candidates;
         const std::string configured = Trim(m_cfg.settingsAppPath);
@@ -3100,6 +3101,7 @@ private:
 
             std::string commandLine =
                 "\"" + candidate + "\" --plugin-dir \"" + pluginDir + "\"";
+            if(!watchFix.empty())commandLine+=" --fixwatch="+watchFix;
             std::vector<char> mutableCommand(commandLine.begin(), commandLine.end());
             mutableCommand.push_back('\0');
 
@@ -5187,6 +5189,15 @@ private:
             else if (action == "link-test") { TestHoppieLink(); ok = true; }
             else if (action == "test-pdc") { TriggerIncomingPdcTest(); ok = true; }
             else if (action == "export") { ExportVisibleStatistics(true); ok = true; }
+            else if (action == "fixwatch"){
+                const std::string watch=Upper(Trim(callsign));
+                if(std::regex_match(watch,std::regex("[A-Z0-9]{1,12} [0-9]{1,3}(\\.[0-9]{1,3})? (ALL|PICK|STAR [A-Z][A-Z0-9]{1,9}(,[A-Z][A-Z0-9]{1,9})*)"))){
+                    std::istringstream fields(watch);std::string fix;double radius=0;fields>>fix>>radius;
+                    CPosition p;
+                    if(radius<=100&&ResolveWatchFix(fix,p)&&(m_waypointWatches.count(fix)||m_waypointWatches.size()<8))
+                        ok=HandleRadarToolsCommand(".FIXWATCH "+watch);
+                }
+            }
             else if (action == "reject" || action == "reject-fp")
             {
                 const std::string cs = Upper(Trim(callsign));
@@ -6247,6 +6258,15 @@ public:
                 }
                 SetDCPenColor(dc,previousPenColor);
             }
+            const auto recent=m_plugin->m_watchTagDrawn.find(cs);
+            if(recent==m_plugin->m_watchTagDrawn.end()||GetTickCount64()-recent->second>1500){
+                const auto watch=m_plugin->WatchDistance(a);
+                if(!watch.empty()){
+                    const auto previous=SelectObject(dc,GetStockObject(DEFAULT_GUI_FONT));
+                    TextOutA(dc,px.x+7,px.y+4,watch.c_str(),static_cast<int>(watch.size()));
+                    if(previous)SelectObject(dc,previous);
+                }
+            }
             if(!pick.empty()&&pick!="FIXPOINT"){
                 const bool marked=pick=="PAIR"?std::find(pair.begin(),pair.end(),cs)!=pair.end():pick=="LEADER"?m_plugin->m_leaderAircraft.count(cs)!=0:
                     (watches.count(m_plugin->m_pickWatch)&&watches.at(m_plugin->m_pickWatch).aircraft.count(cs)!=0);
@@ -6448,7 +6468,9 @@ public:
             if(nearest.empty())m_plugin->RadarNotice("No waypoint within 48 pixels. Click closer or press Esc.");
             else{
                 m_plugin->m_radarPick.clear();
-                m_plugin->HandleRadarToolsCommand(".FIXWATCH "+nearest+" "+Upper(Trim(m_plugin->m_cfg.radarWatchSetting)));
+                std::string error;
+                if(!std::regex_match(nearest,std::regex("[A-Z0-9]{1,12}"))||!m_plugin->LaunchSettingsApp(error,nearest))
+                    m_plugin->RadarNotice(error.empty()?"This waypoint name cannot be opened in FixWatch.":error);
             }
             RequestRefresh();return;
         }

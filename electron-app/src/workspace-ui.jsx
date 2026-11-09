@@ -170,6 +170,47 @@ function ThemeGallery(){
   const picker=document.getElementById('uiTheme');picker.value=id;picker.dispatchEvent(new Event('change'));
  }}><span className="workspace-theme-preview" style={{'--preview-bg':t.variables['--bg'],'--preview-panel':t.variables['--panel'],'--preview-accent':t.variables['--accent'],'--preview-header':t.variables['--header']}} aria-hidden="true"><i/><i/><i/></span><strong>{t.label}</strong><small>{t.layout}</small></button>)}</div>;
 }
+function FixWatchDialog(){
+ const api=window.preferredCyyzPdc,dialog=useRef(null);
+ const [request,setRequest]=useState(null),[scope,setScope]=useState('ALL'),[stars,setStars]=useState(''),[radius,setRadius]=useState('0'),[error,setError]=useState(''),[busy,setBusy]=useState(false);
+ useEffect(()=>{
+  let stopped=false,reading=false;
+  const read=async()=>{if(reading)return;reading=true;try{
+   const next=await api.takeFixWatch();
+   if(next&&!stopped){
+    setScope(document.getElementById('fixwatchScope')?.value||'ALL');
+    setStars(document.getElementById('fixwatchStars')?.value||'');
+    setRadius(document.getElementById('fixwatchRadius')?.value||'0');
+    setRequest(next);setError('');
+   }
+  }catch{}finally{reading=false;}};
+  read();const timer=setInterval(read,500);
+  return()=>{stopped=true;clearInterval(timer);};
+ },[]);
+ useEffect(()=>{if(request&&!dialog.current.open)dialog.current.showModal();else if(!request&&dialog.current.open)dialog.current.close();},[request]);
+ async function save(event){
+  event.preventDefault();if(!request||busy)return;
+  setBusy(true);setError('');
+  try{await api.applyFixWatch({fix:request.fix,scope,stars,radius});setRequest(current=>current===request?null:current);}
+  catch(e){setError(e.message);}
+  finally{setBusy(false);}
+ }
+ return <dialog ref={dialog} className="fixwatch-dialog" onCancel={e=>{e.preventDefault();if(!busy)setRequest(null);}}>
+  <form onSubmit={save}>
+   <p className="caption">Radar tools / FixWatch</p>
+   <h2>Watch {request?.fix}</h2>
+   <p>Choose which aircraft should display distance to this waypoint.</p>
+   <label htmlFor="fixwatch-dialog-scope">Aircraft</label>
+   <select id="fixwatch-dialog-scope" value={scope} onChange={e=>setScope(e.target.value)}><option value="ALL">All aircraft</option><option value="STAR">Specific arrival streams</option><option value="PICK">Pick aircraft on the radar</option></select>
+   {scope==='STAR'&&<><label htmlFor="fixwatch-dialog-stars">STAR names</label><input id="fixwatch-dialog-stars" value={stars} placeholder="LINNG3, NUBER6" required onChange={e=>setStars(e.target.value)}/></>}
+   <label htmlFor="fixwatch-dialog-radius">Entry alert radius (NM)</label>
+   <input id="fixwatch-dialog-radius" type="number" min="0" max="100" step="0.001" required value={radius} onChange={e=>setRadius(e.target.value)}/>
+   <p>Set to 0 for distance only. No radius ring is drawn.</p>
+   {error&&<p role="alert">{error}</p>}
+   <div className="buttons"><button type="submit" disabled={busy}>{busy?'Applying…':'Start watch'}</button><button type="button" disabled={busy} onClick={()=>setRequest(null)}>Cancel</button></div>
+  </form>
+ </dialog>;
+}
 window.ZYZPolicyCatalog=catalog;
 window.mountZYZWorkspace=()=>{
  const gallery=document.getElementById('reactThemeGallery');if(gallery)createRoot(gallery).render(<ThemeGallery/>);
@@ -195,6 +236,6 @@ window.mountZYZWorkspace=()=>{
   if(node.tagName==='TBODY')node=node.closest('.card');
   if(node)add(key,node,node.tagName!=='SECTION');
  }
- const root=document.createElement('div');document.body.append(root);createRoot(root).render(<Workspace surfaces={surfaces}/>);
+ const root=document.createElement('div');document.body.append(root);createRoot(root).render(<><Workspace surfaces={surfaces}/><FixWatchDialog/></>);
 };
 document.addEventListener('DOMContentLoaded',window.mountZYZWorkspace,{once:true});

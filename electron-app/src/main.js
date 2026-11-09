@@ -71,9 +71,16 @@ function ensureDiscordPresence(folder) {
   if (folder) discordPresence.folder = installDestination(folder);
   return discordPresence;
 }
+function fixWatchLaunch(args) {
+  const fix=args.find(a=>/^--fixwatch=[A-Z0-9]{1,12}$/i.test(a))?.split("=")[1]?.toUpperCase();
+  const index=args.indexOf("--plugin-dir"),folder=index>=0?args[index+1]:"";
+  if(!fix||!folder||!path.isAbsolute(folder)||!fs.existsSync(path.join(folder,"PreferredCYYZPdcPlugin.dll")))return null;
+  return {fix,folder};
+}
+let pendingFixWatch=fixWatchLaunch(process.argv),activeFixWatch=null;
 const ownsInstance = app.requestSingleInstanceLock();
 if (!ownsInstance) app.quit();
-else app.on('second-instance', () => { mainWindow?.show(); mainWindow?.focus(); });
+else app.on('second-instance', (_event,args) => { pendingFixWatch=fixWatchLaunch(args)||pendingFixWatch; mainWindow?.show(); mainWindow?.focus(); });
 
 const FILES_TO_INSTALL = [
   ...['CZYZConflictAlert.ini','aircraft_wake.csv','parallel_approaches.txt','speed_restrictions.csv','wake_separation.csv','caution_chime.wav','urgent_alert.wav'].map(name=>({name,preserve:true})),
@@ -1251,6 +1258,21 @@ guarded("updates:installStaged", async (_event, tag) => {
 guarded("plugin:action", async (_event, folder, action, callsign) => {
   loadConfig(folder);
   return sendPluginAction(folder, action, callsign);
+});
+guarded("fixwatch:take", () => {
+  if(!pendingFixWatch)return null;
+  activeFixWatch=pendingFixWatch;pendingFixWatch=null;
+  return {fix:activeFixWatch.fix};
+});
+guarded("fixwatch:apply", async (_event, fields) => {
+  const current=activeFixWatch;
+  if(!current||current.fix!==fields?.fix)throw Error("Pick the waypoint again in EuroScope.");
+  const radius=Number(fields.radius),scope=String(fields.scope),stars=String(fields.stars||"").toUpperCase().replace(/\s+/g,"");
+  if(!Number.isFinite(radius)||radius<0||radius>100||!["ALL","PICK","STAR"].includes(scope)||
+     (scope==="STAR"&&!/^[A-Z][A-Z0-9]{1,9}(,[A-Z][A-Z0-9]{1,9})*$/.test(stars)))throw Error("Check the aircraft scope, STAR names and alert radius.");
+  await sendPluginAction(current.folder,"fixwatch",current.fix+" "+Number(radius.toFixed(3))+" "+scope+(scope==="STAR"?" "+stars:""));
+  if(activeFixWatch===current)activeFixWatch=null;
+  return {ok:true};
 });
 
 guarded("folder:browseParent", async (_event, currentPath) => {

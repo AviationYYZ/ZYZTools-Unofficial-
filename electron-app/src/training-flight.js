@@ -206,10 +206,18 @@ function guideRoute(a,fixes,geometry,move,runway){
    const inbound=a.groundTrack??a.heading,outbound=geometry(fix,next);
    const angle=Math.abs(delta(outbound.bearing,inbound));
    if(angle>5&&angle<135&&Math.abs(delta(g.bearing,inbound))<5&&Math.abs(a.bank||0)<3){
-    const lead=Math.min(turnLead(a.speed,angle),outbound.distance*.75);
-    if(g.distance<=lead&&g.distance>.08){
+    const lead=turnLead(a.speed,angle);
+    const groundScale=Math.max(1,(a.groundSpeed||a.speed)/a.speed);
+    if(g.distance<=Math.min(3.9,outbound.distance*.75,lead*groundScale+1.2)&&g.distance>.08){
+     const relative=p=>{const v=geometry(fix,p),r=delta(v.bearing,outbound.bearing)*rad;return {cross:v.distance*Math.sin(r),along:v.distance*Math.cos(r)};};
+     const here=relative(a),rollout=relative(rolloutPosition(a,courseHeading(a,outbound.bearing),0,move));
+     // Start only when a bank-limited turn would actually roll out onto
+     // the outbound centerline, accounting for wind and the inbound offset.
+     const tolerance=Math.max(.015,(a.groundSpeed||a.speed)/3600*.4);
+     if(Math.abs(rollout.cross)<=tolerance&&rollout.along>0&&rollout.along<outbound.distance*.75&&Math.abs(here.cross)>tolerance){
      a.explicitDirectFix=null;a.directGuidance=null;a.turnDirection=0;
      direct=false;directFlyBy=true;
+     }
     }
    }
   }

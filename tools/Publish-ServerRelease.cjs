@@ -20,7 +20,7 @@ app.whenReady().then(async()=>{
  if((await api('/user'))?.login?.toLowerCase()!=='aviationyyz')throw Error('Saved GitHub account is not AviationYYZ.');
  const root='/repos/'+repo;
  if(await api(root+'/releases/tags/'+tag))throw Error('A release already exists; refusing to replace it.');
- const draft=await api(root+'/releases','POST',{tag_name:tag,name:'ZYZTools Server '+version+(beta?' beta':''),body:beta?'Server-only beta. Anticipates the turn onto the filed outbound leg after a vector-to-direct rejoin. Install manually to test.':'Server-only stable release. Improves outbound STAR track capture after vector-to-direct and fixes the NUBER6 runway 23 branch at PENGO.',draft:true,prerelease:beta});
+ const draft=await api(root+'/releases','POST',{tag_name:tag,name:'ZYZTools Server '+version+(beta?' beta':''),body:'Server-only release. Predicts bank- and wind-aware rollout to improve STAR rejoin turns.'+(beta?' Install manually to test.':''),draft:true,prerelease:beta});
  const upload=new URL(draft.upload_url.replace(/\{.*$/,''));
  if(upload.origin!=='https://uploads.github.com')throw Error('Invalid upload endpoint.');
  upload.searchParams.set('name',name);
