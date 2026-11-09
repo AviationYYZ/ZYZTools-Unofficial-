@@ -1,5 +1,10 @@
 # ZYZTools radar tools
 
+### Toronto-area weather (simulation only)
+
+- `.wx` toggles precipitation. Use `.wx rain lightning` for observed precipitation and lightning density, `.wx vertical` for modeled 700 hPa vertical motion, `.wx all` to combine them, or `.wx off` to hide weather.
+- Data: Environment and Climate Change Canada MSC GeoMet. The 700 hPa layer is RDPS forecast pressure velocity: negative values indicate ascent and positive values indicate descent. It is not a live measurement of thunderstorm updrafts, downdrafts, wind shear or microbursts. Lightning density is aggregated, not individual strike positions. No shading does not mean safe conditions.
+
 In **Controller Tools → Calculators → EuroScope radar tools**, set the FixWatch aircraft scope, optional entry alert and leader-line length. In EuroScope, press **Ctrl+Shift+F** and click near a fix, VOR or NDB. Press **Ctrl+Shift+S** and click two aircraft for spacing. **Esc** cancels picking. The commands below still work.
 
 - `.calc` opens the calculator menu. Choose a calculator, enter the comma-separated values in the order displayed, then press Enter. Results appear in the menu. Use groundspeed for time/distance calculations.

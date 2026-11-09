@@ -14,6 +14,7 @@
 #include "TrainingPilotList.h"
 #include "TrainingPilotDropdown.h"
 #include "RadarTools.h"
+#include "WeatherOverlay.h"
 #include "DepartureAssignment.h"
 #include "ArrivalAssignment.h"
 #include "PdcTemplate.h"
@@ -2345,13 +2346,13 @@ public:
         if (!sCommandLine) return false;
         const std::string trainingCommand=Upper(CollapseWhitespace(Trim(sCommandLine)));
         if(HandleRadarToolsCommand(trainingCommand))return true;
-        if(trainingCommand==".AIRCRAFT"){
+        if(trainingCommand==".AIRCRAFT"||trainingCommand==".AIRCRAFT OVERLAY"){
             if(m_trainingCommands.PilotRosterContext().empty())DisplayUserMessage("ZYZTools","PILOT","Connect my EuroScope to your private instructor session before opening All Aircraft.",true,true,false,false,false);
             else {
                 RefreshPilotAircraftList(true);
-                m_pilotRosterVisible=true;
+                m_pilotRosterVisible=trainingCommand==".AIRCRAFT OVERLAY";
                 m_pilotRosterPage=0;
-                if(m_pilotAircraftList.IsValid())m_pilotAircraftList.ShowFpList(true);
+                if(m_pilotAircraftList.IsValid())m_pilotAircraftList.ShowFpList(!m_pilotRosterVisible);
                 const auto message=std::to_string(m_pilotListMembers.size())+" of "+std::to_string(m_trainingCommands.PilotRoster().size())+" active simulator flight plans available. Missing plans are requested automatically.";
                 DisplayUserMessage("ZYZTools","Aircraft list",message.c_str(),true,true,false,false,false);
             }
@@ -2568,7 +2569,7 @@ private:
             if(field=="HDG"&&value=="Enter custom heading..."){m_pilotEditCallsign=cs;m_pilotEditContext=context;m_pilotMenuField="HDG";OpenPopupEdit(area,FUNC_PILOT_EDIT,"");return;}
             if(field=="HDG"&&value=="Fly present heading"){SendPilotAction(cs,"HDG PRESENT");return;}
             if(field=="ADV"){
-                if(value=="Show All Aircraft list"){RefreshPilotAircraftList();m_pilotRosterVisible=true;m_pilotRosterPage=0;return;}
+                if(value=="Show All Aircraft list"){m_pilotRosterVisible=false;RefreshPilotAircraftList(true);return;}
                 if(value.rfind("Divert to runway ",0)==0){SendPilotAction(cs,"RWY "+value.substr(17));return;}
                 if(value.rfind("Preset ",0)==0){const auto start=value.rfind('(');if(start!=std::string::npos&&value.back()==')')SendPilotAction(cs,"IAS "+Upper(value.substr(start+1,value.size()-start-2)));return;}
                 m_pilotEditCallsign=cs;m_pilotEditContext=context;m_pilotMenuArea=area;
@@ -2641,6 +2642,7 @@ private:
     }
     bool m_radarToolsVisible=false,m_calcsVisible=false;
     int m_calcSelected=-1;
+    int m_weatherLayers=0;
     void RadarNotice(const std::string &text){DisplayUserMessage("ZYZTools","Radar tools",text.c_str(),true,true,false,false,false);}
     bool ResolveWatchFix(const std::string& name,CPosition& p){
         for(const int type:{SECTOR_ELEMENT_FIX,SECTOR_ELEMENT_VOR,SECTOR_ELEMENT_NDB})
@@ -2693,6 +2695,19 @@ private:
     }
     bool HandleRadarToolsCommand(const std::string& line){
         std::istringstream args(line);std::string verb;args>>verb;
+        if(verb==".WX"){
+            std::string layer;int mask=0;
+            while(args>>layer){
+                if(layer=="RAIN"||layer=="RADAR")mask|=WeatherOverlay::Rain;
+                else if(layer=="LIGHTNING")mask|=WeatherOverlay::Lightning;
+                else if(layer=="VERTICAL")mask|=WeatherOverlay::Vertical;
+                else if(layer=="ALL")mask|=7;
+                else if(layer=="OFF"){m_weatherLayers=0;return true;}
+                else{RadarNotice("Use .wx rain, lightning, vertical, all or off. Combine layers with spaces.");return true;}
+            }
+            m_weatherLayers=mask?mask:m_weatherLayers?0:WeatherOverlay::Rain;
+            return true;
+        }
         if(!verb.empty()&&verb!=".CALC"&&verb!=".RADARTOOLS"&&verb!=".SPACING"&&verb!=".LEADER"&&verb!=".FIXWATCH"&&verb!=".UI"&&verb!=".AIRCRAFT"&&verb!=".REPLAY"){
             if(verb==m_cfg.spacingShortcut)verb=".SPACING";
             else if(verb==m_cfg.leaderShortcut)verb=".LEADER";
@@ -6036,6 +6051,7 @@ private:
 
 class CSettingsScreen final : public CRadarScreen
 {
+    WeatherOverlay::Overlay m_weatherOverlay;
 public:
     explicit CSettingsScreen(CZYZToolsPlugin *plugin) : m_plugin(plugin) {
         if (m_plugin->m_conflict) m_plugin->m_conflict->screens.insert(this);
@@ -6049,6 +6065,11 @@ public:
 
     void OnRefresh(HDC hDC, int Phase) override
     {
+        if(m_plugin&&Phase==REFRESH_PHASE_BEFORE_TAGS&&m_plugin->m_weatherLayers){
+            m_weatherOverlay.Draw(hDC,GetRadarArea(),m_plugin->m_weatherLayers,[this](double lat,double lon){
+                CPosition p;p.m_Latitude=lat;p.m_Longitude=lon;return ConvertCoordFromPositionToPixel(p);
+            });
+        }
         if (!m_plugin || Phase != REFRESH_PHASE_AFTER_LISTS)
             return;
         m_plugin->EnsureRadarKeyHook();
