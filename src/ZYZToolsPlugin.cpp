@@ -91,6 +91,7 @@ namespace
     constexpr int SCREEN_OBJECT_ROSTER_CELL = 9304;
     constexpr int SCREEN_OBJECT_RADAR_TOOLS = 9320;
     constexpr int SCREEN_OBJECT_RADAR_PICK = 9321;
+    constexpr int SCREEN_OBJECT_FIXWATCH_POINT = 9322;
     constexpr int TAG_WATCH_DISTANCE = 9760;
     constexpr int FUNC_RADAR_CALC = 9770;
     constexpr int FUNC_RADAR_WATCH = 9780;
@@ -2017,6 +2018,8 @@ public:
 
     ~CZYZToolsPlugin() override
     {
+        if(m_radarKeyHook)UnhookWindowsHookEx(m_radarKeyHook);
+        if(s_radarKeyPlugin==this)s_radarKeyPlugin=nullptr;
         m_conflict.reset();
         DeleteFileA((GetThisDllDir() + "DiscordPresence.json").c_str());
         EndStatisticsSession("plugin unload");
@@ -2612,6 +2615,30 @@ private:
     std::string m_radarPick,m_pickWatch,m_calcResult;
     double m_leaderMinutes=0;
     std::string m_leaderMode="SEL";
+    HHOOK m_radarKeyHook=nullptr;
+    inline static CZYZToolsPlugin* s_radarKeyPlugin=nullptr;
+    static LRESULT CALLBACK RadarKeyHook(int code,WPARAM remove,LPARAM data){
+        auto* plugin=s_radarKeyPlugin;
+        if(code>=0&&remove==PM_REMOVE&&plugin&&data){
+            auto* msg=reinterpret_cast<MSG*>(data);
+            const bool down=msg->message==WM_KEYDOWN&&!(msg->lParam&(1LL<<30));
+            const bool chord=(GetKeyState(VK_CONTROL)&0x8000)&&(GetKeyState(VK_SHIFT)&0x8000)&&!(GetKeyState(VK_MENU)&0x8000);
+            if(down&&((chord&&(msg->wParam=='F'||msg->wParam=='S'))||
+                (msg->wParam==VK_ESCAPE&&(plugin->m_radarPick=="FIXPOINT"||plugin->m_radarPick=="PAIR")))){
+                if(msg->wParam=='F')plugin->m_radarPick="FIXPOINT";
+                else if(msg->wParam=='S'){plugin->m_spacingPair.clear();plugin->m_radarPick="PAIR";}
+                else plugin->m_radarPick.clear();
+                if(msg->hwnd)InvalidateRect(GetAncestor(msg->hwnd,GA_ROOT),nullptr,FALSE);
+                msg->message=WM_NULL;
+            }
+        }
+        return CallNextHookEx(nullptr,code,remove,data);
+    }
+    void EnsureRadarKeyHook(){
+        if(m_radarKeyHook)return;
+        s_radarKeyPlugin=this;
+        m_radarKeyHook=SetWindowsHookExW(WH_GETMESSAGE,RadarKeyHook,nullptr,GetCurrentThreadId());
+    }
     bool m_radarToolsVisible=false,m_calcsVisible=false;
     int m_calcSelected=-1;
     void RadarNotice(const std::string &text){DisplayUserMessage("ZYZTools","Radar tools",text.c_str(),true,true,false,false,false);}
@@ -2772,6 +2799,7 @@ private:
         std::string audioReplayFolder = "Recordings";
         std::string audioReplaySaveCommand = "replay save";
         std::string spacingShortcut,leaderShortcut,fixwatchShortcut;
+        std::string radarLeaderSetting="OFF",radarWatchSetting="ALL";
         std::string trackAudioVersion = "auto";
         std::string settingsAppPath;
 
@@ -5696,6 +5724,8 @@ private:
             << "  \"radar_spacing_shortcut\": \"" << JsonEscape(m_cfg.spacingShortcut) << "\",\n"
             << "  \"radar_leader_shortcut\": \"" << JsonEscape(m_cfg.leaderShortcut) << "\",\n"
             << "  \"radar_fixwatch_shortcut\": \"" << JsonEscape(m_cfg.fixwatchShortcut) << "\",\n"
+            << "  \"radar_leader_setting\": \"" << JsonEscape(m_cfg.radarLeaderSetting) << "\",\n"
+            << "  \"radar_watch_setting\": \"" << JsonEscape(m_cfg.radarWatchSetting) << "\",\n"
             << "  \"trackaudio_version\": \"" << JsonEscape(m_cfg.trackAudioVersion) << "\",\n"
             << "  \"settings_app_path\": \"" << JsonEscape(m_cfg.settingsAppPath) << "\",\n"
             << "  \"test_mode\": " << (m_cfg.testMode ? 1 : 0) << ",\n"
@@ -5805,6 +5835,13 @@ private:
         JsonStringValue(json, "hoppie_logon_code", m_cfg.logonCode);
         JsonStringValue(json, "station_code", m_cfg.stationCode);
         m_cfg.pdcTemplateBridge.clear(); m_cfg.pdcTemplateHoppie.clear();
+        {
+            size_t pos=0;m_cfg.radarLeaderSetting="OFF";m_cfg.radarWatchSetting="ALL";
+            if(FindJsonValueStart(json,"radar_leader_setting",pos))ParseJsonStringAt(json,pos,m_cfg.radarLeaderSetting);
+            if(FindJsonValueStart(json,"radar_watch_setting",pos))ParseJsonStringAt(json,pos,m_cfg.radarWatchSetting);
+            const auto leader=Upper(Trim(m_cfg.radarLeaderSetting));
+            if(std::regex_match(leader,std::regex("OFF|([0-9](\\.[05])?|10(\\.0)?) (ALL|SEL)")))HandleRadarToolsCommand(".LEADER "+leader);
+        }
         for(const auto& alias : {std::pair{"radar_spacing_shortcut",&m_cfg.spacingShortcut},std::pair{"radar_leader_shortcut",&m_cfg.leaderShortcut},std::pair{"radar_fixwatch_shortcut",&m_cfg.fixwatchShortcut}}){
             auto& value=*alias.second;value.clear();size_t pos=0;
             if(FindJsonValueStart(json,alias.first,pos))ParseJsonStringAt(json,pos,value);
@@ -6014,6 +6051,7 @@ public:
     {
         if (!m_plugin || Phase != REFRESH_PHASE_AFTER_LISTS)
             return;
+        m_plugin->EnsureRadarKeyHook();
         RefreshTheme();
         DrawTrainingPrediction(hDC);
         DrawConflictPoints(hDC);
@@ -6152,7 +6190,7 @@ public:
         const auto& pick=m_plugin->m_radarPick;
         const double minutes=m_plugin->m_leaderMinutes;
         const bool tools=m_plugin->m_radarToolsVisible,calc=m_plugin->m_calcsVisible;
-        if(!minutes&&watches.empty()&&pair.empty()&&!tools&&!calc)return;
+        if(!minutes&&watches.empty()&&pair.empty()&&pick.empty()&&!tools&&!calc)return;
         const RECT radar=GetRadarArea();const int save=SaveDC(dc);if(!save)return;
         IntersectClipRect(dc,radar.left,radar.top,radar.right,radar.bottom);
         SelectObject(dc,GetStockObject(ANSI_FIXED_FONT));SelectObject(dc,GetStockObject(DC_PEN));
@@ -6161,6 +6199,10 @@ public:
         const auto label=[&](int x,int y,const std::string& s){TextOutA(dc,x,y,s.c_str(),static_cast<int>(s.size()));};
         const auto point=[&](const TrainingPrediction::Point& q){CPosition p;p.m_Latitude=q.lat;p.m_Longitude=q.lon;return ConvertCoordFromPositionToPixel(p);};
         const auto inside=[&](POINT p){return PtInRect(&radar,p)!=0;};
+        if(pick=="FIXPOINT"){
+            AddScreenObject(SCREEN_OBJECT_FIXWATCH_POINT,"FIXPOINT",radar,false,"Click near a waypoint; Esc cancels");
+            label(radar.left+12,radar.top+38,"FIXWATCH: click near a waypoint (Esc cancels)");
+        }else if(pick=="PAIR")label(radar.left+12,radar.top+38,"SPACING: click two aircraft (Esc cancels)");
         for(const auto& w:watches){
             const auto p=ConvertCoordFromPositionToPixel(w.second.position);
             if(inside(p)){
@@ -6184,7 +6226,7 @@ public:
                 }
                 SetDCPenColor(dc,previousPenColor);
             }
-            if(!pick.empty()){
+            if(!pick.empty()&&pick!="FIXPOINT"){
                 const bool marked=pick=="PAIR"?std::find(pair.begin(),pair.end(),cs)!=pair.end():pick=="LEADER"?m_plugin->m_leaderAircraft.count(cs)!=0:
                     (watches.count(m_plugin->m_pickWatch)&&watches.at(m_plugin->m_pickWatch).aircraft.count(cs)!=0);
                 RECT hit{px.x-8,px.y-8,px.x+8,px.y+8};Rectangle(dc,hit.left,hit.top,hit.right,hit.bottom);
@@ -6373,6 +6415,22 @@ public:
 
     void OnClickScreenObject(int ObjectType, const char *sObjectId, POINT Pt, RECT Area, int Button) override
     {
+        if(m_plugin&&ObjectType==SCREEN_OBJECT_FIXWATCH_POINT&&Button==BUTTON_LEFT&&m_plugin->m_radarPick=="FIXPOINT"){
+            std::string nearest;double best=48.0*48.0;
+            for(const int type:{SECTOR_ELEMENT_FIX,SECTOR_ELEMENT_VOR,SECTOR_ELEMENT_NDB})
+                for(auto e=m_plugin->SectorFileElementSelectFirst(type);e.IsValid();e=m_plugin->SectorFileElementSelectNext(e,type)){
+                    CPosition position;if(!e.GetName()||!*e.GetName()||!e.GetPosition(&position,0))continue;
+                    const auto pixel=ConvertCoordFromPositionToPixel(position);
+                    const double dx=double(pixel.x)-Pt.x,dy=double(pixel.y)-Pt.y,d=dx*dx+dy*dy;
+                    if(d<best){best=d;nearest=Upper(e.GetName());}
+                }
+            if(nearest.empty())m_plugin->RadarNotice("No waypoint within 48 pixels. Click closer or press Esc.");
+            else{
+                m_plugin->m_radarPick.clear();
+                m_plugin->HandleRadarToolsCommand(".FIXWATCH "+nearest+" "+Upper(Trim(m_plugin->m_cfg.radarWatchSetting)));
+            }
+            RequestRefresh();return;
+        }
         if(m_plugin&&sObjectId&&Button==BUTTON_LEFT&&ObjectType==SCREEN_OBJECT_RADAR_PICK){
             m_plugin->PickRadarAircraft(sObjectId);RequestRefresh();return;
         }

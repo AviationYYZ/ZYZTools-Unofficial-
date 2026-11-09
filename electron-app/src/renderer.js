@@ -176,6 +176,10 @@ function formToConfig() {
     const alias=$(tool+"Shortcut").value.trim().toLowerCase();
     next["radar_"+tool+"_shortcut"]=/^\.[a-z][a-z0-9]{0,15}$/.test(alias)?alias:"";
   }
+  const leaderMode=$("leaderMode").value,leaderMinutes=Number($("leaderMinutes").value);
+  next.radar_leader_setting=leaderMode!=="OFF"&&leaderMinutes>=.5&&leaderMinutes<=10&&Number.isInteger(leaderMinutes*2)?leaderMinutes+" "+leaderMode:"OFF";
+  const scope=$("fixwatchScope").value,stars=$("fixwatchStars").value.toUpperCase().replace(/\s+/g,""),radius=Number($("fixwatchRadius").value);
+  next.radar_watch_setting=(radius>0&&radius<=100?radius+" ":"")+(scope==="STAR"&&/^[A-Z][A-Z0-9]{1,9}(,[A-Z][A-Z0-9]{1,9})*$/.test(stars)?"STAR "+stars:scope==="PICK"?"PICK":"ALL");
   next.trackaudio_version = $("trackAudioVersion").value;
   next.test_mode = boolInt("testMode");
   next.debug_mode = boolInt("debugMode");
@@ -216,6 +220,10 @@ function configToForm(next) {
   $("recordingsFolder").value = config.audio_replay_folder || "Recordings";
   $("saveCommand").value = String(config.audio_replay_save_command || "replay save").replace(/^\.+/, "");
   for (const tool of ["spacing","leader","fixwatch"]) $(tool+"Shortcut").value=config["radar_"+tool+"_shortcut"]||"";
+  const leader=String(config.radar_leader_setting||"OFF").match(/^([\d.]+) (SEL|ALL)$/i);
+  $("leaderMinutes").value=leader?.[1]||"0.5";$("leaderMode").value=leader?.[2].toUpperCase()||"OFF";
+  const watch=String(config.radar_watch_setting||"ALL").match(/^(?:([\d.]+) )?(ALL|PICK|STAR)(?: (.*))?$/i);
+  $("fixwatchRadius").value=watch?.[1]||"0";$("fixwatchScope").value=watch?.[2].toUpperCase()||"ALL";$("fixwatchStars").value=watch?.[3]||"";
   $("trackAudioVersion").value = config.trackaudio_version || "auto";
   setBool("testMode", config.test_mode);
   setBool("debugMode", config.debug_mode);
@@ -645,10 +653,12 @@ async function checkUpdates(background = false) {
 $("checkUpdatesBtn").addEventListener('click', () => checkUpdates());
 window.ZYZCalculators?.mount($('controllerCalculators'));
 $("saveRadarShortcutsBtn").addEventListener("click", () => {
+  if(!$("fixwatchRadius").checkValidity()||($("leaderMode").value!=="OFF"&&(!$("leaderMinutes").value||!$("leaderMinutes").checkValidity())))return setStatus("Check the alert radius and leader length.","error");
+  if($("fixwatchScope").value==="STAR"&&!/^[A-Z][A-Z0-9]{1,9}(,[A-Z][A-Z0-9]{1,9})*$/.test($("fixwatchStars").value.toUpperCase().replace(/\s+/g,"")))return setStatus("Enter one or more STAR names, separated by commas.","error");
   const aliases=["spacing","leader","fixwatch"].map(tool=>$(tool+"Shortcut").value.trim().toLowerCase()).filter(Boolean);
   if(aliases.some(alias=>!/^\.[a-z][a-z0-9]{0,15}$/.test(alias)))return setStatus("Use a dot followed by a letter, then up to 15 letters or digits.", "error");
   if(new Set(aliases).size!==aliases.length||aliases.some(alias=>[".ui",".calc",".radartools",".spacing",".leader",".fixwatch",".aircraft",".replay"].includes(alias)))return setStatus("Choose a different, unused shortcut for each tool.", "error");
-  saveConfig("Radar shortcuts saved.").catch(error=>setStatus(error.message,"error"));
+  saveConfig("Radar tools saved.").catch(error=>setStatus(error.message,"error"));
 });
 let releaseHistoryGeneration=0;
 function clearReleaseHistory(){

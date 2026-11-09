@@ -435,12 +435,18 @@
       <section id="calculators">
         <p>Quick planning estimates. These calculators don't issue instructions or determine separation. Use the same direction reference for wind and runway inputs.</p>
         <div id="controllerCalculators" class="calculator-grid"></div>
-        <fieldset><legend>EuroScope radar shortcuts</legend>
+        <fieldset><legend>EuroScope radar tools</legend>
+          <p><kbd>Ctrl+Shift+F</kbd>: click near a waypoint for FixWatch. <kbd>Ctrl+Shift+S</kbd>: click two aircraft for spacing. <kbd>Esc</kbd> cancels picking.</p>
+          <label for="fixwatchScope">FixWatch aircraft</label><select id="fixwatchScope"><option value="ALL">All aircraft</option><option value="PICK">Pick aircraft</option><option value="STAR">Selected STARs</option></select>
+          <label for="fixwatchStars">STAR names (comma-separated)</label><input id="fixwatchStars" placeholder="LINNG3,NUBER6">
+          <label for="fixwatchRadius">Entry alert (NM; 0 turns alerts off)</label><input id="fixwatchRadius" type="number" min="0" max="100" step="any" value="0">
+          <label for="leaderMode">Yellow leader lines</label><select id="leaderMode"><option value="OFF">Off</option><option value="SEL">Selected aircraft</option><option value="ALL">All aircraft</option></select>
+          <label for="leaderMinutes">Leader length (minutes)</label><input id="leaderMinutes" type="number" min="0.5" max="10" step="0.5" value="0.5">
           <p>Optional command aliases. Use a dot followed by letters or numbers, such as .pair. Save and apply your plugin settings.</p>
           <label for="spacingShortcut">Spacing pair (.spacing)</label><input id="spacingShortcut" maxlength="17" placeholder=".pair">
           <label for="leaderShortcut">Leader lines (.leader)</label><input id="leaderShortcut" maxlength="17" placeholder=".ll">
           <label for="fixwatchShortcut">Waypoint watch (.fixwatch)</label><input id="fixwatchShortcut" maxlength="17" placeholder=".fw">
-          <div class="buttons"><button id="saveRadarShortcutsBtn">Save shortcuts</button></div>
+          <div class="buttons"><button id="saveRadarShortcutsBtn">Save radar tools</button></div>
         </fieldset>
       </section>
       <section id="operations">
