@@ -1,6 +1,6 @@
 {
  "name":"zyztools-server",
- "version":"2.0.25",
+ "version":"2.0.26",
  "description":"Six isolated local ZYZTools sweatbox servers",
  "author":"Charlie Yablon and Elliot Potts",
  "main":"src/main.cjs",

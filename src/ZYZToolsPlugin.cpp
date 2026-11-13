@@ -13,6 +13,7 @@
 #include "TrainingPilotTagDraw.h"
 #include "TrainingPilotList.h"
 #include "TrainingPilotDropdown.h"
+#include "TrainingHoldDialog.h"
 #include "RadarTools.h"
 #include "WeatherOverlay.h"
 #include "DepartureAssignment.h"
@@ -96,7 +97,6 @@ namespace
     constexpr int TAG_WATCH_DISTANCE = 9760;
     constexpr int FUNC_RADAR_CALC = 9770;
     constexpr int FUNC_RADAR_WATCH = 9780;
-    constexpr int FUNC_HOLD_EDIT = 9781;
     constexpr int FUNC_PILOT_EDIT = 9700;
     constexpr int FUNC_PILOT_LIST_FIRST = 9710;
     constexpr int FUNC_PILOT_LIST_LAST = 9715;
@@ -2131,11 +2131,6 @@ public:
 
     void OnFunctionCall(int FunctionId, const char *sItemString, POINT, RECT Area) override
     {
-        if(FunctionId==FUNC_HOLD_EDIT){
-            const auto value=Upper(Trim(sItemString?sItemString:""));
-            if(m_holdEdit<m_holdFields.size()&&!value.empty()&&value.size()<=16&&std::regex_match(value,std::regex("[A-Z0-9_.-]+")))m_holdFields[m_holdEdit]=value;
-            ShowHoldMenu();return;
-        }
         if(RadarToolsEdit(FunctionId,sItemString))return;
         if(FunctionId>=FUNC_PILOT_LIST_FIRST&&FunctionId<=FUNC_PILOT_LIST_LAST){
             const auto fp=FlightPlanSelectASEL();
@@ -2352,13 +2347,13 @@ public:
     {
         if (!sCommandLine) return false;
         const std::string trainingCommand=Upper(CollapseWhitespace(Trim(sCommandLine)));
-        if(trainingCommand==".HOLD"||trainingCommand.rfind(".HOLD ",0)==0){
-            const auto cs=trainingCommand.size()>6?trainingCommand.substr(6):"";
+        if(trainingCommand==".ZHOLD"||trainingCommand.rfind(".ZHOLD ",0)==0){
+            const auto cs=trainingCommand.size()>7?trainingCommand.substr(7):"";
             const auto context=m_trainingCommands.PilotContext(cs);
-            if(GetConnectionType()!=CONNECTION_TYPE_DIRECT||context.empty()){RadarNotice("Use .hold ACID for an active aircraft in a verified Sweatbox instructor session.");return true;}
-            m_holdCallsign=cs;m_holdContext=context;m_holdDme=false;
-            m_holdFields={"","N","180","R","1","","",""};
-            ShowHoldMenu();return true;
+            if(GetConnectionType()!=CONNECTION_TYPE_DIRECT||context.empty()){RadarNotice("Use .zhold ACID for an active aircraft in a verified Sweatbox instructor session.");return true;}
+            const auto command=TrainingHoldDialog::Open(GetForegroundWindow(),cs);
+            if(!command.empty()&&m_trainingCommands.PilotContext(cs)==context)SendPilotAction(cs,command);
+            return true;
         }
         if(HandleRadarToolsCommand(trainingCommand))return true;
         if(trainingCommand==".AIRCRAFT"||trainingCommand==".AIRCRAFT OVERLAY"){
@@ -2606,37 +2601,6 @@ private:
     }
     ULONGLONG m_pilotFeedbackUntil=0;
     void SendPilotAction(const std::string &cs,const std::string &command){const auto self=ControllerMyself();if(GetConnectionType()!=CONNECTION_TYPE_DIRECT||!self.IsValid()||m_trainingCommands.PilotContext(cs).empty())return;const auto message=m_trainingCommands.Command(cs,self.GetCallsign(),command);m_pilotFeedback=cs+": "+command;m_pilotFeedbackUntil=GetTickCount64()+3000;if(!message.empty())DisplayUserMessage("ZYZTools","PILOT",message.c_str(),true,true,false,false,false);}
-    std::string m_holdCallsign,m_holdContext;
-    bool m_holdDme=false;
-    size_t m_holdEdit=0;
-    std::vector<std::string> m_holdFields;
-    void ShowHoldMenu(){
-        if(m_holdContext.empty()||m_trainingCommands.PilotContext(m_holdCallsign)!=m_holdContext)return;
-        const std::string labels[]={m_holdDme?"VOR/DME":"Waypoint","Quadrant (N/NE/E/SE/S/SW/W/NW)","Inbound course (magnetic)","Turns (L/R)","Leg time (min)","Radial (magnetic)","Fix DME (first limit)","Outbound DME (second limit)"};
-        const std::string mode=std::string("Mode: ")+(m_holdDme?"VOR/DME":"Timed");
-        std::vector<std::string> menu={m_holdCallsign+" - Hold editor",mode};
-        for(size_t i=0;i<m_holdFields.size();++i)if(i<4||(m_holdDme?i>=5:i==4))menu.push_back(labels[i]+": "+(m_holdFields[i].empty()?"(enter value)":m_holdFields[i]));
-        menu.insert(menu.end(),{"Issue hold","Exit at fix","Cancel active hold","Close"});
-        m_pilotDropdown.Open(menu,"",[this,mode,labels](std::string choice){
-            if(m_trainingCommands.PilotContext(m_holdCallsign)!=m_holdContext)return;
-            if(choice==mode){m_holdDme=!m_holdDme;m_holdFields[0].clear();ShowHoldMenu();return;}
-            if(choice=="Exit at fix"||choice=="Cancel active hold"){SendPilotAction(m_holdCallsign,choice=="Exit at fix"?"HOLD EXIT":"HOLD CANCEL");return;}
-            if(choice=="Issue hold"){
-                std::string command=m_holdDme?"HOLD DME":"HOLD TIME";
-                for(size_t i=0;i<m_holdFields.size();++i)if(i<4||(m_holdDme?i>=5:i==4)){
-                    if(m_holdFields[i].empty()){RadarNotice("Enter "+labels[i]+" before issuing the hold.");ShowHoldMenu();return;}
-                    command+=" "+m_holdFields[i];
-                }
-                SendPilotAction(m_holdCallsign,command);return;
-            }
-            for(size_t i=0;i<m_holdFields.size();++i)if(choice.rfind(labels[i]+": ",0)==0){
-                m_holdEdit=i;POINT point{};GetCursorPos(&point);
-                RECT area{point.x,point.y,point.x+220,point.y+24};
-                if(auto hwnd=GetForegroundWindow()){POINT origin{0,0};ClientToScreen(hwnd,&origin);OffsetRect(&area,-origin.x,-origin.y);}
-                OpenPopupEdit(area,FUNC_HOLD_EDIT,m_holdFields[i].c_str());return;
-            }
-        });
-    }
     CTrainingCommandBridge m_trainingCommands;
     CFlightPlanList m_pilotAircraftList;
     struct WaypointWatch{
