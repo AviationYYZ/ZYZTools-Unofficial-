@@ -324,15 +324,14 @@ function publishedIAS(a,rules,fixes,geometry,runways=[]){
  if(a.landed||a.baseIAS===0&&a.speed===0){a.speedNotice='Stationary aircraft';return 0;}
  const phase=a.targetAltitude>a.altitude+100?'climb':a.targetAltitude<a.altitude-100||a.initialDescent||a.arrivalRunway?'descent':'cruise';
  const model=performance.profile(a,phase,tasToIas);
- const group=jetProfile.select(a,a.aircraftSpeedProfiles,performance.isJet(a));
- if(group){
+ if(performance.isJet(a)){
   // User's simplified IAS schedule; the lower band owns exactly 8,100 feet.
   // Carry each band through gaps; above 15,000 retain the 270-knot default.
   const onApproach=!!a.approachState&&a.approachState!=='off';
   const reference=onApproach?a.altitude:Number.isFinite(a.targetAltitude)?a.targetAltitude:a.altitude;
-  const target=jetProfile.target(group==='jet'?a.jetSpeedProfile:a.aircraftSpeedProfiles[group],reference);
+  const target=jetProfile.target(a.jetSpeedProfile,reference);
   a.speedProfileAltitude=reference;a.speedProfileBasis=onApproach?'current altitude (approach cleared)':'assigned altitude';
-  a.speedPhase=group+' '+a.speedProfileBasis+' band';a.performanceSource='ZYZTools '+group+' training profile';a.trainingFinalIAS=group==='jet'?136:model.finalIAS;
+  a.speedPhase='jet '+a.speedProfileBasis+' band';a.performanceSource='ZYZTools jet training profile';a.trainingFinalIAS=136;
   a.speedNotice=a.performanceSource+' | '+target+' IAS | '+a.speedProfileBasis+' '+Math.round(reference)+' ft';return target;
  }
  let target=Math.min(a.altitude>10000?270:250,model.ias);a.speedPhase=phase;a.performanceSource=model.source;a.trainingFinalIAS=model.finalIAS;
@@ -380,4 +379,4 @@ function publishedIAS(a,rules,fixes,geometry,runways=[]){
  a.speedNotice=model.source+' | '+a.speedPhase+' | '+target+' IAS'+(a.speedPhase==='final'?' (training final target)':'')+(!runway?' | no runway geometry: approach schedule unavailable':'');
  return target;
 }
-module.exports={machToTas,iasToTas,tasToIas,turnRate,turnRadius,turnError,turnMotion,turnLead,rolloutPosition,legHeading,guideDirect,guideRoute,guideApproach,initialVerticalGuidance,normalizeSpeedRules,publishedIAS};
+module.exports={machToTas,iasToTas,tasToIas,turnRate,turnRadius,turnError,turnMotion,turnLead,guideDirect,guideRoute,guideApproach,initialVerticalGuidance,normalizeSpeedRules,publishedIAS};

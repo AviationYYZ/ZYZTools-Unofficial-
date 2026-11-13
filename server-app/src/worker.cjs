@@ -48,14 +48,14 @@ process.on('disconnect',shutdown);process.on('SIGTERM',shutdown);process.on('SIG
 process.on('message',m=>{operation=operation.then(async()=>{
  try{
   if(m.action==='start'){
-   training.load({...JSON.parse(fs.readFileSync(path.join(folder,'scenario.json'),'utf8')),jetSpeedProfile:engine('training-jet-profile').normalize(m.jetSpeedProfile),aircraftSpeedProfiles:m.aircraftSpeedProfiles});training.updateRate(m.positionUpdateHz??0.2);await training.start(16800+slot);
+   training.load({...JSON.parse(fs.readFileSync(path.join(folder,'scenario.json'),'utf8')),jetSpeedProfile:engine('training-jet-profile').normalize(m.jetSpeedProfile)});training.updateRate(m.positionUpdateHz??0.2);await training.start(16800+slot);
    try{await shared.start();}catch(e){training.stop();throw e;}
    if(m.run)training.run();await network();
   }else if(m.action==='pause')training.pause();
   else if(m.action==='run')training.run();
   else if(m.action==='reset'){training.reset();instructorJournal.length=0;}
   else if(m.action==='updateRate')training.updateRate(m.hz);
-  else if(m.action==='speedProfile')training.speedProfile(m.profile,m.group);
+  else if(m.action==='speedProfile')training.speedProfile(m.profile);
   else if(m.action==='instructor'){
    if(m.operation==='snapshot'){send({id:m.id,result:instructorSnapshot()});return;}
    if(m.sessionId!==training.sessionId)throw Error('Scenario changed. Refresh the aircraft dashboard.');

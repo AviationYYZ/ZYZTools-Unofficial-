@@ -86,7 +86,7 @@ class InstructorHub{
   }catch(e){if(!res.destroyed&&!res.headersSent)this.reply(res,400,{error:e.message||'Instructor request failed.'});}
  }
  async apply(v){const id=v.slot,p=v.payload||{};
-  if(v.action==='speedProfile')return this.manager.speedProfile(id,p.profile,p.group);
+  if(v.action==='speedProfile')return this.manager.speedProfile(id,p.profile);
   if(v.action==='updateRate'){if(Object.keys(p).some(k=>k!=='hz'))throw Error('Invalid position update setting.');return this.manager.updateRate(id,p.hz);}
   if(v.action==='studentInvite')return {invite:await this.manager.call(id,'invite')};
   if(['command','amend','initialOwner'].includes(v.action)){

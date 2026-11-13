@@ -1020,7 +1020,7 @@ guarded('training:action',async(_event,action,value)=>{
   if(['routePreview','speedRules'].includes(action))appPolicy?.assert('scenarioBuilder');
   if(action==='status')return localTraining.status();
   if(action==='updateRate')return localTraining.updateRate(value);
-  if(action==='speedProfile')return localTraining.speedProfile(value.profile,value.group);
+  if(action==='speedProfile')return localTraining.speedProfile(value.profile);
   if(action==='load')return localTraining.load(prepareTraining(value));
   if(action==='start')return localTraining.start(6809);
   if(action==='demo')return localTraining.load(require('./training-demo.json'));

@@ -1,7 +1,7 @@
 (() => {
  const api=window.preferredCyyzPdc,$=id=>document.getElementById(id),ns='http://www.w3.org/2000/svg';
  let current=null,draft={format:'ZYZTools-training',version:1,name:'New scenario',waypoints:[],aircraft:[]},edit=-1,busy=false,liveCallsign=null;
- const profileEditor=new window.ZYZAircraftSpeedProfiles('trainingSpeedProfile',async (profile,group)=>{const state=await api.training('speedProfile',{profile,group});draw(state);message('Speed profile applied to local practice.');});
+ const profileEditor=new window.ZYZSpeedProfileEditor('trainingSpeedProfile',async profile=>{const state=await api.training('speedProfile',{profile});draft={...draft,jetSpeedProfile:state.scenario.jetSpeedProfile};draw(state);message('Automatic jet profile applied to this scenario. Export to keep it.');});
  let sector={fixes:[],lines:[]},centre={lat:43.8,lon:-79.65},span=2.6,sectorLoaded=false,rotation=0;
  const fields=['callsign','type','lat','lon','altitude','speed','heading','rate','origin','destination','squawk','spawnTime','squawkMode','flightRules','wake','equipment','departureTime','actualDepartureTime','cruiseAltitude','cruiseSpeed','enrouteHours','enrouteMinutes','fuelHours','fuelMinutes','alternate','remarks','flightPlanRoute','arrivalRunway','category'];
  let routePreview={route:'',waypoints:[]},previewSequence=0,previewTimer=null,editorDirty=false,editorMetadata={};
@@ -25,7 +25,7 @@
   liveCallsign=live?a.callsign:null;$('training_callsign').readOnly=live;centre={lat:a.lat,lon:a.lon};editorDirty=false;renderMap();preview();
  }
  function draw(state){
-  profileEditor.set(state.scenario.jetSpeedProfile,state.sessionId,state.scenario.aircraftSpeedProfiles);
+  profileEditor.set(state.scenario.jetSpeedProfile,state.sessionId);
   current=state;$('trainingAddress').value=state.host||'127.0.0.1';
   if(document.activeElement!==$('trainingUpdateRate'))$('trainingUpdateRate').value=String(state.positionUpdateHz??0.2);
   const active=state.aircraft.filter(a=>a.active!==false);

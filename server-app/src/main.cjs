@@ -36,7 +36,7 @@ else{
    if(action==='startup'){if(typeof value!=='boolean')throw Error('Invalid startup setting.');app.setLoginItemSettings({openAtLogin:value});manager.config.startup=value;manager.save();return manager.status();}
    if(action==='configure')return manager.configure(id,value||{});
    if(action==='updateRate')return manager.updateRate(id,value);
-   if(action==='speedProfile')return manager.speedProfile(id,Array.isArray(value)?value:value?.profile,value?.group);
+   if(action==='speedProfile')return manager.speedProfile(id,value);
    if(action==='import'){
     const result=await dialog.showOpenDialog(window,{title:'Import compiled ZYZTools scenario',filters:[{name:'ZYZTools scenario',extensions:['json']}],properties:['openFile']});
     if(!result.canceled){const file=result.filePaths[0];if(fs.statSync(file).size>4*1024*1024)throw Error('Scenario exceeds 4 MB.');manager.import(id,JSON.parse(fs.readFileSync(file,'utf8')));}return manager.status();

@@ -31,11 +31,6 @@ function guide(a,dt,geometry,move){
  const heading=c=>weather.crab(wrap(c),a.speed,a.wind);
  const go=(c,side=0)=>{a.targetHeading=heading(c);a.turnDirection=side;};
  const fix=geometry(a,h.fix);
- const relative=p=>{
-  const g=geometry(h.fix,p),angle=delta(g.bearing,h.outbound)*rad;
-  return {cross:g.distance*Math.sin(angle),along:g.distance*Math.cos(angle)};
- };
- const {cross,along}=relative(a);
  if(h.phase==='entry'){
   if(fix.distance>.08){flight.guideDirect(a,{...h.fix,name:h.id},fix,geometry,move);return;}
   a.directGuidance=null;
@@ -53,31 +48,20 @@ function guide(a,dt,geometry,move){
   const d=h.station?Math.hypot(geometry(h.station,a).distance,(a.altitude-(h.station.elevation||0))/6076.12):null;
   if(h.station?(h.outward?d>=h.endDme:d<=h.endDme):h.elapsed>=h.seconds){
    h.phase='turn-in';h.outboundEndDme=d;
-   // The banked reversal itself moves the jet laterally. Choose any
-   // intercept from the predicted rollout, not the start of the turn.
-   const end=relative(flight.rolloutPosition(a,heading(h.inbound),h.side,move));
-   const intercept=Math.min(45,Math.atan2(Math.abs(end.cross),Math.max(.65,end.along*.55))/rad);
-   h.captureCourse=wrap(h.inbound+(h.entry==='parallel'?h.side*Math.max(8,intercept):Math.sign(end.cross)*intercept));
-   h.anticipate=h.entry!=='parallel'&&Math.abs(delta(h.captureCourse,h.inbound))>3;
+   const from=geometry(h.fix,a),cross=from.distance*Math.sin(delta(from.bearing,h.outbound)*rad);
+   const intercept=Math.min(30,Math.max(8,Math.atan2(Math.abs(cross),Math.max(1,flight.turnRadius(a.speed)*3))/rad));
+   h.captureCourse=wrap(h.inbound+(h.entry==='parallel'?h.side:Math.sign(cross))*intercept);
   }else return;
  }
  if(h.phase==='turn-in'){
-  // For a turn that is already closing on the inbound line, roll out
-  // onto it before the aircraft crosses it. Never short-cut the initial
-  // parallel reversal; that entry intentionally turns through >180°.
-  if(h.anticipate&&Math.abs(delta(track,h.inbound))<80&&Math.abs(cross)>.025&&cross*Math.sin(delta(track,h.inbound)*rad)<0){
-   const end=relative(flight.rolloutPosition(a,heading(h.inbound),0,move));
-   if(cross*end.cross<=0||Math.abs(end.cross)<.025){h.phase='inbound';go(h.inbound);return;}
-  }
   if(Math.abs(delta(heading(h.captureCourse),a.heading))>2){go(h.captureCourse,h.side);return;}
   h.phase='inbound';
  }
+ const from=geometry(h.fix,a),cross=from.distance*Math.sin(delta(from.bearing,h.outbound)*rad);
+ const correction=Math.min(30,Math.atan2(Math.abs(cross),Math.max(.4,flight.turnRadius(a.speed)*2))/rad);
+ const along=from.distance*Math.cos(delta(from.bearing,h.outbound)*rad);
  if(fix.distance>.1&&!(along<=0&&Math.abs(cross)<.25)){
-  const end=relative(flight.rolloutPosition(a,heading(h.inbound),0,move));
-  if(Math.abs(delta(track,h.inbound))<60&&Math.abs(end.cross)<.04)go(h.inbound);
-  else if(along<.35&&Math.abs(cross)>.15)go(fix.bearing);
-  else{a.turnDirection=0;a.targetHeading=flight.legHeading(a,h.fix,h.inbound,geometry,40,Math.max(.45,Math.min(1.25,along*.4)));}
-  return;
+  go(along<.4?fix.bearing:h.inbound+Math.sign(cross)*correction);return;
  }
  if(h.exit){
   if(a.remaining[0]===h.id&&h.mode==='TIME')a.remaining.shift();
