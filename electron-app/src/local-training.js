@@ -15,7 +15,7 @@ function flightFields(a){return {flightRules:token(a.flightRules||'I',/^[IV]$/,'
 function normalize(raw){
  if(!raw||raw.format!=='ZYZTools-training'||raw.version!==1)throw Error('Choose a ZYZTools training scenario (version 1).');
  if(!Array.isArray(raw.aircraft)||raw.aircraft.length>100||!Array.isArray(raw.waypoints)||raw.waypoints.length>2000)throw Error('Limit: 100 aircraft and 2,000 waypoints.');
- const waypoints=raw.waypoints.map(w=>({name:token(w.name,/^[A-Z0-9_-]{1,16}$/,'waypoint'),lat:number(w.lat,-89,89,'Latitude'),lon:number(w.lon,-180,180,'Longitude')}));
+ const waypoints=raw.waypoints.map(w=>({name:token(w.name,/^[A-Z0-9_-]{1,16}$/,'waypoint'),lat:number(w.lat,-89,89,'Latitude'),lon:number(w.lon,-180,180,'Longitude'),...(w.elevation==null?{}:{elevation:number(w.elevation,-1000,15000,'Waypoint elevation')})}));
  if(new Set(waypoints.map(w=>w.name)).size!==waypoints.length)throw Error('Duplicate waypoint names.');
  const aircraft=raw.aircraft.map(a=>{
   const route=String(a.route||'').trim().toUpperCase().split(/\s+/).filter(Boolean);
@@ -153,6 +153,7 @@ class LocalTraining{
    if(a.speedMode==='mach')a.targetIAS=toIas(w?a.targetMach*weather.sound(w.kelvin):flight.machToTas(a.targetMach,a.altitude));
    if(a.speedMode==='published'||a.speedBasis==='IAS'||a.iasCommand){a.ias=approach(a.ias,a.targetIAS,2*step);a.speed=toTas(a.ias);a.targetSpeed=toTas(a.targetIAS);}else{a.speed=approach(a.speed,a.targetSpeed,2*step);a.ias=toIas(a.speed);}
    ({speed:a.groundSpeed,track:a.groundTrack}=weather.motion(a.heading,a.speed,w));
+   if(a.navigation==='hold'&&a.hold)require('./training-hold').guide(a,step,geometry,move);
    if(a.navigation==='route'&&a.remaining.length&&!['localizer captured','glideslope captured'].includes(a.approachState))flight.guideRoute(a,fixes,geometry,move,this.scenario.runways.find(r=>r.airport===a.destination&&r.name===a.arrivalRunway));
    if(a.approachState!=='off')flight.guideApproach(a,this.scenario.runways,geometry);
    if(a.paused)continue;
@@ -168,6 +169,7 @@ class LocalTraining{
  command(callsign,command){
   const list=require('./training-commands').commands(command);
   if(list.length>1){
+   if(list.some(item=>item.startsWith('RWY ')))throw Error('Runway diversion must be sent on its own.');
    if(list.includes('DELETE AIRCRAFT'))throw Error('DELETE must be sent on its own.');
    // Validate and apply on a private copy first. A bad second command must not
    // leave the first one applied, nor emit any partial radar updates.
@@ -181,11 +183,26 @@ class LocalTraining{
   if(String(command).trim().toUpperCase()==='DELETE AIRCRAFT'){this.aircraft=this.aircraft.filter(x=>x!==a);this.broadcast(deletion(a));return this.status();}
   if(!a.active)throw Error('Aircraft has not spawned yet.');
   const parts=String(command).trim().toUpperCase().split(/\s+/);
+  if(parts[0]==='HOLD'){
+   if(parts[1]==='CANCEL'||parts[1]==='EXIT'){
+    if(!a.hold)throw Error('Aircraft is not holding.');
+    if(parts[1]==='EXIT')a.hold.exit=true;
+    else{a.hold=null;a.navigation='heading';a.targetHeading=a.heading;a.turnDirection=0;}
+   }else{
+    a.hold=require('./training-hold').create(parts,this.runtimeWaypoints?.length?this.runtimeWaypoints:this.scenario.waypoints,this.scenario.magneticVariationWest,move,a.altitude);
+    a.navigation='hold';a.approachState='off';a.approachVectorTarget=null;a.explicitDirectFix=null;a.directGuidance=null;a.flyBy=null;a.turnDirection=0;
+    a.initialDescentActive=false;a.routeCompleted=false;
+   }
+   a.revision=(a.revision||0)+1;return this.status();
+  }
   if(parts[0]==='IAS'&&parts[2]==='UNTIL'){restrictions.speed(a,Number(parts[1]),parts[3]);a.targetIAS=Number(parts[1]);a.revision=(a.revision||0)+1;return this.status();}
   if(parts[0]==='CROSS'){restrictions.cross(a,parts[1],Number(parts[3]));a.revision=(a.revision||0)+1;return this.status();}
   if(parts[0]==='RESTRICTIONS'){if(parts[1]==='SPEED'){restrictions.clearSpeed(a);a.targetIAS=flight.publishedIAS(a,this.scenario.speedRules,this.runtimeWaypoints||this.scenario.waypoints,geometry,this.scenario.runways);}else restrictions.clearCross(a);a.revision=(a.revision||0)+1;return this.status();}
   if(parts[0]==='IDENT'&&parts.length===1){a.revision=(a.revision||0)+1;a.identUntil=this.elapsed+18;a.identActive=true;return this.status();}if(parts.length!==2)throw Error('Use ALT, RATE, SPD, HDG/LHDG/RHDG, DCT, SQ, MODE, IDENT or ROUTE RESUME.');
   const [verb,arg]=parts;
+  if(a.hold&&['HDG','LHDG','RHDG','ROUTE','APP','DCT','RWY'].includes(verb))throw Error('Cancel the hold before issuing another lateral clearance.');
+  if(verb==='RWY')return this.divert(callsign,arg);
+  if(['HDG','LHDG','RHDG','ROUTE','APP','DCT'].includes(verb)){a.directGuidance=null;a.navigationNotice='';}
   if(['HDG','LHDG','RHDG','ROUTE','APP'].includes(verb))a.explicitDirectFix=null;
   if(verb==='HDG'&&arg==='PRESENT'){a.targetHeading=a.heading;a.turnDirection=0;a.bank=0;a.navigation='heading';a.flyBy=null;if(a.approachState!=='off'){a.approachState='armed';a.approachVectorTarget=a.targetHeading;}a.revision=(a.revision||0)+1;return this.status();}
   if(verb==='ALT'){const target=number(arg,0,60000,'Target altitude (feet)');if(a.approachState!=='off'&&target>a.altitude+50){a.approachState='off';a.approachVectorTarget=null;a.approachNotice='Go-around: climb to assigned altitude; approach guidance cancelled.';a.navigation='heading';a.flyBy=null;a.targetHeading=a.heading;a.turnDirection=0;a.routeCompleted=false;}a.targetAltitude=target;a.initialDescentActive=false;restrictions.clearCross(a);}
@@ -208,9 +225,43 @@ class LocalTraining{
   if(a.speedMode==='published')a.targetIAS=flight.publishedIAS(a,this.scenario.speedRules,this.runtimeWaypoints||this.scenario.waypoints,geometry,this.scenario.runways);
   a.revision=(a.revision||0)+1;return this.status();
  }
- amend(callsign,fields){
-  const a=this.aircraft.find(a=>a.callsign===callsign&&a.active);if(!a)throw Error('Select an active simulated aircraft.');let candidate={...a,...fields},expanded;
+ divert(callsign,runway,fields={}){
+  const a=this.aircraft.find(a=>a.callsign===callsign&&a.active);
+  if(!a)throw Error('Select an active simulated aircraft.');
+  if(a.arrivalRunway===runway)throw Error('Aircraft is already assigned runway '+runway+'.');
+  const threshold=this.scenario.runways.find(r=>r.airport===a.destination&&r.name===runway);
+  if(!threshold)throw Error('No simulator geometry for runway '+runway+'.');
+  const library=require('./training-route-variants.json');
+  const variant=library.procedures.find(p=>p.airport===a.destination&&p.runway===runway&&a.procedures.includes(p.name));
+  if(!variant)throw Error('No loaded alternative STAR for runway '+runway+'. Use a manual runway and route amendment.');
+  const plan=variant.fixes[0]+' '+variant.name+' '+a.destination+'/'+runway;
+  const points=new Map([...library.fixes,...(this.runtimeWaypoints?.length?this.runtimeWaypoints:this.scenario.waypoints)].map(w=>[w.name,w]));
+  const resolved={route:variant.fixes.join(' '),waypoints:variant.fixes.map(n=>points.get(n)),arrivalRunway:runway,procedures:[variant.name]};
+  const track=a.groundTrack??a.heading;
+  const oldRoute=a.route.split(' '),oldNext=a.remaining[0],oldIndex=oldRoute.indexOf(oldNext),newIndex=variant.fixes.indexOf(oldNext);
+  const keepLeg=a.navigation==='route'&&!a.explicitDirectFix&&!a.flyBy&&a.approachState==='off'&&oldIndex>0&&newIndex>0&&oldRoute[oldIndex-1]===variant.fixes[newIndex-1];
+  const angle=(x,y)=>Math.abs((x-y+540)%360-180);
+  const axis=geometry(threshold.threshold,threshold.opposite).bearing;
+  const eligible=resolved.waypoints.map(w=>{
+   const from=geometry(a,w),r=geometry(threshold.threshold,w);
+   const onFinal=angle(r.bearing,axis+180)<8&&r.distance<13;
+   return {name:w.name,distance:from.distance,turn:angle(from.bearing,track),onFinal};
+  }).filter(w=>!w.onFinal&&w.distance>=.15&&w.turn<=100);
+  const next=eligible.find(w=>w.name===a.remaining[0]&&a.navigation==='route')||eligible.sort((x,y)=>x.distance+x.turn/20-y.distance-y.turn/20)[0];
+  const wasGlide=a.approachState==='glideslope captured';
+  this.amend(callsign,{...fields,arrivalRunway:runway,flightPlanRoute:plan},resolved);
+  if(wasGlide)a.targetAltitude=a.altitude;
+  if(keepLeg){a.navigationNotice='Runway '+runway+' assigned; continuing on the shared STAR leg.';}
+  else if(next){this.command(callsign,'DCT '+next.name);a.navigationNotice='Diverted to '+runway+' via '+next.name+'; approach clearance required.';}
+  else{a.navigation='heading';a.explicitDirectFix=null;a.flyBy=null;a.turnDirection=0;a.targetHeading=a.heading;a.navigationNotice='Runway '+runway+' route loaded. No suitable forward rejoin; vector or issue direct-to.';}
+  return this.status();
+ }
+ amend(callsign,fields,preparedRoute){
+  const a=this.aircraft.find(a=>a.callsign===callsign&&a.active);if(!a)throw Error('Select an active simulated aircraft.');let candidate={...a,...fields},expanded,vectorsOnly=false;
   if(Object.hasOwn(fields,'flightPlanRoute')&&!Object.hasOwn(fields,'arrivalRunway'))candidate.arrivalRunway=assignedRunway(fields.flightPlanRoute,candidate.destination)||candidate.arrivalRunway;
+  const runwayChanged=candidate.arrivalRunway!==a.arrivalRunway||candidate.destination!==a.destination;
+  if(runwayChanged&&candidate.arrivalRunway&&!/^(?:0[1-9]|[12][0-9]|3[0-6])[LRC]?$/.test(candidate.arrivalRunway))throw Error('Enter a runway designator from 01 to 36, optionally followed by L, C or R.');
+  const hasGeometry=!candidate.arrivalRunway||this.scenario.runways.some(r=>r.airport===candidate.destination&&r.name===candidate.arrivalRunway);
   // Strip only the redundant wire suffix when EuroScope echoes a plan.
   if(Object.hasOwn(fields,'flightPlanRoute')&&candidate.arrivalRunway){
    const tokens=String(candidate.flightPlanRoute).trim().split(/\s+/);
@@ -220,25 +271,54 @@ class LocalTraining{
   const routeChanged=['flightPlanRoute','arrivalRunway','origin','destination'].some(k=>candidate[k]!==a[k]);
   if(routeChanged){
    const root=plan=>String(plan).toUpperCase().replace(/\/\d{2}[LRC]?(?=\s|$)/g,'').split(/\s+/).filter(t=>t&&t!==a.destination).join(' ');
-   if(!a.procedures.length&&candidate.arrivalRunway!==a.arrivalRunway&&candidate.origin===a.origin&&candidate.destination===a.destination&&root(candidate.flightPlanRoute)===root(a.flightPlanRoute)){
+   const runwayOnly=candidate.arrivalRunway!==a.arrivalRunway&&candidate.origin===a.origin&&candidate.destination===a.destination&&root(candidate.flightPlanRoute)===root(a.flightPlanRoute);
+   if(!preparedRoute&&runwayOnly&&hasGeometry&&a.navigation==='route'&&require('./training-route-variants.json').procedures.some(p=>p.airport===a.destination&&p.runway===candidate.arrivalRunway&&a.procedures.includes(p.name)))return this.divert(callsign,candidate.arrivalRunway,fields);
+   const points=this.runtimeWaypoints?.length?this.runtimeWaypoints:this.scenario.waypoints;
+   const assignForVectors=()=>{
+    const tokens=String(candidate.flightPlanRoute).toUpperCase().split(/\s+/).filter(t=>t&&t.split('/')[0]!==candidate.destination&&!a.procedures.includes(t.split('/')[0]));
+    candidate.flightPlanRoute=[...tokens,candidate.destination+(candidate.arrivalRunway?'/'+candidate.arrivalRunway:'')].join(' ');
+    vectorsOnly=true;
+    return {route:'',waypoints:[],arrivalRunway:candidate.arrivalRunway,procedures:[]};
+   };
+   if(runwayOnly&&(!hasGeometry||a.vectorOnlyRunway)){expanded=assignForVectors();candidate={...candidate,...expanded};}
+   else if(!a.procedures.length&&candidate.arrivalRunway!==a.arrivalRunway&&candidate.origin===a.origin&&candidate.destination===a.destination&&root(candidate.flightPlanRoute)===root(a.flightPlanRoute)){
     const points=this.runtimeWaypoints||this.scenario.waypoints,route=a.route.split(' ').filter(Boolean),r=this.scenario.runways.find(r=>r.airport===candidate.destination&&r.name===candidate.arrivalRunway);let added=[];
     if(r&&(/^(?:ILS\d{2}[LRC]?)$/.test(route.at(-1)||'')||new RegExp('^'+candidate.destination+'_\\d{2}[LRC]?$').test(route.at(-1)||''))){const name=candidate.destination+'_'+candidate.arrivalRunway;route[route.length-1]=name;added=[{name,...r.threshold}];}
     expanded={route:route.join(' '),waypoints:[...points,...added],arrivalRunway:candidate.arrivalRunway,procedures:a.procedures};candidate={...candidate,...expanded};
    }else{
     // Re-resolve the entire STAR, not just its runway threshold. A rejected
     // amendment leaves the old route and its assigned runway intact.
-    if(Object.hasOwn(fields,'arrivalRunway')&&candidate.arrivalRunway){
+    if(Object.hasOwn(fields,'arrivalRunway')){
      const prefix=candidate.destination+'/';
-     candidate.flightPlanRoute=[...String(candidate.flightPlanRoute).split(/\s+/).filter(t=>t&&t.toUpperCase()!==candidate.destination&&!t.toUpperCase().startsWith(prefix)),prefix+candidate.arrivalRunway].join(' ');
+     const tokens=String(candidate.flightPlanRoute).toUpperCase().split(/\s+/).filter(t=>t&&t!==candidate.destination&&!t.startsWith(prefix));
+     const last=tokens.at(-1),suffix=last?.match(/^([A-Z0-9]+)\/(\d{2}[LRC]?)$/);
+     if(suffix&&a.procedures.includes(suffix[1]))tokens[tokens.length-1]=suffix[1];
+     candidate.flightPlanRoute=[...tokens,candidate.arrivalRunway?prefix+candidate.arrivalRunway:candidate.destination].join(' ');
     }
-    candidate.compiledPlan=null;expanded=this.planResolver?this.planResolver(candidate):require('./training-routes').expandRoute(candidate,{fixes:this.runtimeWaypoints||this.scenario.waypoints},[]);candidate={...candidate,...expanded};
+    candidate.compiledPlan=null;
+    try{expanded=preparedRoute||(this.planResolver?this.planResolver(candidate):require('./training-routes').expandRoute(candidate,{fixes:points},[]));}
+    catch(e){if(!runwayOnly||!a.procedures.length)throw e;expanded=assignForVectors();}
+    if(Object.hasOwn(fields,'arrivalRunway')&&expanded.arrivalRunway!==candidate.arrivalRunway)throw Error('The filed STAR suffix conflicts with the selected runway.');
+    candidate={...candidate,...expanded};
    }
   }
   if(expanded&&candidate.initialDescent&&!candidate.route.split(' ').includes(candidate.initialDescent.fix))candidate.initialDescent=undefined;
   const points=expanded?[...(this.runtimeWaypoints||this.scenario.waypoints),...expanded.waypoints]:this.runtimeWaypoints||this.scenario.waypoints;
   const clean=normalize({...this.scenario,waypoints:[...new Map(points.map(w=>[w.name,w])).values()],aircraft:[candidate]}).aircraft[0];
   for(const key of ['type','category','origin','destination','squawk','squawkMode','arrivalRunway','procedures','compiledPlan','compiledRunway','route',...Object.keys(flightFields(clean))])a[key]=clean[key];
-  if(expanded){a.flyBy=null;this.runtimeWaypoints=[...new Map(points.map(w=>[w.name,w])).values()];const first=a.remaining[0],i=expanded.route.split(' ').indexOf(first);a.remaining=expanded.route.split(' ').filter(Boolean).slice(Math.max(0,i));a.legStart={lat:a.lat,lon:a.lon};if(a.navigation==='route'&&!a.remaining.length)a.navigation='heading';if(a.approachState!=='off')a.approachState='armed';}
+  if(expanded){
+   a.vectorOnlyRunway=vectorsOnly;
+   a.flyBy=null;a.directGuidance=null;this.runtimeWaypoints=[...new Map(points.map(w=>[w.name,w])).values()];
+   const route=expanded.route.split(' ').filter(Boolean),first=a.remaining?.[0],i=route.indexOf(first);
+   const continuing=a.navigation==='route'&&i>=0&&!(runwayChanged&&a.approachState!=='off');
+   a.remaining=route.slice(Math.max(0,i));a.routeCompleted=false;
+   if(!continuing){
+    if(a.navigation==='route'){a.targetHeading=a.heading;a.turnDirection=0;}
+    a.navigation='heading';a.explicitDirectFix=null;a.legStart={lat:a.lat,lon:a.lon};
+    a.navigationNotice=vectorsOnly?(hasGeometry?'Runway assigned. No matching STAR; holding heading for vectors or a new route.':'Runway assigned. No simulated runway geometry; vectors only until geometry is imported.'):'Plan amended. Holding heading until direct-to or route resume.';
+   }else if(a.explicitDirectFix!==first)a.explicitDirectFix=null;
+   if(runwayChanged){a.approachState='off';a.approachVectorTarget=null;a.approachNotice='Runway changed; new approach clearance required.';}
+  }
   if(expanded&&!candidate.initialDescent){delete a.initialDescent;a.initialDescentActive=false;}
   if(Object.hasOwn(fields,'squawk'))a.assignedSquawk=a.squawk;a.revision=(a.revision||0)+1;this.announce(a,undefined,false);return this.status();
  }

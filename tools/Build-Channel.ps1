@@ -11,6 +11,9 @@ New-Item -ItemType Directory -Force -Path $output | Out-Null
 $payload = @('PreferredCYYZPdcPlugin.json','EuroScopePlugInDll.dll','PDCBridge.ini','pdc_request.wav','cpdlc_rx.wav','IFR_release.wav','DEPARTURE_LIST_SETUP.md')
 foreach($file in $payload) { Copy-Item -LiteralPath (Join-Path $workspace "build/$file") -Destination (Join-Path $output $file) }
 $define = if($Channel -eq 'test') {'/DZYZTOOLS_TEST_BUILD'} else {''}
+$version = (Get-Content -LiteralPath (Join-Path $workspace 'electron-app/package.json') -Raw | ConvertFrom-Json).version
+if ($version -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$') { throw 'Invalid desktop version for native payload.' }
+$define += ' /DZYZTOOLS_BUILD_VERSION=' + $version
 function Compile([string]$architecture, [string]$arguments) {
   $command = 'call "' + $vcvars + '" ' + $architecture + ' && cl /nologo /EHsc /MD /std:c++17 ' + $define + ' ' + $arguments
   & $env:COMSPEC /d /s /c $command

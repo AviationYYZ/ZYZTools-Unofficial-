@@ -24,9 +24,32 @@ test('instructor controls all slots remotely; student keys denied; uploads valid
   assert.equal((await act(2,'command',{...payload,command:'LHDG 330, ALT 3000, IAS 210'})).status,200);let multi=(await req('/api/instructor/aircraft/2')).data.aircraft[0];assert.equal(multi.targetAltitude,3000);assert.equal(multi.targetIAS,210);assert.equal(multi.turnDirection,-1);
   assert.equal((await act(2,'command',{...payload,command:'ALT 4000, DCT MISSING'})).status,400);assert.equal((await req('/api/instructor/aircraft/2')).data.aircraft[0].targetAltitude,3000);
   const rid=crypto.randomUUID(),epoch=manager.slot(2).epoch;const original=await act(2,'command',payload,epoch,rid);assert.equal((await act(2,'command',payload,epoch,rid)).data.sessionId,original.data.sessionId);assert.equal((await act(2,'command',{...payload,command:'ALT 9000'},epoch,rid)).status,400);
+  const journal=(await req('/api/instructor/aircraft/2')).data.instructorJournal;
+  assert.deepEqual(journal.map(e=>e.action),['ALT 7000','LHDG 330, ALT 3000, IAS 210','ALT 7000']);
+  assert(journal.every(e=>e.callsign==='TEST101'&&Number.isFinite(e.time)));
+  assert.deepEqual((await req('/api/instructor/aircraft/1')).data.instructorJournal,[]);
   assert.equal((await act(2,'command',{...payload,command:'DELETE AIRCRAFT'})).status,200);assert.equal((await req('/api/instructor/aircraft/2')).data.aircraft.length,1);assert.equal((await req('/api/instructor/aircraft/1')).data.aircraft.length,2);
   await act(2,'reset');assert.equal((await act(2,'command',payload)).status,400);assert.equal((await act(2,'run',{},epoch)).status,400);
+  assert.deepEqual((await req('/api/instructor/aircraft/2')).data.instructorJournal,[]);
   const before=manager.slot(1).child;assert.equal((await act(1,'import',{scenario:{}})).status,400);assert.equal(manager.slot(1).child,before);
+  const west=structuredClone(require('../../scenarios/CYYZ-West-70-AAR-Instructor-Owned.json'));
+  const plane=west.aircraft.find(a=>a.procedures.includes('LINNG3'));
+  west.aircraft=[{...plane,spawnTime:0}];
+  await act(4,'stop');assert.equal((await act(4,'import',{scenario:west})).status,200);
+  await act(4,'start');await act(4,'run');
+  const routeShot=(await req('/api/instructor/aircraft/4')).data;
+  assert(routeShot.runways.some(r=>r.name==='24L'));
+  const amendTarget={callsign:plane.callsign,sessionId:routeShot.sessionId};
+  await act(4,'command',{...amendTarget,command:'HDG 240'});
+  const changed=await act(4,'amend',{...amendTarget,fields:{arrivalRunway:'24L',flightPlanRoute:'LINNG LINNG3 CYYZ/24R'}});
+  assert.equal(changed.status,200,JSON.stringify(changed.data));
+  const changedPlane=changed.data.aircraft[0];
+  assert.equal(changedPlane.flightPlanRoute,'LINNG LINNG3 CYYZ/24L');
+  assert.equal(changedPlane.navigation,'heading');assert(changedPlane.route.includes('KIREX'));
+  assert.equal((await act(4,'amend',{...amendTarget,fields:{flightPlanRoute:'UNKNOWNFIX',arrivalRunway:'24L'}})).status,400);
+  assert.equal((await req('/api/instructor/aircraft/4')).data.aircraft[0].flightPlanRoute,'LINNG LINNG3 CYYZ/24L');
+  const reroute=await act(4,'amend',{...amendTarget,fields:{arrivalRunway:'24L',flightPlanRoute:'VERKO MAROD CYYZ/24L'}});
+  assert.equal(reroute.status,200);assert.equal(reroute.data.aircraft[0].route,'VERKO MAROD');
   const liveBefore=(await req('/api/instructor/aircraft/2')).data;await act(2,'run');await act(2,'command',{sessionId:liveBefore.sessionId,callsign:'TEST101',command:'IAS 180'});const liveProfile=[{ceiling:60000,ias:205}];await act(2,'speedProfile',{profile:liveProfile});const liveAfter=(await req('/api/instructor/aircraft/2')).data;assert.equal(liveAfter.sessionId,liveBefore.sessionId);assert.equal(liveAfter.running,true);assert.equal(liveAfter.aircraft.find(a=>a.callsign==='TEST101').targetIAS,180);assert.equal(liveAfter.aircraft.find(a=>a.callsign==='TEST202').targetIAS,205);await act(2,'pause');
   const replacement=demo();replacement.name='Replacement from client';assert.equal((await act(1,'import',{scenario:replacement})).status,200);assert.equal(manager.status().slots[0].state,'stopped');assert.equal(manager.status().slots[0].scenarioName,replacement.name);assert(manager.slot(3).child);
   assert.equal((await act(3,'configure',{path:'C:/'})).status,400);assert.equal((await act(4,'stop',{},'invalid')).status,400);assert.equal((await req('/api/fsd/open',{})).status,404);
@@ -36,6 +59,29 @@ test('instructor controls all slots remotely; student keys denied; uploads valid
   assert.equal((await (await fetch(sbase+'/api/status',{headers:{Authorization:'Bearer '+student.token}})).json()).readOnly,true);
   const old=hub.token;await hub.stop();assert(!hub.token);assert.notEqual(old,hub.token);
  }finally{await hub.stop();student.stop();studentTraining.stop();await manager.shutdown();fs.rmSync(folder,{recursive:true,force:true});}
+});
+test('installable instructor shell is public but pairing and API data stay guarded',async()=>{
+ const folder=fs.mkdtempSync(path.join(os.tmpdir(),'zyz-pwa-'));
+ const manager={folder,status:()=>({slots:[]})};
+ const tunnel={status:()=>({state:'ready',url:'https://synthetic.trycloudflare.com',running:true}),stop(){}};
+ const lease={status:()=>({code:'ABCDE-FG234'}),stop:async()=>{}};
+ const hub=new InstructorHub(manager,folder,{port:0,tunnel,lease});
+ hub.network=async()=>{};
+ try{
+  await hub.start();const base='http://127.0.0.1:'+hub.port;
+  const get=route=>fetch(base+route);
+  const html=await (await get('/instructor/')).text();assert(html.includes('manifest.webmanifest'));assert(!html.includes(hub.token));
+  const manifest=await (await get('/instructor/manifest.webmanifest')).json();assert.equal(manifest.display,'standalone');assert.equal(manifest.start_url,'/instructor/');
+  for(const url of ['/instructor/app.js','/instructor/app.css','/instructor/icon.png','/instructor/calculators.js','/instructor/sw.js'])assert.equal((await get(url)).status,200);
+  assert.equal((await get('/api/instructor/status')).status,401);
+  const pair=(code,site='same-origin')=>fetch(base+'/instructor/pair',{method:'POST',headers:{'Content-Type':'application/json','Sec-Fetch-Site':site},body:JSON.stringify({code})});
+  assert.equal((await pair('ABCDE-FG234','cross-site')).status,403);
+  assert.equal((await pair('ABCDE-FG235')).status,401);
+  const response=await pair('ABCDE-FG234');assert.equal(response.status,200);assert.equal(response.headers.get('cache-control'),'no-store');
+  const {token}=await response.json();assert.equal(token,hub.token);
+  assert.equal((await fetch(base+'/api/instructor/status',{headers:{Authorization:'Bearer '+token}})).status,200);
+  assert.equal(hub.status().webApp,'https://synthetic.trycloudflare.com/instructor/');
+ }finally{await hub.stop();fs.rmSync(folder,{recursive:true,force:true});}
 });
 test('client pairing is role-checked and remembered only by explicit encrypted opt-in',async()=>{
  const folder=fs.mkdtempSync(path.join(os.tmpdir(),'zyz-pairing-')),pair={url:'https://synthetic.trycloudflare.com',token:'a'.repeat(64)};

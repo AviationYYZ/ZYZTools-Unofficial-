@@ -14,6 +14,49 @@ main > div > section .buttons { gap:7px; }
 main > div > section .training-heading { margin-bottom:14px; }
 main > div > section .training-heading p { color:var(--muted); }
 nav .menu-group summary { border-radius:6px; }
+nav .workspace-search-button { align-self:start; display:flex; justify-content:space-between; align-items:center; gap:6px; text-align:left; }
+.workspace-search-button kbd { font-size:10px; padding:2px 4px; border:1px solid currentColor; border-radius:4px; white-space:nowrap; }
+.workspace-search { width:min(570px,calc(100vw - 38px)); max-height:85vh; padding:14px; border:1px solid var(--line); border-radius:12px; background:var(--panel); color:var(--text); box-shadow:0 22px 70px #0008; }
+.workspace-search::backdrop { background:#101521a6; }
+.workspace-search>header { position:static; background:transparent; display:flex; align-items:center; justify-content:space-between; padding:0; border:0; }
+.workspace-search input { width:100%; margin:8px 0; }
+.workspace-search [role=listbox] { max-height:52vh; overflow:auto; }
+.workspace-search [role=option] { display:flex; justify-content:space-between; align-items:center; gap:12px; width:100%; margin:2px 0; text-align:left; border-color:transparent; }
+.workspace-search [role=option][aria-selected=true] { border-color:var(--accent); background:var(--panel-alt); }
+.workspace-search small { display:block; margin-top:2px; color:var(--muted); }
+.workspace-search em,.workspace-search footer { color:var(--muted); font-style:normal; font-size:11px; }
+.workspace-search footer { margin-top:8px; }
+.instructor-roster-tools { display:grid; grid-template-columns:minmax(130px,2fr) repeat(2,minmax(100px,1fr)); align-items:end; gap:8px; }
+.instructor-roster-tools label { margin:0; }
+#instructorAircraft tr[aria-selected=true] { outline:1px solid var(--accent); outline-offset:-1px; background:var(--panel-alt); }
+#instructorAircraft tr:focus-visible { outline:2px solid var(--focus); outline-offset:-2px; }
+#instructorAircraftCount { color:var(--muted); margin:7px 0; }
+.instructor-roster-summary { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin:8px 0; }
+.instructor-reference { padding:8px 10px; margin:10px 0; border:1px solid var(--line); border-radius:6px; }
+.calculator-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr)); gap:10px; }
+.calculator-card { border:1px solid var(--line); background:var(--panel); border-radius:8px; padding:12px; }
+.calculator-card h3 { margin:0 0 7px; }
+.calculator-card label { margin:6px 0; }
+.calculator-card output { display:block; padding:7px 0 0; color:var(--accent); font-weight:700; }
+.instructor-monitor { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr)); gap:8px; margin:10px 0; }
+.instructor-monitor>div { display:grid; justify-items:start; align-content:start; gap:5px; padding:9px 11px; background:var(--panel-alt); border:1px solid var(--line); border-radius:6px; }
+.instructor-monitor small { color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+.instructor-monitor p { margin:0; }
+.instructor-monitor button { padding:4px 8px; }
+.instructor-route-strip { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:8px 0; padding:0; list-style:none; }
+.instructor-route-strip[hidden] { display:none; }
+.instructor-route-strip li { padding:4px 7px; border:1px solid var(--line); border-radius:4px; }
+.instructor-route-strip li[aria-current=step] { border-color:var(--accent); font-weight:700; }
+.instructor-journal { max-height:18rem; overflow:auto; margin:0; padding:0; list-style:none; }
+.instructor-journal li { display:grid; grid-template-columns:5ch 12ch minmax(0,1fr); gap:8px; padding:7px; border-bottom:1px solid var(--line); overflow-wrap:anywhere; }
+.instructor-journal time { color:var(--muted); font-variant-numeric:tabular-nums; }
+.instructor-session-actions { display:flex; flex-wrap:wrap; gap:10px; }
+.instructor-session-actions>div { flex:1 1 auto; padding:9px 11px; border:1px solid var(--line); border-radius:6px; background:var(--panel-alt); }
+.instructor-session-actions>div>span { color:var(--muted); font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; }
+.instructor-session-actions .buttons { margin:6px 0 0; }
+#instructorControls .training-table { max-height: min(45vh,420px); overflow:auto; border:1px solid var(--line); border-radius:6px; }
+#instructorControls .training-table thead { position:sticky; top:0; background:var(--panel); z-index:1; }
+@media(max-width:610px) { .instructor-roster-tools { grid-template-columns:repeat(2,minmax(0,1fr)); } .instructor-roster-tools label:first-child { grid-column:1/-1; } .workspace-search em { display:none; } }
 .workspace-surface { position:relative; min-width:0; }
 .workspace-surface:has(>[hidden]) { display:none; }
 .buttons>.workspace-surface { display:inline-flex; }
@@ -58,3 +101,8 @@ body[data-theme="navcan"] nav .workspace-launch-menu button { color:var(--text);
 .workspace-theme-preview i:first-child { grid-column:span 2; background:var(--preview-header); }
 .workspace-theme-preview i:nth-child(2) { background:var(--preview-accent); opacity:.72; }
 .workspace-theme-preview i:last-child { background:var(--preview-panel); margin:3px; border:1px solid var(--preview-accent); }
+.fixwatch-dialog{width:min(460px,calc(100% - 36px));max-height:calc(100vh - 48px);overflow:auto;padding:24px;border:1px solid #587181;border-radius:14px;background:#14212b;color:#edf6fc}
+.fixwatch-dialog::backdrop{background:rgba(0,0,0,.6)}
+.fixwatch-dialog h2{margin:.4em 0}
+.fixwatch-dialog input,.fixwatch-dialog select{display:block;width:100%;margin:6px 0 14px}
+.fixwatch-dialog .buttons{margin-top:16px}

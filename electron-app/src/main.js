@@ -14,15 +14,17 @@ const { channel, destination, assertDestination } = require('./channel');
 let publicationInProgress = false;
 let checkedRelease = null;
 const { app, BrowserWindow, dialog, ipcMain, shell, safeStorage, screen } = require("electron");
+const aeroView=new (require('./aeroview-reader.cjs').AeroViewReader)(BrowserWindow);
+const {writeWind:aeroViewWriteWind}=require('./aeroview-client');
 app.setName(channel.name);
 app.setPath('userData', path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), channel.userDataName));
 
 let mainWindow = null;
 let discordPresence = null;
 let runtimeFolder, runtimeTimer, lastRuntimeNotice='';
-const dllGuard=new (require('./euroscope-runtime').DllGuard)({payload:payloadFolder,version:buildInfo.version});
+const dllGuard=new (require('./euroscope-runtime').DllGuard)({version:app.getVersion()});
 const runtimeState=()=>dllGuard.check(runtimeFolder||(runtimeFolder=installDestination(commandLinePluginFolder()||discoveredInstalledPluginFolder()||defaultParentFolder())));
-const recoveryChannels=new Set(['runtime:status','app:initialState','folder:browseParent','config:load','plugin:install','folder:open','appPolicy:state']);
+const recoveryChannels=new Set(['runtime:status','app:initialState','folder:browseParent','config:load','plugin:install','folder:open','appPolicy:state','updates:history','updates:openRelease','updates:check','updates:download','updates:installStaged']);
 function guarded(channelName,handler){
   ipcMain.handle(channelName,async(event,...args)=>{
     if(!recoveryChannels.has(channelName)){
@@ -71,9 +73,16 @@ function ensureDiscordPresence(folder) {
   if (folder) discordPresence.folder = installDestination(folder);
   return discordPresence;
 }
+function fixWatchLaunch(args) {
+  const fix=args.find(a=>/^--fixwatch=[A-Z0-9]{1,12}$/i.test(a))?.split("=")[1]?.toUpperCase();
+  const index=args.indexOf("--plugin-dir"),folder=index>=0?args[index+1]:"";
+  if(!fix||!folder||!path.isAbsolute(folder)||!fs.existsSync(path.join(folder,"PreferredCYYZPdcPlugin.dll")))return null;
+  return {fix,folder};
+}
+let pendingFixWatch=fixWatchLaunch(process.argv),activeFixWatch=null;
 const ownsInstance = app.requestSingleInstanceLock();
 if (!ownsInstance) app.quit();
-else app.on('second-instance', () => { mainWindow?.show(); mainWindow?.focus(); });
+else app.on('second-instance', (_event,args) => { pendingFixWatch=fixWatchLaunch(args)||pendingFixWatch; mainWindow?.show(); mainWindow?.focus(); });
 
 const FILES_TO_INSTALL = [
   ...['CZYZConflictAlert.ini','aircraft_wake.csv','parallel_approaches.txt','speed_restrictions.csv','wake_separation.csv','caution_chime.wav','urgent_alert.wav'].map(name=>({name,preserve:true})),
@@ -939,7 +948,7 @@ app.on("window-all-closed", () => {
   if (!checkingStartupUpdate && process.platform !== "darwin") app.quit();
 });
 
-app.on('before-quit', () => { clearInterval(runtimeTimer);appPolicy?.stop();trainingCommandBridge.close();instructorClient.disconnect();trainingTunnel.stop();trainingConnector.stop();trainingMultiplayer.stop();localTraining.stop();discordPresence?.stop().catch(() => {}); });
+app.on('before-quit', () => { aeroView.stop();try{aeroViewWriteWind(runtimeFolder,null);}catch{} clearInterval(runtimeTimer);appPolicy?.stop();trainingCommandBridge.close();instructorClient.disconnect();trainingTunnel.stop();trainingConnector.stop();trainingMultiplayer.stop();localTraining.stop();discordPresence?.stop().catch(() => {}); });
 guarded('runtime:status',(_event,folder)=>{
   if(typeof folder==='string'&&folder)runtimeFolder=installDestination(folder);
   return runtimeState();
@@ -1173,13 +1182,24 @@ guarded("test:publish", async (_event, options = {}) => {
     if (!fs.existsSync(installer)) throw new Error('Bundled publishing installer is missing. Reinstall the current test build.');
     const sourcePath = app.isPackaged ? path.join(process.resourcesPath, "TestSourceSnapshot.json") : path.join(__dirname, "../../build/TestSourceSnapshot.json");
     const snapshot = JSON.parse(fs.readFileSync(sourcePath, "utf8"));
-    const result = await publishTest({ token, version: app.getVersion(), installer, snapshot, stream: options.stream, essential: options.essential === true });
+    const serverName='ZYZTools-Server-Setup-'+app.getVersion()+'.exe';
+    const serverInstaller=options.stream==='stable'?path.join(app.isPackaged?path.join(process.resourcesPath,'Publishing'):path.join(process.env.LOCALAPPDATA,'ZYZTools/Builds/server-'+app.getVersion()),serverName):undefined;
+    const result = await publishTest({ token, version: app.getVersion(), installer, serverInstaller, snapshot, stream: options.stream, essential: options.essential === true });
     if (options.remember) {
       try { publishingAuth.save(app.getPath("userData"), token, safeStorage); }
       catch { result.authWarning = "Beta published, but GitHub access could not be remembered."; }
     }
     return result;
   } finally { token = null; publicationInProgress = false; }
+});
+let releaseHistoryTags=new Set();
+guarded('updates:history',async (_event,stream)=>{
+ const list=await updates.releaseHistory(stream);
+ releaseHistoryTags=new Set(list.map(r=>r.tag));return list;
+});
+guarded('updates:openRelease',async (_event,tag)=>{
+ if(!releaseHistoryTags.has(tag))throw Error('Load the release list and select a version first.');
+ await shell.openExternal('https://github.com/'+updates.DEFAULT_REPOSITORY+'/releases/tag/'+encodeURIComponent(tag));
 });
 guarded("updates:check", async (_event, stream) => {
   stream = stream === 'beta' ? 'beta' : stream === 'stable' ? 'stable' : selectedUpdateStream();
@@ -1240,6 +1260,30 @@ guarded("updates:installStaged", async (_event, tag) => {
 guarded("plugin:action", async (_event, folder, action, callsign) => {
   loadConfig(folder);
   return sendPluginAction(folder, action, callsign);
+});
+guarded('aeroview:action',async(event,action)=>{
+ if(event.sender!==mainWindow?.webContents||event.senderFrame!==mainWindow.webContents.mainFrame)throw Error('Invalid sender.');
+ if(action==='open')aeroView.start();
+ else if(action==='stop')aeroView.stop();
+ else if(action!=='status')throw Error('Unknown AeroView action.');
+ const feed=aeroView.snapshot();
+ try{aeroViewWriteWind(runtimeFolder,feed);}catch{}
+ return {status:aeroView.status,atis:feed?.atis||{}};
+});
+guarded("fixwatch:take", () => {
+  if(!pendingFixWatch)return null;
+  activeFixWatch=pendingFixWatch;pendingFixWatch=null;
+  return {fix:activeFixWatch.fix};
+});
+guarded("fixwatch:apply", async (_event, fields) => {
+  const current=activeFixWatch;
+  if(!current||current.fix!==fields?.fix)throw Error("Pick the waypoint again in EuroScope.");
+  const radius=Number(fields.radius),scope=String(fields.scope),stars=String(fields.stars||"").toUpperCase().replace(/\s+/g,"");
+  if(!Number.isFinite(radius)||radius<0||radius>100||!["ALL","PICK","STAR"].includes(scope)||
+     (scope==="STAR"&&!/^[A-Z][A-Z0-9]{1,9}(,[A-Z][A-Z0-9]{1,9})*$/.test(stars)))throw Error("Check the aircraft scope, STAR names and alert radius.");
+  await sendPluginAction(current.folder,"fixwatch",current.fix+" "+Number(radius.toFixed(3))+" "+scope+(scope==="STAR"?" "+stars:""));
+  if(activeFixWatch===current)activeFixWatch=null;
+  return {ok:true};
 });
 
 guarded("folder:browseParent", async (_event, currentPath) => {

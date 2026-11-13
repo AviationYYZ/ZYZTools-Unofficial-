@@ -9,6 +9,13 @@ class ServerManager extends EventEmitter{
   for(const s of this.slots){let prior=saved.slots?.[s.id-1]?.jetSpeedProfile;if(prior===undefined){try{prior=JSON.parse(fs.readFileSync(path.join(folder,'server-'+s.id,'scenario.json'),'utf8')).jetSpeedProfile;}catch{}}s.jetSpeedProfile=engine('training-jet-profile').normalize(prior);this.config.slots[s.id-1].jetSpeedProfile=s.jetSpeedProfile;}
  }
  save(){const tmp=this.file+'.tmp';fs.writeFileSync(tmp,JSON.stringify(this.config,null,2));fs.renameSync(tmp,this.file);}
+ loadDefaults(folder=path.join(__dirname,'default-scenarios')){
+  for(let id=1;id<=4;id++){
+   const file=path.join(this.dir(id),'scenario.json'),source=path.join(folder,'west70-'+id+'.json');
+   if(fs.existsSync(file)||!fs.existsSync(source))continue;
+   this.import(id,JSON.parse(fs.readFileSync(source,'utf8')));
+  }
+ }
  slot(id){const s=this.slots.find(s=>s.id===id);if(!s)throw Error('Choose server 1 through 6.');return s;}
  dir(id){return path.join(this.folder,'server-'+this.slot(id).id);}
  log(s,message){const entry={time:new Date().toISOString(),message};s.log.push(entry);if(s.log.length>100)s.log.shift();fs.mkdirSync(this.dir(s.id),{recursive:true});const file=path.join(this.dir(s.id),'events.log');if(fs.existsSync(file)&&fs.statSync(file).size>128000)fs.renameSync(file,file+'.previous');fs.appendFileSync(file,entry.time+' '+message+'\n');}
@@ -19,6 +26,7 @@ class ServerManager extends EventEmitter{
  import(id,raw){const s=this.slot(id);if(s.child||s.desired)throw Error('Stop this server before replacing its scenario.');const {jetSpeedProfile:ignored,...content}=raw||{},normalized=engine('local-training').normalize(content);if(!normalized.aircraft.length)throw Error('Scenario must contain at least one aircraft.');const folder=this.dir(id);fs.mkdirSync(folder,{recursive:true});fs.writeFileSync(path.join(folder,'scenario.json.tmp'),JSON.stringify(normalized));fs.renameSync(path.join(folder,'scenario.json.tmp'),path.join(folder,'scenario.json'));this.save();s.info={name:normalized.name,aircraft:normalized.aircraft.length};this.changed(s);this.log(s,'Scenario imported; saved server speed profile retained.');return this.status();}
  configure(id,value){const c=this.config.slots[this.slot(id).id-1];if(value.engineMode!==undefined&&value.engineMode!=='zyztools')throw Error('Native simulation has been removed. Use ZYZTools simulation.');if(typeof value.name==='string')c.name=value.name.replace(/[\x00-\x1f]/g,'').slice(0,80)||'Server '+id;if(typeof value.autostart==='boolean')c.autostart=value.autostart;this.save();return this.status();}
  async start(id,run=false,recovery=false){
+  if(this.updating)throw Error('Server update is installing. Try again after restart.');
   const s=this.slot(id);if(s.child)throw Error('Server is already started.');if(!fs.existsSync(path.join(this.dir(id),'scenario.json')))throw Error('Import a scenario first.');
   s.desired=true;s.run=run;s.state='starting';s.info={};this.changed(s);if(!recovery)s.attempts=0;
   const workerFolder=__dirname.replace(/app\.asar([\\/])/, 'app.asar.unpacked$1');

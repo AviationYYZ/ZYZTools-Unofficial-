@@ -1,4 +1,4 @@
-import React, {useEffect,useLayoutEffect,useState} from 'react';
+import React, {useEffect,useLayoutEffect,useRef,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {createPortal,flushSync} from 'react-dom';
 import catalog from './policy-catalog.json';
@@ -6,7 +6,7 @@ import {LaunchButton,LaunchConfiguration} from './launch-ui.jsx';
 
 const groups=[
  ['App settings',[['install','Install / Link'],['appearance','Appearance'],['advanced','Advanced']]],
- ['Controller tools',[['operations','Operations'],['hoppie','Hoppie'],['sids','SID Matrix'],['conflicts','Conflict alerts'],['launchConfig','Launch configuration']]],
+ ['Controller tools',[['operations','Operations'],['calculators','Calculators'],['hoppie','Hoppie'],['sids','SID Matrix'],['conflicts','Conflict alerts'],['launchConfig','Launch configuration']]],
  ['Sweatbox',[['training','Training'],['trainingBuilder','Scenario Builder']]],
  ['Session history',[['replay','Replay & Recordings'],['statistics','Statistics']]],
  ['Integrations',[['discord','Discord status']]],
@@ -17,6 +17,7 @@ const descriptions={
  appearance:'Set the workspace theme, typography and layout.',
  advanced:'Manage updates and advanced app settings.',
  operations:'Configure clearances, runway assignments and PDC templates.',
+ calculators:'Estimate descent, traffic spacing, time, vertical trends and wind components.',
  hoppie:'Set up the Hoppie connection and delivery options.',
  sids:'Review and edit the departure runway matrix.',
  conflicts:'Configure prediction and conflict alerts.',
@@ -29,9 +30,37 @@ const descriptions={
  ,launchConfig:'Save EuroScope profiles and monitor layouts for fast startup.'
 };
 function Navigation(){
- return <><LaunchButton/>{groups.map(([label,pages],index)=><details key={label} className="menu-group" name="zyz-menu" open={index===0} hidden={label==='Administration'} id={label==='Administration'?'adminMenu':undefined}>
+ return <><LaunchButton/><WorkspaceSearch/>{groups.map(([label,pages],index)=><details key={label} className="menu-group" name="zyz-menu" open={index===0} hidden={label==='Administration'} id={label==='Administration'?'adminMenu':undefined}>
   <summary>{label}</summary><div className="menu-pages">{pages.map(([id,name])=><button key={id} data-tab={id} className={id==='install'?'primary':undefined} aria-current={id==='install'?'page':undefined}>{name}</button>)}</div>
  </details>)}</>;
+}
+function WorkspaceSearch(){
+ const dialog=useRef(null),input=useRef(null),trigger=useRef(null);
+ const [query,setQuery]=useState(''),[selected,setSelected]=useState(0);
+ const pages=groups.filter(([group])=>group!=='Administration')
+  .flatMap(([group,items])=>items.map(([id,label])=>({id,label,group})));
+ const terms=query.toLowerCase().trim().split(/\s+/).filter(Boolean);
+ const results=pages.filter(({id,label,group})=>terms.every(term=>[label,group,descriptions[id]].join(' ').toLowerCase().includes(term)));
+ function open(){if(dialog.current.open)return;setQuery('');setSelected(0);dialog.current.showModal();input.current.focus();}
+ function choose(id){if(!id)return;dialog.current.close();document.querySelector(`nav button[data-tab="${id}"]`)?.click();}
+ useEffect(()=>{
+  const shortcut=e=>{if((e.ctrlKey||e.metaKey)&&!e.altKey&&e.key.toLowerCase()==='k'){e.preventDefault();open();}};
+  window.addEventListener('keydown',shortcut);return()=>window.removeEventListener('keydown',shortcut);
+ },[]);
+ useEffect(()=>{if(dialog.current?.open)document.getElementById('workspace-result-'+selected)?.scrollIntoView({block:'nearest'});},[selected]);
+ return <><button type="button" className="workspace-search-button" ref={trigger} onClick={open}>Find a tool <kbd>Ctrl K</kbd></button>
+ {createPortal(<dialog className="workspace-search" ref={dialog} aria-labelledby="workspace-search-title" onClose={()=>trigger.current.focus()}>
+  <header><strong id="workspace-search-title">Find a tool</strong><button type="button" onClick={()=>dialog.current.close()} aria-label="Close search">×</button></header>
+  <input ref={input} type="search" placeholder="Search for training, replay, runways…" aria-label="Search workspace tools" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="workspace-search-results" aria-activedescendant={results.length?'workspace-result-'+selected:undefined} value={query} onChange={e=>{setQuery(e.target.value);setSelected(0);}} onKeyDown={e=>{
+   if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();setSelected(i=>Math.max(0,Math.min(results.length-1,i+(e.key==='ArrowDown'?1:-1))));}
+   if(e.key==='Enter'){e.preventDefault();choose(results[selected]?.id);}
+  }}/>
+  <div id="workspace-search-results" role="listbox" aria-label="Workspace pages">
+   {results.map(({id,label,group},i)=><button type="button" role="option" id={'workspace-result-'+i} aria-selected={selected===i} key={id} onMouseEnter={()=>setSelected(i)} onClick={()=>choose(id)}><span><strong>{label}</strong><small>{descriptions[id]}</small></span><em>{group}</em></button>)}
+   {!results.length&&<p role="status">No matching tools. Try a different search.</p>}
+  </div>
+  <footer>↑ ↓ Move · Enter Open · Esc Close</footer>
+ </dialog>,document.body)}</>;
 }
 function PageHeading({group,title,id}){
  return <div className="workspace-page-heading"><span>{group}</span><h2>{title}</h2><p>{descriptions[id]}</p></div>;
@@ -124,7 +153,7 @@ function Workspace({surfaces}){
  return <>
   {surfaces.map(({key,target,host},i)=><AccessLayer key={key+i} target={target} host={host} reason={reason(key)}/>)}
   {a&&dismissed!==id&&<aside className="workspace-announcement" role="status"><div><strong>ZYZTools announcement</strong><p>{a.message}</p></div><button onClick={()=>setDismissed(id)} aria-label="Dismiss announcement">Dismiss</button></aside>}
-  {runtime?.blocked&&<aside className="workspace-runtime-notice" role="alert"><div><strong>EuroScope plugin update required</strong><p>Close EuroScope and install the DLL bundled with ZYZTools {runtime.version}. App features are paused until you close EuroScope or install the matching DLL.</p></div><button onClick={()=>document.querySelector('[data-tab=install]').click()}>Install / Link</button></aside>}
+  {runtime?.blocked&&<aside className="workspace-runtime-notice" role="alert"><div><strong>EuroScope plugin version mismatch</strong><p>The installed DLL is {runtime.installedVersion}, but this app is ZYZTools {runtime.version}. Close EuroScope and use Install / Link to install the DLL for this app version.</p></div><button onClick={()=>document.querySelector('[data-tab=install]').click()}>Install / Link</button></aside>}
  </>;
 }
 const nav=document.querySelector('nav[aria-label="ZYZTools menu"]'),admin=document.getElementById('admin');
@@ -140,6 +169,47 @@ function ThemeGallery(){
  return <div className="workspace-theme-gallery">{Object.entries(window.ZYZWorkspaceThemes).map(([id,t])=><button type="button" key={id} aria-pressed={active===id} onClick={()=>{
   const picker=document.getElementById('uiTheme');picker.value=id;picker.dispatchEvent(new Event('change'));
  }}><span className="workspace-theme-preview" style={{'--preview-bg':t.variables['--bg'],'--preview-panel':t.variables['--panel'],'--preview-accent':t.variables['--accent'],'--preview-header':t.variables['--header']}} aria-hidden="true"><i/><i/><i/></span><strong>{t.label}</strong><small>{t.layout}</small></button>)}</div>;
+}
+function FixWatchDialog(){
+ const api=window.preferredCyyzPdc,dialog=useRef(null);
+ const [request,setRequest]=useState(null),[scope,setScope]=useState('ALL'),[stars,setStars]=useState(''),[radius,setRadius]=useState('0'),[error,setError]=useState(''),[busy,setBusy]=useState(false);
+ useEffect(()=>{
+  let stopped=false,reading=false;
+  const read=async()=>{if(reading)return;reading=true;try{
+   const next=await api.takeFixWatch();
+   if(next&&!stopped){
+    setScope(document.getElementById('fixwatchScope')?.value||'ALL');
+    setStars(document.getElementById('fixwatchStars')?.value||'');
+    setRadius(document.getElementById('fixwatchRadius')?.value||'0');
+    setRequest(next);setError('');
+   }
+  }catch{}finally{reading=false;}};
+  read();const timer=setInterval(read,500);
+  return()=>{stopped=true;clearInterval(timer);};
+ },[]);
+ useEffect(()=>{if(request&&!dialog.current.open)dialog.current.showModal();else if(!request&&dialog.current.open)dialog.current.close();},[request]);
+ async function save(event){
+  event.preventDefault();if(!request||busy)return;
+  setBusy(true);setError('');
+  try{await api.applyFixWatch({fix:request.fix,scope,stars,radius});setRequest(current=>current===request?null:current);}
+  catch(e){setError(e.message);}
+  finally{setBusy(false);}
+ }
+ return <dialog ref={dialog} className="fixwatch-dialog" onCancel={e=>{e.preventDefault();if(!busy)setRequest(null);}}>
+  <form onSubmit={save}>
+   <p className="caption">Radar tools / FixWatch</p>
+   <h2>Watch {request?.fix}</h2>
+   <p>Choose which aircraft should display distance to this waypoint.</p>
+   <label htmlFor="fixwatch-dialog-scope">Aircraft</label>
+   <select id="fixwatch-dialog-scope" value={scope} onChange={e=>setScope(e.target.value)}><option value="ALL">All aircraft</option><option value="STAR">Specific arrival streams</option><option value="PICK">Pick aircraft on the radar</option></select>
+   {scope==='STAR'&&<><label htmlFor="fixwatch-dialog-stars">STAR names</label><input id="fixwatch-dialog-stars" value={stars} placeholder="LINNG3, NUBER6" required onChange={e=>setStars(e.target.value)}/></>}
+   <label htmlFor="fixwatch-dialog-radius">Entry alert radius (NM)</label>
+   <input id="fixwatch-dialog-radius" type="number" min="0" max="100" step="0.001" required value={radius} onChange={e=>setRadius(e.target.value)}/>
+   <p>Set to 0 for distance only. No radius ring is drawn.</p>
+   {error&&<p role="alert">{error}</p>}
+   <div className="buttons"><button type="submit" disabled={busy}>{busy?'Applying…':'Start watch'}</button><button type="button" disabled={busy} onClick={()=>setRequest(null)}>Cancel</button></div>
+  </form>
+ </dialog>;
 }
 window.ZYZPolicyCatalog=catalog;
 window.mountZYZWorkspace=()=>{
@@ -166,6 +236,6 @@ window.mountZYZWorkspace=()=>{
   if(node.tagName==='TBODY')node=node.closest('.card');
   if(node)add(key,node,node.tagName!=='SECTION');
  }
- const root=document.createElement('div');document.body.append(root);createRoot(root).render(<Workspace surfaces={surfaces}/>);
+ const root=document.createElement('div');document.body.append(root);createRoot(root).render(<><Workspace surfaces={surfaces}/><FixWatchDialog/></>);
 };
 document.addEventListener('DOMContentLoaded',window.mountZYZWorkspace,{once:true});

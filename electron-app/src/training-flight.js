@@ -37,6 +37,74 @@ function turnShape(speed,angle){
  const shape={lead,x,y};if(leadCache.size>=2048)leadCache.delete(leadCache.keys().next().value);leadCache.set(key,shape);return shape;
 }
 const turnLead=(speed,angle)=>turnShape(speed,angle).lead;
+// Forecast a bank-limited turn at the simulator's integration cadence.
+// Freeze TAS and wind for the short prediction, not for the actual flight.
+function rolloutPosition(a,targetHeading,turnDirection,move){
+ const probe={lat:a.lat,lon:a.lon,speed:a.speed,wind:a.wind,bank:a.bank||0,heading:a.heading,targetHeading,turnDirection};
+ for(let i=0;i<1000;i++){
+  turnMotion(probe,.25);
+  const motion=weather.motion(probe.heading,probe.speed,probe.wind);
+  Object.assign(probe,move(probe,motion.speed/14400,motion.track));
+  if(probe.heading===targetHeading)break;
+ }
+ return probe;
+}
+// Find a rollout heading whose ground track points at the fix *from the
+// rollout position*. Aiming at its present bearing during the bank-in can
+// cause overshoot or continuous bearing pursuit around a close-in fix.
+function directIntercept(a,fix,geometry,move){
+ const bearing=geometry(a,fix).bearing,target=courseHeading(a,bearing);
+ if(Math.abs(delta(target,a.heading))<2&&Math.abs(a.bank||0)<2)return null;
+ const sample=(angle,side)=>{
+  const heading=wrap(a.heading+side*angle),end=rolloutPosition(a,heading,side,move);
+  const g=geometry(end,fix),track=weather.motion(heading,a.speed,a.wind).track,error=delta(g.bearing,track)*rad;
+  return {angle,heading,cross:g.distance*Math.sin(error),ahead:g.distance*Math.cos(error),side};
+ };
+ let best=null;
+ for(const side of [1,-1]){
+  let left=sample(0,side);
+  for(let angle=15;angle<=210;angle+=15){
+   if(best&&left.angle>=best.angle)break;
+   const right=sample(angle,side);
+   if(left.cross*right.cross<=0){
+    let lo=left,hi=right;
+    for(let n=0;n<10;n++){
+     const mid=sample((lo.angle+hi.angle)/2,side);
+     if(lo.cross*mid.cross<=0)hi=mid;else lo=mid;
+    }
+    const candidate=Math.abs(lo.cross)<Math.abs(hi.cross)?lo:hi;
+    if(candidate.ahead>.15&&Math.abs(candidate.cross)<.025&&(!best||candidate.angle<best.angle)){
+     best=candidate;break;
+    }
+   }
+   left=right;
+  }
+ }
+ return best;
+}
+function guideDirect(a,fix,g,geometry,move){
+ const radius=turnRadius(a.speed)*1.35;
+ if(!a.directGuidance||a.directGuidance.fix!==fix.name){
+  const intercept=directIntercept(a,fix,geometry,move),track=a.groundTrack??a.heading;
+  const offset=delta(g.bearing,track)*rad,side=Math.sign(offset);
+  const inside=side&&Math.hypot(g.distance*Math.cos(offset),g.distance*Math.sin(offset)-side*radius)<radius;
+  a.directGuidance=intercept?{fix:fix.name,mode:'turn',heading:intercept.heading,side:intercept.side}:
+   inside?{fix:fix.name,mode:'extend',track}:{fix:fix.name,mode:'track'};
+ }
+ const state=a.directGuidance;
+ if(state.mode==='extend'){
+  if(g.distance<radius*3){a.navigationNotice='DCT '+fix.name+': extending to make turn room';a.targetHeading=courseHeading(a,state.track);return;}
+  a.directGuidance=null;guideDirect(a,fix,g,geometry,move);return;
+ }
+ a.navigationNotice='DCT '+fix.name+': '+(state.mode==='turn'?'turning to intercept':'tracking to fix');
+ if(state.mode==='turn'){
+  if(Math.abs(delta(state.heading,a.heading))>.05){
+   a.targetHeading=state.heading;a.turnDirection=state.side;return;
+  }
+  state.mode='track';a.turnDirection=0;
+ }
+ a.targetHeading=courseHeading(a,g.bearing);
+}
 function endsDownwind(start,fix,next,runway,geometry){
  if(!runway)return false;
  const axis=geometry(runway.threshold,runway.opposite).bearing,inbound=geometry(start,fix);
@@ -59,28 +127,61 @@ function straightInJoin(fix,next,runway,geometry){
 // Capture the leg with a bounded intercept. Track-rate damping starts the
 // rollout before the centerline, instead of waiting for cross-track error to
 // change sign while the aircraft is still banked toward it.
-function legHeading(a,anchor,course,geometry){
+function legHeading(a,anchor,course,geometry,limit=20,lookCap=Infinity){
  const g=geometry(anchor,a),cross=g.distance*Math.sin(delta(g.bearing,course)*rad);
- const look=Math.max(1,turnRadius(a.speed)*4,(a.groundSpeed||a.speed)/3600*25);
+ const look=Math.min(lookCap,Math.max(1,turnRadius(a.speed)*4,(a.groundSpeed||a.speed)/3600*25));
  const bank=a.bank||0,rate=9.80665*Math.tan(bank*rad)/(Math.max(30,a.speed)*.514444)/rad;
  const settling=Math.min(2.5,Math.abs(bank)/10);
  const track=delta(a.groundTrack??a.heading,course)*rad;
  const drift=(a.groundSpeed||a.speed)/3600*settling*Math.sin(track+rate*settling*rad/2);
- const correction=Math.max(-20,Math.min(20,Math.atan2(cross+drift,look)/rad));
+ const correction=Math.max(-limit,Math.min(limit,Math.atan2(cross+drift,look)/rad));
  return courseHeading(a,wrap(course-correction));
 }
+function startRejoin(a,fix,next,geometry,move){
+ const course=geometry(fix,next).bearing,parallel=courseHeading(a,course);
+ // Plan an intercept rather than first levelling out on a displaced,
+ // parallel track and then commanding a second turn.
+ const end=rolloutPosition(a,parallel,0,move),g=geometry(fix,end);
+ const cross=g.distance*Math.sin(delta(g.bearing,course)*rad);
+ const look=Math.max(2,turnRadius(a.speed)*4);
+ const correction=Math.max(-30,Math.min(30,Math.atan2(cross,look)/rad));
+ const heading=courseHeading(a,wrap(course-correction));
+ a.flyBy={course,next:next.name,anchor:{lat:fix.lat,lon:fix.lon},rejoinHeading:heading,intercepting:true};
+ a.navigationNotice='Rejoining filed route after '+fix.name+' toward '+next.name;
+ a.targetHeading=heading;
+}
 function guideRoute(a,fixes,geometry,move,runway){
+ let rejoinReached=false;
  if(a.flyBy){
   if(a.flyBy.next===a.remaining[0]){
+   if(Number.isFinite(a.flyBy.rejoinHeading)){
+    if(Math.abs(delta(a.heading,a.flyBy.rejoinHeading))>.05){a.targetHeading=a.flyBy.rejoinHeading;return;}
+    a.flyBy.rejoinHeading=null;a.flyBy.directCapture=true;
+   }
    if(!a.flyBy.intercepting&&Math.abs(delta(a.heading,courseHeading(a,a.flyBy.course)))>.5){a.targetHeading=courseHeading(a,a.flyBy.course);return;}
    const anchor=a.flyBy.anchor;if(anchor){const g=geometry(anchor,a),cross=g.distance*Math.sin(delta(g.bearing,a.flyBy.course)*rad);
-    if(Math.abs(cross)>.055||Math.abs(delta(a.groundTrack??a.heading,a.flyBy.course))>2||Math.abs(a.bank||0)>2){a.flyBy.intercepting=true;a.targetHeading=legHeading(a,anchor,a.flyBy.course,geometry);return;}
+    if(a.flyBy.directCapture){
+     const nextFix=fixes.find(w=>w.name===a.flyBy.next);
+     if(nextFix){
+      const toFix=geometry(a,nextFix),leg=geometry(anchor,nextFix);
+      const along=g.distance*Math.cos(delta(g.bearing,a.flyBy.course)*rad);
+      if(a.flyBy.captureEndpoint||leg.distance-along<=Math.max(3,turnRadius(a.speed)*2)){
+       a.flyBy.captureEndpoint=true;
+       if(toFix.distance>.08){a.targetHeading=courseHeading(a,toFix.bearing);return;}
+       rejoinReached=true;
+      }
+     }
+    }
+    if(!rejoinReached&&(Math.abs(cross)>.055||Math.abs(delta(a.groundTrack??a.heading,a.flyBy.course))>2||Math.abs(a.bank||0)>2)){a.flyBy.intercepting=true;a.targetHeading=legHeading(a,anchor,a.flyBy.course,geometry,a.flyBy.directCapture?35:20,a.flyBy.directCapture?Math.max(1.5,turnRadius(a.speed)*2):Infinity);return;}
    }
-  }a.flyBy=null;
+  }
+  if(a.flyBy.directCapture)a.navigationNotice='';
+  a.flyBy=null;
  }
  let count=0;while(a.remaining.length&&count++<10){
   const fix=fixes.find(w=>w.name===a.remaining[0]);if(!fix){a.navigation='heading';a.navigationNotice='Missing route fix '+a.remaining[0];return;}
   const g=geometry(a,fix),start=a.legStart||a,leg=geometry(start,fix),following=fixes.find(w=>w.name===a.remaining[1]);
+  let direct=a.explicitDirectFix===fix.name;
   const approachFix=isApproachFix(fix,runway,geometry),join=straightInJoin(fix,following,runway,geometry);
   const afterFollowing=fixes.find(w=>w.name===a.remaining[2]);
   if(approachFix&&!join&&a.explicitDirectFix!==fix.name){
@@ -88,12 +189,46 @@ function guideRoute(a,fixes,geometry,move,runway){
    a.navigationNotice='Approach discontinuity before '+fix.name+'; awaiting vectors or direct-to.';
    return;
   }
-  const discontinuity=endsDownwind(start,fix,following,runway,geometry)||
+  // Use the filed leg, not the vector-to-fix line, to detect downwinds.
+  const filed=direct?String(a.route||'').split(' '):null;
+  const filedIndex=filed?.indexOf(fix.name)??-1;
+  const downwindStart=direct?(filedIndex>0?fixes.find(w=>w.name===filed[filedIndex-1]):null):start;
+  // PENGO is a published STAR split, not the end of a downwind.
+  const nuberSplit=fix.name==='PENGO'&&['MANUP','BOTUM'].includes(following?.name)&&a.procedures?.includes('NUBER6');
+  const discontinuity=(!nuberSplit&&downwindStart&&endsDownwind(downwindStart,fix,following,runway,geometry))||
    (isApproachFix(following,runway,geometry)&&!straightInJoin(following,afterFollowing,runway,geometry))||approachFix;
   const next=discontinuity&&!join?null:following;
+  // A direct-to that rejoins a filed STAR uses the actual inbound track
+  // after the vector, then anticipates the fixed outbound fix-to-fix leg.
+  // Do not anticipate while still banking to establish the direct leg.
+  let directFlyBy=false;
+  if(direct&&next&&filed?.[filedIndex+1]===next.name&&filedIndex>=0&&a.directGuidance?.mode==='track'){
+   const inbound=a.groundTrack??a.heading,outbound=geometry(fix,next);
+   const angle=Math.abs(delta(outbound.bearing,inbound));
+   if(angle>5&&angle<135&&Math.abs(delta(g.bearing,inbound))<5&&Math.abs(a.bank||0)<3){
+    const lead=turnLead(a.speed,angle);
+    const groundScale=Math.max(1,(a.groundSpeed||a.speed)/a.speed);
+    if(g.distance<=Math.min(3.9,outbound.distance*.75,lead*groundScale+1.2)&&g.distance>.08){
+     const relative=p=>{const v=geometry(fix,p),r=delta(v.bearing,outbound.bearing)*rad;return {cross:v.distance*Math.sin(r),along:v.distance*Math.cos(r)};};
+     const here=relative(a),rollout=relative(rolloutPosition(a,courseHeading(a,outbound.bearing),0,move));
+     // Start only when a bank-limited turn would actually roll out onto
+     // the outbound centerline, accounting for wind and the inbound offset.
+     const tolerance=Math.max(.015,(a.groundSpeed||a.speed)/3600*.4);
+     if(Math.abs(rollout.cross)<=tolerance&&rollout.along>0&&rollout.along<outbound.distance*.75&&Math.abs(here.cross)>tolerance){
+     a.explicitDirectFix=null;a.directGuidance=null;a.turnDirection=0;
+     direct=false;directFlyBy=true;
+     }
+    }
+   }
+  }
+  if(direct&&g.distance>.08){
+   guideDirect(a,fix,g,geometry,move);
+   return;
+  }
+  if(direct){a.explicitDirectFix=null;a.directGuidance=null;a.turnDirection=0;a.navigationNotice='';}
   const passed=leg.distance>.05&&g.distance*Math.cos(delta(g.bearing,leg.bearing)*rad)<-.01;
   let lead=.08,anticipated=false;
-  if(next){
+  if(next&&!direct&&!directFlyBy){
    const outgoing=geometry(fix,next),angle=Math.min(179,Math.abs(delta(outgoing.bearing,leg.bearing)));
    // A near-reversal needs MUCH more anticipation than a 90-degree corner.
    // Capping the angle at 150 underestimated LINNG's 172-degree turn by miles.
@@ -110,9 +245,7 @@ function guideRoute(a,fixes,geometry,move,runway){
     if((angle>120||a.wind)&&g.distance<=required+3){
      // Refine near-reversals on the sphere, including existing bank. Small
      // planar/convergence errors are amplified by long, nearly parallel legs.
-     const probe={...a,targetHeading,turnDirection:0};
-     for(let i=0;i<4000;i++){turnMotion(probe,.1);const g=weather.motion(probe.heading,probe.speed,probe.wind);Object.assign(probe,move(probe,g.speed/36000,g.track));if(probe.heading===probe.targetHeading)break;}
-     end=probe;
+     end=rolloutPosition(a,targetHeading,0,move);
     }
     const from=geometry(fix,a),to=geometry(fix,end),cross=from.distance*Math.sin(delta(from.bearing,outgoing.bearing)*rad),endCross=to.distance*Math.sin(delta(to.bearing,outgoing.bearing)*rad);
     anticipated=Math.abs(cross)>.01&&cross*endCross<=0;
@@ -122,15 +255,23 @@ function guideRoute(a,fixes,geometry,move,runway){
    if(required>available&&angle>90)a.navigationNotice='Turn space limited at '+fix.name+'; reduce speed or vector.';
   }
   const projected=g.distance*Math.cos(delta(g.bearing,leg.bearing)*rad);
-  if(discontinuity&&(anticipated||projected<=(join?lead:.08)||passed)){
+  if(discontinuity&&(rejoinReached||direct||anticipated||projected<=(join?lead:.08)||passed)){
    a.remaining.shift();(a.passedFixes||(a.passedFixes=[])).push(fix.name);
    a.navigation='heading';a.flyBy=null;a.turnDirection=0;a.routeCompleted=false;
-   a.targetHeading=courseHeading(a,join?geometry(fix,following).bearing:wrap(geometry(fix,start).bearing+180));
+   a.targetHeading=courseHeading(a,join?geometry(fix,following).bearing:wrap(geometry(fix,downwindStart||start).bearing+180));
    a.explicitDirectFix=null;
    a.navigationNotice='Route discontinuity at '+fix.name+'; awaiting vectors or direct-to.';
    return;
   }
-  if(anticipated||projected<=lead||passed){a.remaining.shift();(a.passedFixes||(a.passedFixes=[])).push(fix.name);a.legStart={lat:fix.lat,lon:fix.lon};if(!a.remaining.length){a.routeCompleted=true;a.navigation='heading';a.targetHeading=leg.distance>.05?courseHeading(a,leg.bearing):a.heading;}else if(next&&Math.abs(delta(geometry(fix,next).bearing,leg.bearing))>5){a.flyBy={course:geometry(fix,next).bearing,next:next.name,anchor:{lat:fix.lat,lon:fix.lon}};a.targetHeading=courseHeading(a,a.flyBy.course);return;}continue;}
+  if(rejoinReached||direct||directFlyBy||anticipated||projected<=lead||passed){
+   rejoinReached=false;
+   a.remaining.shift();(a.passedFixes||(a.passedFixes=[])).push(fix.name);a.legStart={lat:fix.lat,lon:fix.lon};
+   if(!a.remaining.length){a.routeCompleted=!a.vectorOnlyRunway;a.navigation='heading';a.targetHeading=direct?a.heading:leg.distance>.05?courseHeading(a,leg.bearing):a.heading;}
+   else if(directFlyBy&&next){a.flyBy={course:geometry(fix,next).bearing,next:next.name,anchor:{lat:fix.lat,lon:fix.lon},directCapture:true};a.targetHeading=courseHeading(a,a.flyBy.course);return;}
+   else if(direct&&next){startRejoin(a,fix,next,geometry,move);return;}
+   else if(next&&Math.abs(delta(geometry(fix,next).bearing,leg.bearing))>5){a.flyBy={course:geometry(fix,next).bearing,next:next.name,anchor:{lat:fix.lat,lon:fix.lon}};a.targetHeading=courseHeading(a,a.flyBy.course);return;}
+   continue;
+  }
   if(leg.distance<=.05){a.targetHeading=courseHeading(a,g.bearing);return;}
   a.targetHeading=legHeading(a,start,leg.bearing,geometry);return;
  }
@@ -238,4 +379,4 @@ function publishedIAS(a,rules,fixes,geometry,runways=[]){
  a.speedNotice=model.source+' | '+a.speedPhase+' | '+target+' IAS'+(a.speedPhase==='final'?' (training final target)':'')+(!runway?' | no runway geometry: approach schedule unavailable':'');
  return target;
 }
-module.exports={machToTas,iasToTas,tasToIas,turnRate,turnRadius,turnError,turnMotion,turnLead,guideRoute,guideApproach,initialVerticalGuidance,normalizeSpeedRules,publishedIAS};
+module.exports={machToTas,iasToTas,tasToIas,turnRate,turnRadius,turnError,turnMotion,turnLead,guideDirect,guideRoute,guideApproach,initialVerticalGuidance,normalizeSpeedRules,publishedIAS};

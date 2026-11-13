@@ -14,4 +14,8 @@ base.extraResources.find(resource => resource.to === 'plugin').from = `../build/
 base.extraResources.push({from:'../build/Tunnel/cloudflared.exe',to:'tunnel/cloudflared.bin'});
 base.extraResources.push({from:'../build/Tunnel/LICENSE-cloudflared.txt',to:'tunnel/LICENSE-cloudflared.txt'});
 if (test) base.extraResources.push({ from: require('node:path').join(outputRoot, 'production/ZYZTools-Setup.exe'), to: 'Publishing/ZYZTools-Setup.exe' });
+if(test){
+ const version=require('../server-app/package.json').version,name='ZYZTools-Server-Setup-'+version+'.exe';
+ base.extraResources.push({from:require('node:path').join(process.env.LOCALAPPDATA,'ZYZTools/Builds/server-'+version,name),to:'Publishing/'+name});
+}
 module.exports = base;

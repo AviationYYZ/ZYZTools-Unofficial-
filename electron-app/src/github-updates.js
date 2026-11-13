@@ -84,4 +84,16 @@ async function download(release, folder, request = fetch, onProgress = () => {})
   return target;
 }
 const essentialInstallerArgs = tag => newer('1.2.77', tag) ? ['/S', '--updated', '--force-run'] : ['--updated', '--force-run'];
-module.exports = { DEFAULT_REPOSITORY, repository, newer, check, download, essentialInstallerArgs };
+async function releaseHistory(stream,request=fetch){
+ if(!['stable','beta'].includes(stream))throw Error('Choose Stable or Beta.');
+ const result=await request('https://api.github.com/repos/'+DEFAULT_REPOSITORY+'/releases?per_page=100',{
+  headers:{Accept:'application/vnd.github+json','User-Agent':'ZYZTools'},signal:AbortSignal.timeout(10000)
+ });
+ if(!result.ok)throw Error('GitHub release history unavailable ('+result.status+').');
+ const rows=await result.json();
+ return (Array.isArray(rows)?rows:[]).filter(r=>!r.draft&&!!r.prerelease===(stream==='beta')&&/^v?\d+\.\d+\.\d+(?:-beta(?:\.\d+)?)?$/.test(r.tag_name))
+  .filter(r=>Array.isArray(r.assets)&&r.assets.some(a=>/^(?:ZYZTools(?:-Test)?|PreferredCYYZPdcPlugin)-Setup(?:[-.][\w.-]+)?\.exe$/i.test(a.name)))
+  .sort((a,b)=>newer(a.tag_name,b.tag_name)?-1:newer(b.tag_name,a.tag_name)?1:String(b.published_at).localeCompare(String(a.published_at)))
+  .map(r=>({tag:r.tag_name,essential:String(r.body||'').includes('<!-- zyztools-update:essential -->')}));
+}
+module.exports = { DEFAULT_REPOSITORY, repository, newer, check, download, essentialInstallerArgs, releaseHistory };

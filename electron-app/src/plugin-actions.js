@@ -1,7 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const allowed = new Set(['apply', 'reject', 'reject-fp', 'link-test', 'test-pdc', 'export']);
+const allowed = new Set(['apply', 'reject', 'reject-fp', 'link-test', 'test-pdc', 'export','fixwatch']);
 let busy = false;
 async function sendPluginAction(folder, action, callsign = '', timeoutMs = 8000) {
   if (!allowed.has(action)) throw new Error('Unknown plugin action.');

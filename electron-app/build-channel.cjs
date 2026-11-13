@@ -5,6 +5,7 @@ require('./build-workspace-ui.cjs');
 if (!['test', 'production', 'both'].includes(arg)) throw new Error('Choose test or production.');
 execFileSync('powershell.exe', ['-NoProfile','-ExecutionPolicy','Bypass','-File',path.join(__dirname,'../tools/Prepare-Tunnel.ps1')],{stdio:'inherit',windowsHide:true});
 execFileSync(process.execPath, [path.join(__dirname, 'build-test-source.cjs')], { stdio: 'inherit' });
+if(arg!=='production')execFileSync(process.execPath,[path.join(__dirname,'../server-app/build.cjs')],{cwd:path.join(__dirname,'../server-app'),stdio:'inherit',windowsHide:true});
 for (const kind of arg === 'production' ? ['production'] : ['production', 'test']) {
   execFileSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, '../tools/Build-Channel.ps1'), '-Channel', kind], { stdio: 'inherit', windowsHide: true });
   execFileSync(process.execPath, [path.join(__dirname, 'node_modules/electron-builder/out/cli/cli.js'), '--config', 'build-config.cjs', '--win', 'nsis', '--ia32'],

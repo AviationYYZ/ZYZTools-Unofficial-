@@ -172,6 +172,14 @@ function formToConfig() {
   next.audio_replay_processes = "trackaudio.exe";
   next.audio_replay_folder = $("recordingsFolder").value.trim() || "Recordings";
   next.audio_replay_save_command = commandSuffix();
+  for (const tool of ["spacing","leader","fixwatch"]) {
+    const alias=$(tool+"Shortcut").value.trim().toLowerCase();
+    next["radar_"+tool+"_shortcut"]=/^\.[a-z][a-z0-9]{0,15}$/.test(alias)?alias:"";
+  }
+  const leaderMode=$("leaderMode").value,leaderMinutes=Number($("leaderMinutes").value);
+  next.radar_leader_setting=leaderMode!=="OFF"&&leaderMinutes>=.5&&leaderMinutes<=10&&Number.isInteger(leaderMinutes*2)?leaderMinutes+" "+leaderMode:"OFF";
+  const scope=$("fixwatchScope").value,stars=$("fixwatchStars").value.toUpperCase().replace(/\s+/g,""),radius=Number($("fixwatchRadius").value);
+  next.radar_watch_setting=(radius>0&&radius<=100?radius+" ":"")+(scope==="STAR"&&/^[A-Z][A-Z0-9]{1,9}(,[A-Z][A-Z0-9]{1,9})*$/.test(stars)?"STAR "+stars:scope==="PICK"?"PICK":"ALL");
   next.trackaudio_version = $("trackAudioVersion").value;
   next.test_mode = boolInt("testMode");
   next.debug_mode = boolInt("debugMode");
@@ -211,6 +219,11 @@ function configToForm(next) {
   updateTxRadioIntensityLabel();
   $("recordingsFolder").value = config.audio_replay_folder || "Recordings";
   $("saveCommand").value = String(config.audio_replay_save_command || "replay save").replace(/^\.+/, "");
+  for (const tool of ["spacing","leader","fixwatch"]) $(tool+"Shortcut").value=config["radar_"+tool+"_shortcut"]||"";
+  const leader=String(config.radar_leader_setting||"OFF").match(/^([\d.]+) (SEL|ALL)$/i);
+  $("leaderMinutes").value=leader?.[1]||"0.5";$("leaderMode").value=leader?.[2].toUpperCase()||"OFF";
+  const watch=String(config.radar_watch_setting||"ALL").match(/^(?:([\d.]+) )?(ALL|PICK|STAR)(?: (.*))?$/i);
+  $("fixwatchRadius").value=watch?.[1]||"0";$("fixwatchScope").value=watch?.[2].toUpperCase()||"ALL";$("fixwatchStars").value=watch?.[3]||"";
   $("trackAudioVersion").value = config.trackaudio_version || "auto";
   setBool("testMode", config.test_mode);
   setBool("debugMode", config.debug_mode);
@@ -638,6 +651,53 @@ async function checkUpdates(background = false) {
   }
 }
 $("checkUpdatesBtn").addEventListener('click', () => checkUpdates());
+window.ZYZCalculators?.mount($('controllerCalculators'));
+let aeroViewTimer,aeroViewBusy=false;
+async function refreshAeroView(action){
+  if(aeroViewBusy)return;
+  aeroViewBusy=true;
+  try{
+    const state=await api.aeroView(action);
+    $('aeroViewStatus').textContent=state.status;
+    $('aeroViewAtis').textContent=['ARR','DEP','combined'].map(kind=>{
+      const r=state.atis[kind];
+      if(!r||typeof r.text!=='string'||!Number.isSafeInteger(r.updatedAt))return '';
+      return (kind==='combined'?'ATIS':kind)+' · '+new Date(r.updatedAt).toISOString().slice(11,16)+'Z'+(r.status==='current'?'':' · stale')+' — '+r.text;
+    }).filter(Boolean).join('\n\n')||'No report available.';
+    if(state.status==='Off'){clearInterval(aeroViewTimer);aeroViewTimer=null;}
+    else if(!aeroViewTimer)aeroViewTimer=setInterval(()=>refreshAeroView('status'),3000);
+  }catch(error){$('aeroViewStatus').textContent=error.message;}
+  finally{aeroViewBusy=false;}
+}
+$('aeroViewOpen').onclick=()=>refreshAeroView('open');
+$('aeroViewStop').onclick=()=>refreshAeroView('stop');
+$("saveRadarShortcutsBtn").addEventListener("click", () => {
+  if(!$("fixwatchRadius").checkValidity()||($("leaderMode").value!=="OFF"&&(!$("leaderMinutes").value||!$("leaderMinutes").checkValidity())))return setStatus("Check the alert radius and leader length.","error");
+  if($("fixwatchScope").value==="STAR"&&!/^[A-Z][A-Z0-9]{1,9}(,[A-Z][A-Z0-9]{1,9})*$/.test($("fixwatchStars").value.toUpperCase().replace(/\s+/g,"")))return setStatus("Enter one or more STAR names, separated by commas.","error");
+  const aliases=["spacing","leader","fixwatch"].map(tool=>$(tool+"Shortcut").value.trim().toLowerCase()).filter(Boolean);
+  if(aliases.some(alias=>!/^\.[a-z][a-z0-9]{0,15}$/.test(alias)))return setStatus("Use a dot followed by a letter, then up to 15 letters or digits.", "error");
+  if(new Set(aliases).size!==aliases.length||aliases.some(alias=>[".ui",".calc",".radartools",".spacing",".leader",".fixwatch",".aircraft",".replay"].includes(alias)))return setStatus("Choose a different, unused shortcut for each tool.", "error");
+  saveConfig("Radar tools saved.").catch(error=>setStatus(error.message,"error"));
+});
+let releaseHistoryGeneration=0;
+function clearReleaseHistory(){
+ releaseHistoryGeneration++;
+ $('releaseVersion').replaceChildren();$('releaseVersion').disabled=true;$('openReleaseVersion').disabled=true;$('loadReleaseHistory').disabled=false;
+ $('releaseHistoryStatus').textContent='';
+}
+$('updateStream').addEventListener('change',clearReleaseHistory);
+$('loadReleaseHistory').onclick=async()=>{
+ clearReleaseHistory();const id=releaseHistoryGeneration,stream=$('updateStream').value;
+ $('loadReleaseHistory').disabled=true;$('releaseHistoryStatus').textContent='Loading published '+stream+' builds…';
+ try{
+  const versions=await api.releaseHistory(stream);if(id!==releaseHistoryGeneration)return;
+  $('releaseVersion').replaceChildren(...versions.map(r=>new Option(r.tag+(r.essential?' · essential':''),r.tag)));
+  $('releaseVersion').disabled=$('openReleaseVersion').disabled=!versions.length;
+  $('releaseHistoryStatus').textContent=versions.length?versions.length+' published builds with installers. Back up settings before downgrading.':'No published installers found in this stream.';
+ }catch(e){if(id===releaseHistoryGeneration)$('releaseHistoryStatus').textContent=e.message;}
+ finally{if(id===releaseHistoryGeneration)$('loadReleaseHistory').disabled=false;}
+};
+$('openReleaseVersion').onclick=async()=>{try{await api.openRelease($('releaseVersion').value);}catch(e){$('releaseHistoryStatus').textContent=e.message;}};
 async function downloadOfferedUpdate() {
   const release = offeredUpdate;
   if (!release || updateDownloading || updateCheckRunning) return;

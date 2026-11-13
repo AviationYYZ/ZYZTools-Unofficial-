@@ -1,6 +1,6 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),{EventEmitter}=require('node:events');
 const {normalize,rectangle,launch,withAsr}=require('./src/euroscope-launch');
-const {DllGuard}=require('./src/euroscope-runtime');
+const {DllGuard,readDllVersion}=require('./src/euroscope-runtime');
 test('launch profiles use literal arguments and independent monitor layouts',async()=>{
  const preset={id:'test-preset',name:'Training',windows:[{profile:'C:\\EuroScope Files\\Session One.prf',orientation:'left',display:'1'},{profile:'D:\\Radar\\Second.prf',orientation:'bottom',display:'2'}]};
  const config=normalize({exe:'C:\\Program Files (x86)\\EuroScope\\EuroScope.exe',presets:[preset],selected:preset.id});
@@ -51,19 +51,35 @@ test('two windows using the same profile get distinct launch copies and position
  assert.equal(result.opened,2);assert.notEqual(opened[0],opened[1]);
  assert.deepEqual(layouts,[{monitor:0,position:5,maximized:false},{monitor:0,position:9,maximized:false}]);
 });
-test('open EuroScope blocks a missing or mismatched DLL and accepts the bundled DLL',async()=>{
- const root=fs.mkdtempSync(path.join(os.tmpdir(),'zyz-dll-check-')),payload=path.join(root,'payload'),installed=path.join(root,'installed');
+function dll(version,extra=''){
+ const header=Buffer.alloc(88);
+ header.writeUInt16LE(0x5a4d,0);header.writeUInt32LE(64,0x3c);
+ header.writeUInt32LE(0x4550,64);header.writeUInt16LE(0x2000,86);
+ return Buffer.concat([header,Buffer.from(version?'ZYZTOOLS_DLL_VERSION['+version+']'+extra:extra)]);
+}
+test('only a known DLL version mismatch while EuroScope is open locks the desktop',async()=>{
+ const installed=fs.mkdtempSync(path.join(os.tmpdir(),'zyz-dll-check-'));
  try{
-  fs.mkdirSync(payload);fs.mkdirSync(installed);
-  const dll='PreferredCYYZPdcPlugin.dll',expected=path.join(payload,dll),target=path.join(installed,dll);
-  fs.writeFileSync(expected,'new');let active=true;
-  const guard=new DllGuard({payload:()=>payload,version:'2.0.0',running:async()=>active});
-  assert.equal((await guard.check(installed)).blocked,true);
-  fs.writeFileSync(target,'older DLL');
-  assert.equal((await guard.check(installed)).blocked,true);
-  fs.writeFileSync(target,'new');
-  assert.equal((await guard.check(installed)).blocked,false);
-  fs.writeFileSync(target,'different');active=false;
-  assert.equal((await guard.check(installed,true)).blocked,false);
- }finally{fs.rmSync(root,{recursive:true,force:true});}
+  const target=path.join(installed,'PreferredCYYZPdcPlugin.dll');
+  let active=true;
+  const guard=new DllGuard({version:'2.0.30',running:async()=>active});
+  assert.deepEqual(await guard.check(installed),{running:true,blocked:false,version:'2.0.30',installed:false,installedVersion:null});
+  const check=async(bytes,version,blocked)=>{
+   fs.writeFileSync(target,bytes);
+   const status=await guard.check(installed,true);
+   assert.equal(status.installedVersion,version);
+   assert.equal(status.blocked,blocked);
+  };
+  await check(dll(null,'legacy DLL'),null,false);
+  await check(dll('2.0.29','older'), '2.0.29',true);
+  await check(dll('2.0.31','newer release'), '2.0.31',true);
+  await check(dll('2.0.30','stable build'), '2.0.30',false);
+  await check(dll('2.0.30','different beta build'), '2.0.30',false);
+  active=false;
+  await check(dll('2.0.29','closed EuroScope'), '2.0.29',false);
+ }finally{fs.rmSync(installed,{recursive:true,force:true});}
+});
+test('version reader rejects a non-DLL and an ambiguous version',()=>{
+ assert.equal(readDllVersion(Buffer.from('ZYZTOOLS_DLL_VERSION[2.0.30]')),null);
+ assert.equal(readDllVersion(dll('2.0.30','ZYZTOOLS_DLL_VERSION[2.0.31]')),null);
 });
