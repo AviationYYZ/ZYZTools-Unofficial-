@@ -2668,7 +2668,7 @@ private:
     }
     bool m_radarToolsVisible=false,m_calcsVisible=false;
     int m_calcSelected=-1;
-    int m_weatherLayers=0;
+    int m_weatherLayers=0,m_weatherHeight=1500,m_weatherMode=0,m_weatherRangeNm=75;
     bool m_aeroWindsVisible=false;
     std::string m_aeroNorth="Unavailable",m_aeroSouth="Unavailable";
     void ReadAeroViewWind(){
@@ -2743,16 +2743,7 @@ private:
             return true;
         }
         if(verb==".WX"){
-            std::string layer;int mask=0;
-            while(args>>layer){
-                if(layer=="RAIN"||layer=="RADAR")mask|=WeatherOverlay::Rain;
-                else if(layer=="LIGHTNING")mask|=WeatherOverlay::Lightning;
-                else if(layer=="VERTICAL")mask|=WeatherOverlay::Vertical;
-                else if(layer=="ALL")mask|=7;
-                else if(layer=="OFF"){m_weatherLayers=0;return true;}
-                else{RadarNotice("Use .wx rain, lightning, vertical, all or off. Combine layers with spaces.");return true;}
-            }
-            m_weatherLayers=mask?mask:m_weatherLayers?0:WeatherOverlay::Rain;
+            RadarNotice("Weather radar is controlled in ZYZTools: Controller Tools > Calculators > Advanced weather radar.");
             return true;
         }
         if(!verb.empty()&&verb!=".CALC"&&verb!=".RADARTOOLS"&&verb!=".SPACING"&&verb!=".LEADER"&&verb!=".FIXWATCH"&&verb!=".UI"&&verb!=".AIRCRAFT"&&verb!=".REPLAY"){
@@ -5797,6 +5788,10 @@ private:
             << "  \"radar_leader_shortcut\": \"" << JsonEscape(m_cfg.leaderShortcut) << "\",\n"
             << "  \"radar_fixwatch_shortcut\": \"" << JsonEscape(m_cfg.fixwatchShortcut) << "\",\n"
             << "  \"radar_leader_setting\": \"" << JsonEscape(m_cfg.radarLeaderSetting) << "\",\n"
+            << "  \"radar_weather_layers\": " << m_weatherLayers << ",\n"
+            << "  \"radar_weather_altitude\": " << m_weatherHeight << ",\n"
+            << "  \"radar_weather_range_nm\": " << m_weatherRangeNm << ",\n"
+            << "  \"radar_weather_mode\": \"" << (std::array<const char*,5>{"live","supercell","line","light","clear"})[m_weatherMode] << "\",\n"
             << "  \"radar_watch_setting\": \"" << JsonEscape(m_cfg.radarWatchSetting) << "\",\n"
             << "  \"trackaudio_version\": \"" << JsonEscape(m_cfg.trackAudioVersion) << "\",\n"
             << "  \"settings_app_path\": \"" << JsonEscape(m_cfg.settingsAppPath) << "\",\n"
@@ -5906,6 +5901,16 @@ private:
 
         JsonStringValue(json, "hoppie_logon_code", m_cfg.logonCode);
         JsonStringValue(json, "station_code", m_cfg.stationCode);
+        int weatherLayers=0;
+        JsonIntValue(json,"radar_weather_layers",weatherLayers);
+        weatherLayers=weatherLayers>=0&&weatherLayers<=7?weatherLayers&3:0;
+        m_weatherLayers=weatherLayers;
+        int height=1500;JsonIntValue(json,"radar_weather_altitude",height);
+        m_weatherHeight=height>=500&&height<=19000?height:1500;
+        int weatherRange=75;JsonIntValue(json,"radar_weather_range_nm",weatherRange);
+        m_weatherRangeNm=weatherRange>=10&&weatherRange<=75?weatherRange:75;
+        std::string weatherMode;JsonStringValue(json,"radar_weather_mode",weatherMode);
+        m_weatherMode=weatherMode=="supercell"?1:weatherMode=="line"?2:weatherMode=="light"?3:weatherMode=="clear"?4:0;
         m_cfg.pdcTemplateBridge.clear(); m_cfg.pdcTemplateHoppie.clear();
         {
             size_t pos=0;m_cfg.radarLeaderSetting="OFF";m_cfg.radarWatchSetting="ALL";
@@ -6123,7 +6128,7 @@ public:
     void OnRefresh(HDC hDC, int Phase) override
     {
         if(m_plugin&&Phase==REFRESH_PHASE_BEFORE_TAGS&&m_plugin->m_weatherLayers){
-            m_weatherOverlay.Draw(hDC,GetRadarArea(),m_plugin->m_weatherLayers,[this](double lat,double lon){
+            m_weatherOverlay.Draw(hDC,GetRadarArea(),m_plugin->m_weatherLayers,m_plugin->m_weatherHeight,m_plugin->m_weatherMode,m_plugin->m_weatherRangeNm,GetThisDllDir(),[this](double lat,double lon){
                 CPosition p;p.m_Latitude=lat;p.m_Longitude=lon;return ConvertCoordFromPositionToPixel(p);
             });
         }

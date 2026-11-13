@@ -19,6 +19,7 @@ for (const entry of ['src', 'tools', 'docs', 'scenarios', 'assets/sounds', 'asse
 for (const entry of ['src','test','wrangler.jsonc','tsconfig.json','package.json','package-lock.json','worker-configuration.d.ts','README.md']) add('cloudflare/room-directory/'+entry);
 add('electron-app/test-app-policy.cjs');
 add('electron-app/test-euroscope-launch.cjs');
+add('electron-app/test-radar-reflectivity.cjs');
 add('electron-app/test-controller-calculators.cjs');
 add('electron-app/test-instructor-pwa.cjs');
 add('electron-app/build-workspace-ui.cjs');

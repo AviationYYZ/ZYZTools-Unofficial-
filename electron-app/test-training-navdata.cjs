@@ -12,7 +12,7 @@ test('companion fixes, airport/nav coordinates, airway-only endpoints, ambiguity
 });
 test('bundled Toronto scenarios: exact stream schedules, runway mapping, bedpost altitude, no external catalogue required',()=>{
  for(const file of ['CYYZ-West-65-per-hour.json','CYYZ-East-40-per-hour-with-departures.json','CYYZ-West-10NM-spacing-20min.json']){
-  const s=JSON.parse(fs.readFileSync(path.join(__dirname,'../scenarios',file))),east=file.includes('East'),spacing=file.includes('10NM');assert.deepEqual(normalize(resolveScenario(s,{fixes:[]})),s);assert.equal(s.aircraft.length,spacing?55:east?50:65);assert.equal(new Set(s.aircraft.map(a=>a.squawk)).size,s.aircraft.length);
+  const s=JSON.parse(fs.readFileSync(path.join(__dirname,'../scenarios',file))),east=file.includes('East'),spacing=file.includes('10NM');assert.deepEqual(normalize(resolveScenario(s,{fixes:[]})),{aircraftSpeedProfiles:{},...s});assert.equal(s.aircraft.length,spacing?55:east?50:65);assert.equal(new Set(s.aircraft.map(a=>a.squawk)).size,s.aircraft.length);
   assert(s.aircraft.every(a=>a.remarks.includes('/v/')),'Every arrival and departure must have /v/ remarks');
   for(const [star,count]of [['LINNG3',20],['NUBER6',15],['BOXUM7',10],['IMEBA9',10],['RAGID6',10]]){
    const rows=s.aircraft.filter(a=>a.procedures.includes(star));assert.equal(rows.length,spacing?11:east?8:count);assert.equal(rows[0].arrivalRunway,['BOXUM7','IMEBA9'].includes(star)?east?'05':'23':east?'06R':'24R');

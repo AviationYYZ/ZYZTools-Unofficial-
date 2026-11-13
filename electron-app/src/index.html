@@ -450,6 +450,15 @@
           <label for="fixwatchRadius">Entry alert (NM; 0 turns alerts off)</label><input id="fixwatchRadius" type="number" min="0" max="100" step="any" value="0">
           <label for="leaderMode">Yellow leader lines</label><select id="leaderMode"><option value="OFF">Off</option><option value="SEL">Selected aircraft</option><option value="ALL">All aircraft</option></select>
           <label for="leaderMinutes">Leader length (minutes)</label><input id="leaderMinutes" type="number" min="0.5" max="10" step="0.5" value="0.5">
+          <fieldset><legend>Advanced weather radar · Toronto area</legend>
+            <label class="check"><input id="wxRain" type="checkbox"> Reflectivity at selected height</label>
+            <label class="check"><input id="wxLightning" type="checkbox"> Lightning</label>
+            <label>Radar height (MSL)<select id="wxAltitude"></select></label>
+            <label>Range from CYYZ <output id="wxRangeLabel">75 NM</output><input id="wxRange" type="range" min="10" max="75" step="1" value="75"></label>
+            <label>Data source<select id="wxMode"><option value="live">Live observations</option><option value="supercell">Test · Intense cells</option><option value="line">Test · Squall line</option><option value="light">Test · Light rain</option><option value="clear">Test · Clear skies</option></select></label>
+            <p id="wxSettingsStatus" class="subtle" role="status">Changes apply automatically.</p>
+            <p class="subtle">Keep ZYZTools open for reflectivity. Green is echo; bright green is 45+ dBZ. Lightning is separate. Test mode uses synthetic data only. NOAA MRMS / ECCC GeoMet · simulation only.</p>
+          </fieldset>
           <p>Optional command aliases. Use a dot followed by letters or numbers, such as .pair. Save and apply your plugin settings.</p>
           <label for="spacingShortcut">Spacing pair (.spacing)</label><input id="spacingShortcut" maxlength="17" placeholder=".pair">
           <label for="leaderShortcut">Leader lines (.leader)</label><input id="leaderShortcut" maxlength="17" placeholder=".ll">
@@ -854,6 +863,8 @@
           <div class="caption">App updates</div>
           <div id="updateStatus" class="subtle">Checks for approved releases.</div>
           <label>Update stream <select id="updateStream"><option value="stable">Stable</option><option value="beta">Beta</option></select></label>
+          <label class="check"><input id="pauseAutomaticUpdates" type="checkbox"> Pause automatic essential updates</label>
+          <p class="subtle">Keep the installed version across restarts. Manual update checks and installs still work. Applies only to app versions that support this setting.</p>
           <details class="instructor-reference"><summary>Choose a published version</summary><p>Browse installers in the selected stream, including older builds. This opens the release for manual installation; it does not downgrade or replace either app automatically.</p><div class="buttons"><button type="button" id="loadReleaseHistory">Load versions</button><select id="releaseVersion" aria-label="Published version" disabled></select><button id="openReleaseVersion" type="button" disabled>Open release</button></div><p id="releaseHistoryStatus" role="status"></p></details>
           <p>Essential fixes install automatically on startup in your selected stream. Optional updates are downloaded here.</p>
           <div class="buttons"><button id="checkUpdatesBtn">Check for updates</button><button id="installUpdateBtn" hidden>Download update</button></div>

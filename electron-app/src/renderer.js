@@ -14,6 +14,7 @@ let customTheme = window.ZyzCustomTheme.normalize();
 const customFields = { background: 'customBackground', header: 'customHeader', navigation: 'customNavigation', panel: 'customPanel', text: 'customText', muted: 'customMuted', accent: 'customAccent', title: 'customTitle', font: 'customFont', layout: 'customLayout', titleSize: 'customTitleSize', radius: 'customRadius', titleCase: 'customTitleCase' };
 
 const $ = (id) => document.getElementById(id);
+for(const m of api.radarHeights||[])$('wxAltitude').append(new Option('≈ '+Math.round(m/0.3048).toLocaleString()+' ft ('+(m/1000)+' km)',String(m)));
 function setRuntimeStatus(state){
   if(!state)return;
   window.zyzRuntime=state;
@@ -178,6 +179,7 @@ function formToConfig() {
   }
   const leaderMode=$("leaderMode").value,leaderMinutes=Number($("leaderMinutes").value);
   next.radar_leader_setting=leaderMode!=="OFF"&&leaderMinutes>=.5&&leaderMinutes<=10&&Number.isInteger(leaderMinutes*2)?leaderMinutes+" "+leaderMode:"OFF";
+  Object.assign(next,readWeatherControls());
   const scope=$("fixwatchScope").value,stars=$("fixwatchStars").value.toUpperCase().replace(/\s+/g,""),radius=Number($("fixwatchRadius").value);
   next.radar_watch_setting=(radius>0&&radius<=100?radius+" ":"")+(scope==="STAR"&&/^[A-Z][A-Z0-9]{1,9}(,[A-Z][A-Z0-9]{1,9})*$/.test(stars)?"STAR "+stars:scope==="PICK"?"PICK":"ALL");
   next.trackaudio_version = $("trackAudioVersion").value;
@@ -222,6 +224,13 @@ function configToForm(next) {
   for (const tool of ["spacing","leader","fixwatch"]) $(tool+"Shortcut").value=config["radar_"+tool+"_shortcut"]||"";
   const leader=String(config.radar_leader_setting||"OFF").match(/^([\d.]+) (SEL|ALL)$/i);
   $("leaderMinutes").value=leader?.[1]||"0.5";$("leaderMode").value=leader?.[2].toUpperCase()||"OFF";
+  for(const [id,flag] of [["wxRain",1],["wxLightning",2]]) $(id).checked=!!(config.radar_weather_layers&flag);
+  $("wxAltitude").value=String(config.radar_weather_altitude||1500);
+  if(!$("wxAltitude").value)$("wxAltitude").value='1500';
+  $("wxMode").value=config.radar_weather_mode||'live';
+  if(!$("wxMode").value)$("wxMode").value='live';
+  $("wxRange").value=config.radar_weather_range_nm||75;
+  $("wxRangeLabel").textContent=$("wxRange").value+" NM";
   const watch=String(config.radar_watch_setting||"ALL").match(/^(?:([\d.]+) )?(ALL|PICK|STAR)(?: (.*))?$/i);
   $("fixwatchRadius").value=watch?.[1]||"0";$("fixwatchScope").value=watch?.[2].toUpperCase()||"ALL";$("fixwatchStars").value=watch?.[3]||"";
   $("trackAudioVersion").value = config.trackaudio_version || "auto";
@@ -411,6 +420,10 @@ async function boot() {
   $("appTitle").textContent = state.appDisplayName;
   document.title = state.appDisplayName;
   currentAppVersion = state.appVersion;
+  if(state.updatePreferences){
+    $("updateStream").value=state.updatePreferences.stream;
+    $("pauseAutomaticUpdates").checked=state.updatePreferences.paused;
+  }
   setRuntimeStatus(state.runtime);
   $("testPublishPanel").hidden = !state.isTestBuild;
   parentFolder = state.defaultParentFolder;
@@ -671,6 +684,25 @@ async function refreshAeroView(action){
 }
 $('aeroViewOpen').onclick=()=>refreshAeroView('open');
 $('aeroViewStop').onclick=()=>refreshAeroView('stop');
+function readWeatherControls(){
+  return {radar_weather_layers:($("wxRain").checked?1:0)|($("wxLightning").checked?2:0),
+    radar_weather_altitude:Number($("wxAltitude").value)||1500,radar_weather_mode:$("wxMode").value||'live',
+    radar_weather_range_nm:Number($("wxRange").value)};
+}
+let weatherSave=Promise.resolve(),weatherRevision=0;
+function applyWeatherControls(){
+  const revision=++weatherRevision, folder=installFolder, settings=readWeatherControls();
+  $("wxSettingsStatus").textContent="Applying weather settings…";
+  weatherSave=weatherSave.then(async()=>{
+    if(revision!==weatherRevision||folder!==installFolder)return;
+    const result=await api.setRadarWeather(folder,settings);
+    if(folder!==installFolder||revision!==weatherRevision)return;
+    if(config)Object.assign(config,result.settings);
+    $("wxSettingsStatus").textContent=result.linked?"Applied automatically. New reflectivity may take a moment to load.":"Saved. Link the EuroScope plugin to use these settings.";
+  }).catch(error=>{if(revision===weatherRevision&&folder===installFolder)$("wxSettingsStatus").textContent=error.message;});
+}
+for(const id of ["wxRain","wxLightning","wxAltitude","wxMode","wxRange"]) $(id).addEventListener("change",applyWeatherControls);
+$("wxRange").addEventListener("input",()=>{$("wxRangeLabel").textContent=$("wxRange").value+" NM";});
 $("saveRadarShortcutsBtn").addEventListener("click", () => {
   if(!$("fixwatchRadius").checkValidity()||($("leaderMode").value!=="OFF"&&(!$("leaderMinutes").value||!$("leaderMinutes").checkValidity())))return setStatus("Check the alert radius and leader length.","error");
   if($("fixwatchScope").value==="STAR"&&!/^[A-Z][A-Z0-9]{1,9}(,[A-Z][A-Z0-9]{1,9})*$/.test($("fixwatchStars").value.toUpperCase().replace(/\s+/g,"")))return setStatus("Enter one or more STAR names, separated by commas.","error");
@@ -697,7 +729,14 @@ $('loadReleaseHistory').onclick=async()=>{
  }catch(e){if(id===releaseHistoryGeneration)$('releaseHistoryStatus').textContent=e.message;}
  finally{if(id===releaseHistoryGeneration)$('loadReleaseHistory').disabled=false;}
 };
-$('openReleaseVersion').onclick=async()=>{try{await api.openRelease($('releaseVersion').value);}catch(e){$('releaseHistoryStatus').textContent=e.message;}};
+$('openReleaseVersion').onclick=async()=>{try{const prefs=await api.openRelease($('releaseVersion').value);if(prefs)$('pauseAutomaticUpdates').checked=prefs.paused;}catch(e){$('releaseHistoryStatus').textContent=e.message;}};
+$('pauseAutomaticUpdates').onchange=async event=>{
+ const input=event.currentTarget,paused=input.checked;
+ input.disabled=true;
+ try{input.checked=(await api.pauseAutomaticUpdates(paused)).paused;}
+ catch(e){input.checked=!paused;setStatus(e.message,'error');}
+ finally{input.disabled=false;}
+};
 async function downloadOfferedUpdate() {
   const release = offeredUpdate;
   if (!release || updateDownloading || updateCheckRunning) return;

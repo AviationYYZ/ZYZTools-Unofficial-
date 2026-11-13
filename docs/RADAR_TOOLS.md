@@ -2,8 +2,9 @@
 
 ### Toronto-area weather (simulation only)
 
-- `.wx` toggles precipitation. Use `.wx rain lightning` for observed precipitation and lightning density, `.wx vertical` for modeled 700 hPa vertical motion, `.wx all` to combine them, or `.wx off` to hide weather.
-- Data: Environment and Climate Change Canada MSC GeoMet. The 700 hPa layer is RDPS forecast pressure velocity: negative values indicate ascent and positive values indicate descent. It is not a live measurement of thunderstorm updrafts, downdrafts, wind shear or microbursts. Lightning density is aggregated, not individual strike positions. No shading does not mean safe conditions.
+- In **Controller Tools → Calculators → Advanced weather radar**, toggle reflectivity and lightning, choose a height and data source, and set the 10–75 NM radius around CYYZ. Both layers are clipped to that radius. Changes save automatically; no EuroScope commands are needed. Keep the desktop app running for reflectivity.
+- Live reflectivity uses the selected NOAA MRMS fixed-height slice (MSL), not the maximum from all altitudes. Green pixels show positive echo; 45+ dBZ is brighter. No echo and missing coverage are transparent. Live ECCC lightning is aggregated density, not strike positions.
+- Test modes use synthetic data only: Intense cells, Squall line, Light rain, or Clear skies. The radar labels them as tests and never mixes in live lightning. For simulation only; no shading does not mean safe conditions.
 
 In **Controller Tools → Calculators → EuroScope radar tools**, set FixWatch defaults and leader-line length. In EuroScope, press **Ctrl+Shift+F** and click near a fix, VOR or NDB to open the FixWatch dialog. Set the aircraft scope, optional STAR names, and entry alert radius, then choose **Start watch**. Press **Ctrl+Shift+S** and click two aircraft for spacing. **Esc** cancels picking. The commands below still work.
 

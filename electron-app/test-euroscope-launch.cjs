@@ -1,6 +1,21 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),{EventEmitter}=require('node:events');
 const {normalize,rectangle,launch,withAsr}=require('./src/euroscope-launch');
 const {DllGuard,readDllVersion}=require('./src/euroscope-runtime');
+test('all five Toronto prop STARs expand offline and keep the compact filed route',()=>{
+ const {expandRoute}=require('./src/training-routes');
+ const {resolveScenario}=require('./src/training-sector');
+ const {flightPlan}=require('./src/local-training');
+ const scenario=require('../scenarios/CYYZ-West-Mixed-25-AAR-FL110.json');
+ const props=scenario.aircraft.filter(a=>a.category==='prop');
+ assert.equal(new Set(props.flatMap(a=>a.procedures)).size,5);
+ for(const a of props){
+  const resolved=expandRoute({...a,compiledPlan:undefined,compiledRunway:undefined},{fixes:[],procedures:[]});
+  assert.equal(resolved.route,a.route);
+  assert.deepEqual(resolved.procedures,a.procedures);
+  assert.equal(flightPlan(a,'PRIVATE_CTR').split(':').at(-1),a.flightPlanRoute.replace(a.procedures[0],a.procedures[0]+'/'+a.arrivalRunway));
+ }
+ assert.equal(resolveScenario(scenario,{}).aircraft.length,25);
+});
 test('launch profiles use literal arguments and independent monitor layouts',async()=>{
  const preset={id:'test-preset',name:'Training',windows:[{profile:'C:\\EuroScope Files\\Session One.prf',orientation:'left',display:'1'},{profile:'D:\\Radar\\Second.prf',orientation:'bottom',display:'2'}]};
  const config=normalize({exe:'C:\\Program Files (x86)\\EuroScope\\EuroScope.exe',presets:[preset],selected:preset.id});
@@ -63,12 +78,13 @@ test('only a known DLL version mismatch while EuroScope is open locks the deskto
   const target=path.join(installed,'PreferredCYYZPdcPlugin.dll');
   let active=true;
   const guard=new DllGuard({version:'2.0.30',running:async()=>active});
-  assert.deepEqual(await guard.check(installed),{running:true,blocked:false,version:'2.0.30',installed:false,installedVersion:null});
+  assert.deepEqual(await guard.check(installed),{running:true,blocked:false,unverified:false,version:'2.0.30',installed:false,installedVersion:null,checkedFile:null});
   const check=async(bytes,version,blocked)=>{
    fs.writeFileSync(target,bytes);
    const status=await guard.check(installed,true);
    assert.equal(status.installedVersion,version);
    assert.equal(status.blocked,blocked);
+   assert.equal(status.unverified,active&&version===null);
   };
   await check(dll(null,'legacy DLL'),null,false);
   await check(dll('2.0.29','older'), '2.0.29',true);
@@ -78,6 +94,19 @@ test('only a known DLL version mismatch while EuroScope is open locks the deskto
   active=false;
   await check(dll('2.0.29','closed EuroScope'), '2.0.29',false);
  }finally{fs.rmSync(installed,{recursive:true,force:true});}
+});
+test('checks the DLL loaded by EuroScope, not a different linked copy',async()=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'zyz-loaded-dll-'));
+ try{
+  const make=(name,version)=>{const folder=path.join(root,name);fs.mkdirSync(folder);const file=path.join(folder,'PreferredCYYZPdcPlugin.dll');fs.writeFileSync(file,dll(version));return file;};
+  const linked=make('linked','2.0.30'),loaded=make('actual','2.0.29'),testDll=make('ZYZTools-test','2.0.28');
+  let paths=[testDll,loaded];
+  const guard=new DllGuard({version:'2.0.30',otherChannelFolder:'ZYZTools-test',running:async()=>({running:true,paths})});
+  assert.equal((await guard.check(path.dirname(linked),true)).checkedFile,loaded);
+  paths=[testDll];assert.equal((await guard.check(path.dirname(loaded),true)).blocked,false);
+  paths=[linked];assert.equal((await guard.check(path.dirname(loaded),true)).blocked,false);
+  paths=null;assert.equal((await guard.check(path.dirname(loaded),true)).blocked,true);
+ }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
 test('version reader rejects a non-DLL and an ambiguous version',()=>{
  assert.equal(readDllVersion(Buffer.from('ZYZTOOLS_DLL_VERSION[2.0.30]')),null);

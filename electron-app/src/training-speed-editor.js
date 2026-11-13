@@ -20,7 +20,8 @@ window.ZYZAircraftSpeedProfiles=class{
   }
  }
  suggested(key){
-  const values={light:[75,100,125],medium:[135,195,230],heavy:[150,210,250],prop:[75,100,130],highProp:[105,165,220]}[key];
+  // Medium and Heavy share Jet's factory bands, not the slot's edited Jet profile.
+  const values={light:[75,100,125],prop:[75,100,130],highProp:[105,165,220]}[key];
   return values?[{ceiling:3999,ias:values[0]},{ceiling:10000,ias:values[1]},{ceiling:60000,ias:values[2]}]:defaults;
  }
  set(jet,key,profiles={}){

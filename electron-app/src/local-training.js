@@ -232,7 +232,7 @@ class LocalTraining{
   if(a.arrivalRunway===runway)throw Error('Aircraft is already assigned runway '+runway+'.');
   const threshold=this.scenario.runways.find(r=>r.airport===a.destination&&r.name===runway);
   if(!threshold)throw Error('No simulator geometry for runway '+runway+'.');
-  const library=require('./training-route-variants.json');
+  const library=require('./training-routes').builtInStars;
   const variant=library.procedures.find(p=>p.airport===a.destination&&p.runway===runway&&a.procedures.includes(p.name));
   if(!variant)throw Error('No loaded alternative STAR for runway '+runway+'. Use a manual runway and route amendment.');
   const plan=variant.fixes[0]+' '+variant.name+' '+a.destination+'/'+runway;
@@ -273,7 +273,7 @@ class LocalTraining{
   if(routeChanged){
    const root=plan=>String(plan).toUpperCase().replace(/\/\d{2}[LRC]?(?=\s|$)/g,'').split(/\s+/).filter(t=>t&&t!==a.destination).join(' ');
    const runwayOnly=candidate.arrivalRunway!==a.arrivalRunway&&candidate.origin===a.origin&&candidate.destination===a.destination&&root(candidate.flightPlanRoute)===root(a.flightPlanRoute);
-   if(!preparedRoute&&runwayOnly&&hasGeometry&&a.navigation==='route'&&require('./training-route-variants.json').procedures.some(p=>p.airport===a.destination&&p.runway===candidate.arrivalRunway&&a.procedures.includes(p.name)))return this.divert(callsign,candidate.arrivalRunway,fields);
+   if(!preparedRoute&&runwayOnly&&hasGeometry&&a.navigation==='route'&&require('./training-routes').builtInStars.procedures.some(p=>p.airport===a.destination&&p.runway===candidate.arrivalRunway&&a.procedures.includes(p.name)))return this.divert(callsign,candidate.arrivalRunway,fields);
    const points=this.runtimeWaypoints?.length?this.runtimeWaypoints:this.scenario.waypoints;
    const assignForVectors=()=>{
     const tokens=String(candidate.flightPlanRoute).toUpperCase().split(/\s+/).filter(t=>t&&t.split('/')[0]!==candidate.destination&&!a.procedures.includes(t.split('/')[0]));

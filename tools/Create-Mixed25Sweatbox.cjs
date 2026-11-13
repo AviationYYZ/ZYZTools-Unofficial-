@@ -18,15 +18,15 @@ const streams={
 const propStars=new Set(['DUVOS4','NAKBO6','VERKO1','VIBLI6','UDNOX5']);
 // Representative callsigns and simulated schedules, not live flight records.
 const roster=`
-ACA256 CYWG A321 M jet BOXUM7
 CFXQH CYOS C182 L prop DUVOS4
+ACA256 CYWG A321 M jet BOXUM7
+WJA382 CYWG B738 M jet BOXUM7
 ACA601 CYHZ A320 M jet RAGID6
 ACA100 CYVR B77W H jet NUBER6
 CFLPY CYGK PC12 L highProp UDNOX5
 JZA7305 CYOW CRJ9 M jet IMEBA9
 POE526 KTPA E295 M jet LINNG3
 CFMZK KERI PA46 L prop VERKO1
-WJA382 CYWG B738 M jet BOXUM7
 JZA7894 CYAM DH8D M highProp DUVOS4
 AFR356 LFPG A359 H jet RAGID6
 UAL2044 KIAH B738 M jet LINNG3
@@ -65,6 +65,7 @@ const aircraft=roster.map(([callsign,origin,type,wake,group,star],i)=>{
  const a={callsign,origin,type,wake,category,...start,altitude:11000,
   heading:geometry(start,anchor).bearing,speed:group==='jet'?230:group==='prop'?135:185,speedBasis:'IAS',
   rate:2250,destination:'CYYZ',arrivalRunway,route:expanded.route,flightPlanRoute,
+  compiledPlan:flightPlanRoute,compiledRunway:arrivalRunway,
   procedures:[star],automaticSpeeds:true,scratchpad:arrivalRunway==='23'?' N':' R',
   remarks:'/v/ OFFLINE TRAINING',equipment:'GR',cruiseAltitude:group==='jet'?35000:11000,
   cruiseSpeed:group==='jet'?440:group==='prop'?160:230,
@@ -77,6 +78,11 @@ const raw={format:'ZYZTools-training',version:1,name:'CYYZ West | Mixed Fleet | 
  magneticVariationWest:10.37,initialOwnership:'instructor',waypoints:[...points.values()],
  runways,aircraft};
 assert.equal(aircraft.length,25);
+const opening=aircraft.slice(0,3);
+assert.deepEqual(opening.map(a=>[a.category,a.procedures[0],a.spawnTime]),[
+ ['prop','DUVOS4',0],['jet','BOXUM7',144],['jet','BOXUM7',288]
+]);
+assert(opening.every(a=>a.arrivalRunway==='23'&&a.route===opening[0].route&&a.route.startsWith('BOXUM ')));
 assert.equal(new Set(aircraft.map(a=>a.procedures[0])).size,10);
 assert.deepEqual(new Set(aircraft.map(a=>a.wake)),new Set(['L','M','H']));
 const sim=new LocalTraining();sim.load(normalize(raw));

@@ -22,9 +22,11 @@ app.setPath('userData', path.join(process.env.APPDATA || path.join(os.homedir(),
 let mainWindow = null;
 let discordPresence = null;
 let runtimeFolder, runtimeTimer, lastRuntimeNotice='';
-const dllGuard=new (require('./euroscope-runtime').DllGuard)({version:app.getVersion()});
+const {RadarFeed,weatherSettings}=require('./radar-reflectivity');
+const radarFeed=new RadarFeed();
+const dllGuard=new (require('./euroscope-runtime').DllGuard)({version:app.getVersion(),otherChannelFolder:channel.test?'PreferredCYYZPdcPlugin':'ZYZTools-test'});
 const runtimeState=()=>dllGuard.check(runtimeFolder||(runtimeFolder=installDestination(commandLinePluginFolder()||discoveredInstalledPluginFolder()||defaultParentFolder())));
-const recoveryChannels=new Set(['runtime:status','app:initialState','folder:browseParent','config:load','plugin:install','folder:open','appPolicy:state','updates:history','updates:openRelease','updates:check','updates:download','updates:installStaged']);
+const recoveryChannels=new Set(['runtime:status','app:initialState','folder:browseParent','config:load','plugin:install','folder:open','appPolicy:state','updates:history','updates:openRelease','updates:preferences','updates:check','updates:download','updates:installStaged']);
 function guarded(channelName,handler){
   ipcMain.handle(channelName,async(event,...args)=>{
     if(!recoveryChannels.has(channelName)){
@@ -397,6 +399,7 @@ function getInitialState(readOnly=false) {
     appDisplayName: channel.name,
     pluginFolderName: channel.pluginFolderName,
     appVersion: buildInfo.version,
+    updatePreferences: updates.readPreferences(updatePreferencesPath()),
     defaultParentFolder: installFolder,
     localSettingsFolder: localSettingsFolder(),
     installFolder,
@@ -855,8 +858,7 @@ function createWindow() {
 
 const updatePreferencesPath = () => path.join(app.getPath('userData'), 'update-stream.json');
 function selectedUpdateStream() {
-  try { return JSON.parse(fs.readFileSync(updatePreferencesPath(), 'utf8')).stream === 'beta' ? 'beta' : 'stable'; }
-  catch { return 'stable'; }
+  return updates.readPreferences(updatePreferencesPath()).stream;
 }
 let checkingStartupUpdate = false;
 let appPolicy;
@@ -894,7 +896,7 @@ function windowsPolicyAdminPassword(){
 const updateFolder = release => path.join(app.getPath('userData'), 'updates', release.tag);
 async function startEssentialUpdate() {
   // The development app must never replace itself with the consumer installer.
-  if (channel.test) return false;
+  if (channel.test || updates.readPreferences(updatePreferencesPath()).paused) return false;
   try {
     const release = await updates.check(updates.DEFAULT_REPOSITORY, app.getVersion(), undefined, selectedUpdateStream(), { essentialOnly: true });
     if (!release.available) return false;
@@ -932,6 +934,10 @@ app.whenReady().then(async () => {
   if(!(await runtimeState()).blocked)ensureDiscordPresence();
   runtimeTimer=setInterval(async()=>{
     const value=await runtimeState(),signature=JSON.stringify(value);
+    if(value.running&&!value.blocked&&runtimeFolder){
+      const cfg=readJsonIfExists(path.join(runtimeFolder,'PreferredCYYZPdcPlugin.json'));
+      if(cfg)refreshRadarFeed(runtimeFolder,cfg);
+    }
     if(signature!==lastRuntimeNotice&&mainWindow&&!mainWindow.isDestroyed()){
       lastRuntimeNotice=signature;mainWindow.webContents.send('runtime:changed',value);
     }
@@ -1199,13 +1205,27 @@ guarded('updates:history',async (_event,stream)=>{
 });
 guarded('updates:openRelease',async (_event,tag)=>{
  if(!releaseHistoryTags.has(tag))throw Error('Load the release list and select a version first.');
+ const older=updates.newer(app.getVersion(),tag);
+ if(older&&!channel.test){
+  const {response}=await dialog.showMessageBox(mainWindow,{
+   type:'warning', message:'Open an older version?',
+   detail:'ZYZTools will pause automatic essential updates for builds that support this setting. Older installers released before this feature may ignore the pause. Manual update checks remain available.',
+   buttons:['Cancel','Pause updates and open release'], defaultId:0,cancelId:0
+  });
+  if(response!==1)return updates.readPreferences(updatePreferencesPath());
+  updates.savePreferences(updatePreferencesPath(),{paused:true});
+ }
  await shell.openExternal('https://github.com/'+updates.DEFAULT_REPOSITORY+'/releases/tag/'+encodeURIComponent(tag));
+ return updates.readPreferences(updatePreferencesPath());
+});
+guarded('updates:preferences',(_event,paused)=>{
+ if(typeof paused!=='boolean')throw Error('Choose whether to pause automatic updates.');
+ return updates.savePreferences(updatePreferencesPath(),{paused});
 });
 guarded("updates:check", async (_event, stream) => {
   stream = stream === 'beta' ? 'beta' : stream === 'stable' ? 'stable' : selectedUpdateStream();
   if (selectedUpdateStream() !== stream) {
-    fs.mkdirSync(app.getPath('userData'), { recursive: true });
-    fs.writeFileSync(updatePreferencesPath(), JSON.stringify({ stream }));
+    updates.savePreferences(updatePreferencesPath(),{stream});
   }
   checkedRelease = await updates.check(updates.DEFAULT_REPOSITORY, app.getVersion(), undefined, stream, {preferEssential: !channel.test});
   if (channel.test) return { available: false, message: checkedRelease.message + ' Developer app stays separate; publishing includes the consumer installer.' };
@@ -1319,6 +1339,26 @@ guarded("config:saveLocal", async (_event, config) => {
   return normalized;
 });
 
+function refreshRadarFeed(folder,config){
+  const wx=weatherSettings(config);
+  if(wx.radar_weather_layers&1)radarFeed.tick(folder,wx.radar_weather_altitude,wx.radar_weather_mode);
+}
+guarded('radar:weatherSettings',async (_event,folder,settings)=>{
+  const installFolder=installDestination(folder);
+  const wx=weatherSettings(settings);
+  const target=configPathForInstall(installFolder);
+  const previous=readJsonIfExists(target);
+  if(previous&&fs.existsSync(path.join(installFolder,'PreferredCYYZPdcPlugin.dll'))){
+    assertDestination(installFolder,previous);
+    fs.writeFileSync(target+'.wx.tmp',JSON.stringify({...previous,...wx},null,2),'utf8');
+    fs.renameSync(target+'.wx.tmp',target);
+    runtimeFolder=installFolder;
+    if((await runtimeState()).running)refreshRadarFeed(installFolder,wx);
+    return {settings:wx,linked:true};
+  }
+  saveLocalConfig({...readJsonIfExists(localSettingsPath()),...wx});
+  return {settings:wx,linked:false};
+});
 guarded("config:saveInstalled", async (_event, installFolder, config) => {
   const previous = loadConfig(installFolder);
   const normalized = normalizeConfig({
