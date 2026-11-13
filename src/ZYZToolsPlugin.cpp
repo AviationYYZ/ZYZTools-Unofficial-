@@ -96,6 +96,7 @@ namespace
     constexpr int TAG_WATCH_DISTANCE = 9760;
     constexpr int FUNC_RADAR_CALC = 9770;
     constexpr int FUNC_RADAR_WATCH = 9780;
+    constexpr int FUNC_HOLD_EDIT = 9781;
     constexpr int FUNC_PILOT_EDIT = 9700;
     constexpr int FUNC_PILOT_LIST_FIRST = 9710;
     constexpr int FUNC_PILOT_LIST_LAST = 9715;
@@ -2130,6 +2131,11 @@ public:
 
     void OnFunctionCall(int FunctionId, const char *sItemString, POINT, RECT Area) override
     {
+        if(FunctionId==FUNC_HOLD_EDIT){
+            const auto value=Upper(Trim(sItemString?sItemString:""));
+            if(m_holdEdit<m_holdFields.size()&&!value.empty()&&value.size()<=16&&std::regex_match(value,std::regex("[A-Z0-9_.-]+")))m_holdFields[m_holdEdit]=value;
+            ShowHoldMenu();return;
+        }
         if(RadarToolsEdit(FunctionId,sItemString))return;
         if(FunctionId>=FUNC_PILOT_LIST_FIRST&&FunctionId<=FUNC_PILOT_LIST_LAST){
             const auto fp=FlightPlanSelectASEL();
@@ -2325,6 +2331,7 @@ public:
         if (Counter % 2 == 0)
             RefreshDepartureAssignmentConfig();
         PollSettingsActions();
+        if(Counter%2==0)ReadAeroViewWind();
         if (Counter % 2 == 0 && (m_cfg.runwayAssignmentConfig != "off" || m_cfg.arrivalAssignmentEnabled))
             for (CFlightPlan fp = FlightPlanSelectFirst(); fp.IsValid(); fp = FlightPlanSelectNext(fp))
             {
@@ -2345,6 +2352,14 @@ public:
     {
         if (!sCommandLine) return false;
         const std::string trainingCommand=Upper(CollapseWhitespace(Trim(sCommandLine)));
+        if(trainingCommand==".HOLD"||trainingCommand.rfind(".HOLD ",0)==0){
+            const auto cs=trainingCommand.size()>6?trainingCommand.substr(6):"";
+            const auto context=m_trainingCommands.PilotContext(cs);
+            if(GetConnectionType()!=CONNECTION_TYPE_DIRECT||context.empty()){RadarNotice("Use .hold ACID for an active aircraft in a verified Sweatbox instructor session.");return true;}
+            m_holdCallsign=cs;m_holdContext=context;m_holdDme=false;
+            m_holdFields={"","N","180","R","1","","",""};
+            ShowHoldMenu();return true;
+        }
         if(HandleRadarToolsCommand(trainingCommand))return true;
         if(trainingCommand==".AIRCRAFT"||trainingCommand==".AIRCRAFT OVERLAY"){
             if(m_trainingCommands.PilotRosterContext().empty())DisplayUserMessage("ZYZTools","PILOT","Connect my EuroScope to your private instructor session before opening All Aircraft.",true,true,false,false,false);
@@ -2591,6 +2606,37 @@ private:
     }
     ULONGLONG m_pilotFeedbackUntil=0;
     void SendPilotAction(const std::string &cs,const std::string &command){const auto self=ControllerMyself();if(GetConnectionType()!=CONNECTION_TYPE_DIRECT||!self.IsValid()||m_trainingCommands.PilotContext(cs).empty())return;const auto message=m_trainingCommands.Command(cs,self.GetCallsign(),command);m_pilotFeedback=cs+": "+command;m_pilotFeedbackUntil=GetTickCount64()+3000;if(!message.empty())DisplayUserMessage("ZYZTools","PILOT",message.c_str(),true,true,false,false,false);}
+    std::string m_holdCallsign,m_holdContext;
+    bool m_holdDme=false;
+    size_t m_holdEdit=0;
+    std::vector<std::string> m_holdFields;
+    void ShowHoldMenu(){
+        if(m_holdContext.empty()||m_trainingCommands.PilotContext(m_holdCallsign)!=m_holdContext)return;
+        const std::string labels[]={m_holdDme?"VOR/DME":"Waypoint","Quadrant (N/NE/E/SE/S/SW/W/NW)","Inbound course (magnetic)","Turns (L/R)","Leg time (min)","Radial (magnetic)","Fix DME (first limit)","Outbound DME (second limit)"};
+        const std::string mode=std::string("Mode: ")+(m_holdDme?"VOR/DME":"Timed");
+        std::vector<std::string> menu={m_holdCallsign+" - Hold editor",mode};
+        for(size_t i=0;i<m_holdFields.size();++i)if(i<4||(m_holdDme?i>=5:i==4))menu.push_back(labels[i]+": "+(m_holdFields[i].empty()?"(enter value)":m_holdFields[i]));
+        menu.insert(menu.end(),{"Issue hold","Exit at fix","Cancel active hold","Close"});
+        m_pilotDropdown.Open(menu,"",[this,mode,labels](std::string choice){
+            if(m_trainingCommands.PilotContext(m_holdCallsign)!=m_holdContext)return;
+            if(choice==mode){m_holdDme=!m_holdDme;m_holdFields[0].clear();ShowHoldMenu();return;}
+            if(choice=="Exit at fix"||choice=="Cancel active hold"){SendPilotAction(m_holdCallsign,choice=="Exit at fix"?"HOLD EXIT":"HOLD CANCEL");return;}
+            if(choice=="Issue hold"){
+                std::string command=m_holdDme?"HOLD DME":"HOLD TIME";
+                for(size_t i=0;i<m_holdFields.size();++i)if(i<4||(m_holdDme?i>=5:i==4)){
+                    if(m_holdFields[i].empty()){RadarNotice("Enter "+labels[i]+" before issuing the hold.");ShowHoldMenu();return;}
+                    command+=" "+m_holdFields[i];
+                }
+                SendPilotAction(m_holdCallsign,command);return;
+            }
+            for(size_t i=0;i<m_holdFields.size();++i)if(choice.rfind(labels[i]+": ",0)==0){
+                m_holdEdit=i;POINT point{};GetCursorPos(&point);
+                RECT area{point.x,point.y,point.x+220,point.y+24};
+                if(auto hwnd=GetForegroundWindow()){POINT origin{0,0};ClientToScreen(hwnd,&origin);OffsetRect(&area,-origin.x,-origin.y);}
+                OpenPopupEdit(area,FUNC_HOLD_EDIT,m_holdFields[i].c_str());return;
+            }
+        });
+    }
     CTrainingCommandBridge m_trainingCommands;
     CFlightPlanList m_pilotAircraftList;
     struct WaypointWatch{
@@ -2644,6 +2690,22 @@ private:
     bool m_radarToolsVisible=false,m_calcsVisible=false;
     int m_calcSelected=-1;
     int m_weatherLayers=0;
+    bool m_aeroWindsVisible=false;
+    std::string m_aeroNorth="Unavailable",m_aeroSouth="Unavailable";
+    void ReadAeroViewWind(){
+        m_aeroNorth=m_aeroSouth="Unavailable";
+        std::ifstream stream(GetThisDllDir()+"AeroViewWind.json",std::ios::binary);
+        if(!stream)return;
+        char buffer[1024];stream.read(buffer,sizeof buffer);
+        if(stream.gcount()==sizeof buffer)return;
+        const std::string json(buffer,static_cast<size_t>(stream.gcount()));
+        int received=0;
+        if(!JsonIntValue(json,"received_at",received)||std::time(nullptr)-received>30||std::time(nullptr)<received-5)return;
+        for(auto item:{std::pair{"north",&m_aeroNorth},std::pair{"south",&m_aeroSouth}}){
+            std::string line;
+            if(JsonStringValue(json,item.first,line)&&line.size()<=35&&std::all_of(line.begin(),line.end(),[](unsigned char c){return c>=32&&c<=126;}))*item.second=line;
+        }
+    }
     void RadarNotice(const std::string &text){DisplayUserMessage("ZYZTools","Radar tools",text.c_str(),true,true,false,false,false);}
     bool ResolveWatchFix(const std::string& name,CPosition& p){
         for(const int type:{SECTOR_ELEMENT_FIX,SECTOR_ELEMENT_VOR,SECTOR_ELEMENT_NDB})
@@ -2696,6 +2758,11 @@ private:
     }
     bool HandleRadarToolsCommand(const std::string& line){
         std::istringstream args(line);std::string verb;args>>verb;
+        if(verb==".WINDS"){
+            std::string mode;args>>mode;
+            m_aeroWindsVisible=mode=="ON"?true:mode=="OFF"?false:!m_aeroWindsVisible;
+            return true;
+        }
         if(verb==".WX"){
             std::string layer;int mask=0;
             while(args>>layer){
@@ -6090,6 +6157,15 @@ public:
         DrawPilotControls(hDC);
         DrawAircraftRoster(hDC);
         DrawRadarTools(hDC);
+        if(m_plugin->m_aeroWindsVisible){
+            const auto area=GetRadarArea();const int saved=SaveDC(hDC);
+            if(saved){
+                SelectObject(hDC,GetStockObject(ANSI_FIXED_FONT));SetTextColor(hDC,RGB(195,222,232));SetBkColor(hDC,RGB(12,20,24));SetBkMode(hDC,OPAQUE);
+                const std::string lines[]={"CYYZ WINDS | NAV CANADA AeroView | SIM ONLY","NORTH  "+m_plugin->m_aeroNorth,"SOUTH  "+m_plugin->m_aeroSouth};
+                for(int i=0;i<3;++i)TextOutA(hDC,area.left+8,area.bottom-72+i*14,lines[i].c_str(),static_cast<int>(lines[i].size()));
+                RestoreDC(hDC,saved);
+            }
+        }
         DrawGlobalAnnouncement(hDC);
         if (m_plugin->m_settingsVisible)
         {

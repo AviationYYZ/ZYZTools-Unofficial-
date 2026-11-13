@@ -2,7 +2,7 @@ const {app,BrowserWindow,ipcMain,dialog,clipboard,shell,Tray,Menu,nativeImage,po
 const path=require('node:path'),fs=require('node:fs'),{ServerManager}=require('./manager.cjs');
 // Keep the existing user-data folder and installer identity during the rename.
 app.setName('ZYZTools Server');app.setPath('userData',path.join(app.getPath('appData'),'ZYZTools Server test'));
-let manager,hub,window,tray,quitting=false,blocked,updater,updateTimer;
+let manager,hub,window,tray,quitting=false,blocked,updater,updateTimer,aeroView;
 if(!app.requestSingleInstanceLock())app.quit();
 else{
  app.on('second-instance',()=>{window?.show();window?.focus();});
@@ -11,6 +11,10 @@ else{
   const helper=app.isPackaged?path.join(process.resourcesPath,'tunnel'):path.join(__dirname,'../../build/Tunnel');
   manager=new ServerManager(app.getPath('userData'),helper);
   manager.loadDefaults();
+  aeroView=new (require('./engine.cjs')('aeroview-reader.cjs').AeroViewReader)(BrowserWindow);
+  // Operator opt-in only after confirming permission for this relay.
+  const shareAeroView=process.env.ZYZTOOLS_AEROVIEW_RELAY==='1';
+  manager.aeroViewSnapshot=()=>shareAeroView?aeroView.snapshot():null;
   hub=new (require('./instructor.cjs').InstructorHub)(manager,helper);
   window=new BrowserWindow({width:1130,height:850,minWidth:730,minHeight:520,show:false,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
   window.webContents.setWindowOpenHandler(()=>({action:'deny'}));window.webContents.on('will-navigate',e=>e.preventDefault());window.removeMenu();
@@ -21,7 +25,9 @@ else{
   blocked=powerSaveBlocker.start('prevent-app-suspension');
   ipcMain.handle('server:action',async(event,action,id,value)=>{
    if(event.sender!==window.webContents||event.senderFrame!==window.webContents.mainFrame)throw Error('Invalid sender.');
-   if(action==='status')return {...manager.status(),instructor:hub.status(),updateStatus:updater?.message||'Stable automatic updates are enabled in installed builds.'};
+   if(action==='status')return {...manager.status(),instructor:hub.status(),aeroView:aeroView.status,aeroViewSharing:shareAeroView,updateStatus:updater?.message||'Stable automatic updates are enabled in installed builds.'};
+   if(action==='aeroViewOpen'){aeroView.start();return;}
+   if(action==='aeroViewClose'){aeroView.stop();return;}
    if(manager.updating)throw Error('Server update is installing. Try again after restart.');
    if(action==='instructorEnable'){await hub.start();manager.config.instructorEnabled=true;manager.save();return {...manager.status(),instructor:hub.status()};}
    if(action==='instructorDisable'){await hub.stop();manager.config.instructorEnabled=false;manager.save();return {...manager.status(),instructor:hub.status()};}
@@ -64,6 +70,6 @@ else{
    updateTimer=setInterval(()=>updater.tick(),15000);updater.tick();
   }
  }).catch(e=>{dialog.showErrorBox('ZYZTools Server could not start',e.message);app.exit(1);});
- app.on('before-quit',e=>{if(!manager||quitting)return;e.preventDefault();quitting=true;clearInterval(updateTimer);Promise.all([hub?.stop(),manager.shutdown()]).finally(()=>{if(blocked!==undefined)powerSaveBlocker.stop(blocked);tray?.destroy();app.quit();});});
+ app.on('before-quit',e=>{if(!manager||quitting)return;e.preventDefault();quitting=true;clearInterval(updateTimer);aeroView?.stop();Promise.all([hub?.stop(),manager.shutdown()]).finally(()=>{if(blocked!==undefined)powerSaveBlocker.stop(blocked);tray?.destroy();app.quit();});});
  app.on('window-all-closed',()=>{});
 }

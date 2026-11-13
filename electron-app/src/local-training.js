@@ -15,7 +15,7 @@ function flightFields(a){return {flightRules:token(a.flightRules||'I',/^[IV]$/,'
 function normalize(raw){
  if(!raw||raw.format!=='ZYZTools-training'||raw.version!==1)throw Error('Choose a ZYZTools training scenario (version 1).');
  if(!Array.isArray(raw.aircraft)||raw.aircraft.length>100||!Array.isArray(raw.waypoints)||raw.waypoints.length>2000)throw Error('Limit: 100 aircraft and 2,000 waypoints.');
- const waypoints=raw.waypoints.map(w=>({name:token(w.name,/^[A-Z0-9_-]{1,16}$/,'waypoint'),lat:number(w.lat,-89,89,'Latitude'),lon:number(w.lon,-180,180,'Longitude')}));
+ const waypoints=raw.waypoints.map(w=>({name:token(w.name,/^[A-Z0-9_-]{1,16}$/,'waypoint'),lat:number(w.lat,-89,89,'Latitude'),lon:number(w.lon,-180,180,'Longitude'),...(w.elevation==null?{}:{elevation:number(w.elevation,-1000,15000,'Waypoint elevation')})}));
  if(new Set(waypoints.map(w=>w.name)).size!==waypoints.length)throw Error('Duplicate waypoint names.');
  const aircraft=raw.aircraft.map(a=>{
   const route=String(a.route||'').trim().toUpperCase().split(/\s+/).filter(Boolean);
@@ -153,6 +153,7 @@ class LocalTraining{
    if(a.speedMode==='mach')a.targetIAS=toIas(w?a.targetMach*weather.sound(w.kelvin):flight.machToTas(a.targetMach,a.altitude));
    if(a.speedMode==='published'||a.speedBasis==='IAS'||a.iasCommand){a.ias=approach(a.ias,a.targetIAS,2*step);a.speed=toTas(a.ias);a.targetSpeed=toTas(a.targetIAS);}else{a.speed=approach(a.speed,a.targetSpeed,2*step);a.ias=toIas(a.speed);}
    ({speed:a.groundSpeed,track:a.groundTrack}=weather.motion(a.heading,a.speed,w));
+   if(a.navigation==='hold'&&a.hold)require('./training-hold').guide(a,step,geometry,move);
    if(a.navigation==='route'&&a.remaining.length&&!['localizer captured','glideslope captured'].includes(a.approachState))flight.guideRoute(a,fixes,geometry,move,this.scenario.runways.find(r=>r.airport===a.destination&&r.name===a.arrivalRunway));
    if(a.approachState!=='off')flight.guideApproach(a,this.scenario.runways,geometry);
    if(a.paused)continue;
@@ -182,11 +183,24 @@ class LocalTraining{
   if(String(command).trim().toUpperCase()==='DELETE AIRCRAFT'){this.aircraft=this.aircraft.filter(x=>x!==a);this.broadcast(deletion(a));return this.status();}
   if(!a.active)throw Error('Aircraft has not spawned yet.');
   const parts=String(command).trim().toUpperCase().split(/\s+/);
+  if(parts[0]==='HOLD'){
+   if(parts[1]==='CANCEL'||parts[1]==='EXIT'){
+    if(!a.hold)throw Error('Aircraft is not holding.');
+    if(parts[1]==='EXIT')a.hold.exit=true;
+    else{a.hold=null;a.navigation='heading';a.targetHeading=a.heading;a.turnDirection=0;}
+   }else{
+    a.hold=require('./training-hold').create(parts,this.runtimeWaypoints?.length?this.runtimeWaypoints:this.scenario.waypoints,this.scenario.magneticVariationWest,move,a.altitude);
+    a.navigation='hold';a.approachState='off';a.approachVectorTarget=null;a.explicitDirectFix=null;a.directGuidance=null;a.flyBy=null;a.turnDirection=0;
+    a.initialDescentActive=false;a.routeCompleted=false;
+   }
+   a.revision=(a.revision||0)+1;return this.status();
+  }
   if(parts[0]==='IAS'&&parts[2]==='UNTIL'){restrictions.speed(a,Number(parts[1]),parts[3]);a.targetIAS=Number(parts[1]);a.revision=(a.revision||0)+1;return this.status();}
   if(parts[0]==='CROSS'){restrictions.cross(a,parts[1],Number(parts[3]));a.revision=(a.revision||0)+1;return this.status();}
   if(parts[0]==='RESTRICTIONS'){if(parts[1]==='SPEED'){restrictions.clearSpeed(a);a.targetIAS=flight.publishedIAS(a,this.scenario.speedRules,this.runtimeWaypoints||this.scenario.waypoints,geometry,this.scenario.runways);}else restrictions.clearCross(a);a.revision=(a.revision||0)+1;return this.status();}
   if(parts[0]==='IDENT'&&parts.length===1){a.revision=(a.revision||0)+1;a.identUntil=this.elapsed+18;a.identActive=true;return this.status();}if(parts.length!==2)throw Error('Use ALT, RATE, SPD, HDG/LHDG/RHDG, DCT, SQ, MODE, IDENT or ROUTE RESUME.');
   const [verb,arg]=parts;
+  if(a.hold&&['HDG','LHDG','RHDG','ROUTE','APP','DCT','RWY'].includes(verb))throw Error('Cancel the hold before issuing another lateral clearance.');
   if(verb==='RWY')return this.divert(callsign,arg);
   if(['HDG','LHDG','RHDG','ROUTE','APP','DCT'].includes(verb)){a.directGuidance=null;a.navigationNotice='';}
   if(['HDG','LHDG','RHDG','ROUTE','APP'].includes(verb))a.explicitDirectFix=null;

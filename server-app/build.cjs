@@ -8,6 +8,7 @@ fs.copyFileSync(path.join(root,'electron-app/src/training-speed-editor.js'),path
 fs.copyFileSync(path.join(root,'electron-app/src/controller-calculators.js'),path.join(stage,'src/pwa/controller-calculators.js'));
 fs.copyFileSync(path.join(root,'electron-app/src/training-route-variants.json'),path.join(stage,'src/engine/training-route-variants.json'));
 fs.copyFileSync(path.join(root,'electron-app/src/github-updates.js'),path.join(stage,'src/engine/github-updates.js'));
+for(const file of ['aeroview-reader.cjs','aeroview-observation.cjs','training-hold.js'])fs.copyFileSync(path.join(root,'electron-app/src',file),path.join(stage,'src/engine',file));
 fs.mkdirSync(path.join(stage,'src/default-scenarios'),{recursive:true});
 for(let i=1;i<=4;i++)fs.copyFileSync(path.join(root,'scenarios/CYYZ-West-70-Default-'+i+'.json'),path.join(stage,'src/default-scenarios','west70-'+i+'.json'));
 const release=require('../electron-app/src/training-tunnel-release.json'),helper=path.join(root,'build/Tunnel/cloudflared.exe');

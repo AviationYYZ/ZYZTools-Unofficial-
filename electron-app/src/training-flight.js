@@ -379,4 +379,4 @@ function publishedIAS(a,rules,fixes,geometry,runways=[]){
  a.speedNotice=model.source+' | '+a.speedPhase+' | '+target+' IAS'+(a.speedPhase==='final'?' (training final target)':'')+(!runway?' | no runway geometry: approach schedule unavailable':'');
  return target;
 }
-module.exports={machToTas,iasToTas,tasToIas,turnRate,turnRadius,turnError,turnMotion,turnLead,guideRoute,guideApproach,initialVerticalGuidance,normalizeSpeedRules,publishedIAS};
+module.exports={machToTas,iasToTas,tasToIas,turnRate,turnRadius,turnError,turnMotion,turnLead,guideDirect,guideRoute,guideApproach,initialVerticalGuidance,normalizeSpeedRules,publishedIAS};

@@ -8,6 +8,6 @@ app.whenReady().then(async()=>{
  const resources=path.join(process.env.LOCALAPPDATA,'ZYZTools/Builds/desktop-'+version+(process.argv[3]==='--final'?'-final':''),'test/win-ia32-unpacked/resources');
  const snapshot=JSON.parse(fs.readFileSync(path.join(resources,'TestSourceSnapshot.json'),'utf8'));
  const token=require('../electron-app/src/publishing-auth').load(userData,safeStorage);
- const release=await require('../electron-app/src/test-publisher').publish({token,version,snapshot,installer:path.join(resources,'Publishing/ZYZTools-Setup.exe'),stream:'beta'});
+ const release=await require('../electron-app/src/test-publisher').publish({token,version,snapshot,installer:path.join(resources,'Publishing/ZYZTools-Setup.exe'),stream:'beta',essential:process.argv.includes('--essential')});
  console.log(release.url);
 }).then(()=>app.exit(0)).catch(e=>{console.error(e.message);app.exit(1);});

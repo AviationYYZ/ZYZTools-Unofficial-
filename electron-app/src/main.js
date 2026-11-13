@@ -14,6 +14,8 @@ const { channel, destination, assertDestination } = require('./channel');
 let publicationInProgress = false;
 let checkedRelease = null;
 const { app, BrowserWindow, dialog, ipcMain, shell, safeStorage, screen } = require("electron");
+const aeroView=new (require('./aeroview-reader.cjs').AeroViewReader)(BrowserWindow);
+const {writeWind:aeroViewWriteWind}=require('./aeroview-client');
 app.setName(channel.name);
 app.setPath('userData', path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), channel.userDataName));
 
@@ -946,7 +948,7 @@ app.on("window-all-closed", () => {
   if (!checkingStartupUpdate && process.platform !== "darwin") app.quit();
 });
 
-app.on('before-quit', () => { clearInterval(runtimeTimer);appPolicy?.stop();trainingCommandBridge.close();instructorClient.disconnect();trainingTunnel.stop();trainingConnector.stop();trainingMultiplayer.stop();localTraining.stop();discordPresence?.stop().catch(() => {}); });
+app.on('before-quit', () => { aeroView.stop();try{aeroViewWriteWind(runtimeFolder,null);}catch{} clearInterval(runtimeTimer);appPolicy?.stop();trainingCommandBridge.close();instructorClient.disconnect();trainingTunnel.stop();trainingConnector.stop();trainingMultiplayer.stop();localTraining.stop();discordPresence?.stop().catch(() => {}); });
 guarded('runtime:status',(_event,folder)=>{
   if(typeof folder==='string'&&folder)runtimeFolder=installDestination(folder);
   return runtimeState();
@@ -1258,6 +1260,15 @@ guarded("updates:installStaged", async (_event, tag) => {
 guarded("plugin:action", async (_event, folder, action, callsign) => {
   loadConfig(folder);
   return sendPluginAction(folder, action, callsign);
+});
+guarded('aeroview:action',async(event,action)=>{
+ if(event.sender!==mainWindow?.webContents||event.senderFrame!==mainWindow.webContents.mainFrame)throw Error('Invalid sender.');
+ if(action==='open')aeroView.start();
+ else if(action==='stop')aeroView.stop();
+ else if(action!=='status')throw Error('Unknown AeroView action.');
+ const feed=aeroView.snapshot();
+ try{aeroViewWriteWind(runtimeFolder,feed);}catch{}
+ return {status:aeroView.status,atis:feed?.atis||{}};
 });
 guarded("fixwatch:take", () => {
   if(!pendingFixWatch)return null;

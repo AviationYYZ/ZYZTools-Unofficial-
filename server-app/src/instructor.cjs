@@ -60,7 +60,7 @@ class InstructorHub{
    }
    if(!this.token||!equal(req.headers.authorization||'','Bearer '+this.token))return this.reply(res,401,{error:'Instructor pairing is required.'});
    if(req.headers['sec-fetch-site']==='cross-site')return this.reply(res,403,{error:'Cross-site requests are not allowed.'});
-   if(req.method==='GET'&&req.url==='/api/instructor/status')return this.reply(res,200,{service:'ZYZTools Instructor',role:'instructor',apiVersion:1,...this.manager.status()});
+   if(req.method==='GET'&&req.url==='/api/instructor/status')return this.reply(res,200,{service:'ZYZTools Instructor',role:'instructor',apiVersion:1,...this.manager.status(),aeroView:this.manager.aeroViewSnapshot?.()??null});
    const match=req.url.match(/^\/api\/instructor\/aircraft\/([1-6])$/);
    if(req.method==='GET'&&match)return this.reply(res,200,await this.manager.call(Number(match[1]),'instructor',{operation:'snapshot'}));
    if(req.method!=='POST'||req.url!=='/api/instructor/action')return this.reply(res,404,{error:'Not found.'});

@@ -652,6 +652,25 @@ async function checkUpdates(background = false) {
 }
 $("checkUpdatesBtn").addEventListener('click', () => checkUpdates());
 window.ZYZCalculators?.mount($('controllerCalculators'));
+let aeroViewTimer,aeroViewBusy=false;
+async function refreshAeroView(action){
+  if(aeroViewBusy)return;
+  aeroViewBusy=true;
+  try{
+    const state=await api.aeroView(action);
+    $('aeroViewStatus').textContent=state.status;
+    $('aeroViewAtis').textContent=['ARR','DEP','combined'].map(kind=>{
+      const r=state.atis[kind];
+      if(!r||typeof r.text!=='string'||!Number.isSafeInteger(r.updatedAt))return '';
+      return (kind==='combined'?'ATIS':kind)+' · '+new Date(r.updatedAt).toISOString().slice(11,16)+'Z'+(r.status==='current'?'':' · stale')+' — '+r.text;
+    }).filter(Boolean).join('\n\n')||'No report available.';
+    if(state.status==='Off'){clearInterval(aeroViewTimer);aeroViewTimer=null;}
+    else if(!aeroViewTimer)aeroViewTimer=setInterval(()=>refreshAeroView('status'),3000);
+  }catch(error){$('aeroViewStatus').textContent=error.message;}
+  finally{aeroViewBusy=false;}
+}
+$('aeroViewOpen').onclick=()=>refreshAeroView('open');
+$('aeroViewStop').onclick=()=>refreshAeroView('stop');
 $("saveRadarShortcutsBtn").addEventListener("click", () => {
   if(!$("fixwatchRadius").checkValidity()||($("leaderMode").value!=="OFF"&&(!$("leaderMinutes").value||!$("leaderMinutes").checkValidity())))return setStatus("Check the alert radius and leader length.","error");
   if($("fixwatchScope").value==="STAR"&&!/^[A-Z][A-Z0-9]{1,9}(,[A-Z][A-Z0-9]{1,9})*$/.test($("fixwatchStars").value.toUpperCase().replace(/\s+/g,"")))return setStatus("Enter one or more STAR names, separated by commas.","error");

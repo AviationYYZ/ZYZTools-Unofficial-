@@ -435,6 +435,14 @@
       <section id="calculators">
         <p>Quick planning estimates. These calculators don't issue instructions or determine separation. Use the same direction reference for wind and runway inputs.</p>
         <div id="controllerCalculators" class="calculator-grid"></div>
+        <div class="card">
+          <h3>CYYZ winds and ATIS</h3>
+          <p>Open NAV CANADA AeroView and leave its window open to refresh. No pairing is needed. In EuroScope, type <code>.winds on</code> to show the North and South Field readings.</p>
+          <div class="buttons"><button id="aeroViewOpen">Open AeroView</button><button id="aeroViewStop">Stop observing</button></div>
+          <p id="aeroViewStatus" role="status">Off</p>
+          <pre id="aeroViewAtis" style="white-space:pre-wrap">No report available.</pre>
+          <p>Source: NAV CANADA AeroView. For simulation and informational use only.</p>
+        </div>
         <fieldset><legend>EuroScope radar tools</legend>
           <p><kbd>Ctrl+Shift+F</kbd>: click near a waypoint for FixWatch. <kbd>Ctrl+Shift+S</kbd>: click two aircraft for spacing. <kbd>Esc</kbd> cancels picking.</p>
           <label for="fixwatchScope">FixWatch aircraft</label><select id="fixwatchScope"><option value="ALL">All aircraft</option><option value="PICK">Pick aircraft</option><option value="STAR">Selected STARs</option></select>
