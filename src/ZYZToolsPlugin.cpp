@@ -54,6 +54,16 @@
 
 using namespace EuroScopePlugIn;
 
+#define ZYZTOOLS_STRINGIFY_IMPL(x) #x
+#define ZYZTOOLS_STRINGIFY(x) ZYZTOOLS_STRINGIFY_IMPL(x)
+#ifdef ZYZTOOLS_BUILD_VERSION
+#define ZYZTOOLS_PLUGIN_VERSION ZYZTOOLS_STRINGIFY(ZYZTOOLS_BUILD_VERSION)
+// Read by the app without loading the DLL or its EuroScope dependencies.
+extern "C" __declspec(dllexport) const char ZYZToolsDllBuild[] = "ZYZTOOLS_DLL_VERSION[" ZYZTOOLS_PLUGIN_VERSION "]";
+#else
+#define ZYZTOOLS_PLUGIN_VERSION "1.2.6"
+#endif
+
 class CSettingsScreen;
 
 // EuroScope fallback state for click contexts where the tag item string is empty.
@@ -1937,7 +1947,7 @@ class CZYZToolsPlugin final : public CPlugIn
 {
 public:
     CZYZToolsPlugin()
-        : CPlugIn(COMPATIBILITY_CODE, ZYZTOOLS_PLUGIN_NAME, "1.2.6", "Charlie Yablon and Elliot Potts", "ZYZTools EuroScope controller tools")
+        : CPlugIn(COMPATIBILITY_CODE, ZYZTOOLS_PLUGIN_NAME, ZYZTOOLS_PLUGIN_VERSION, "Charlie Yablon and Elliot Potts", "ZYZTools EuroScope controller tools")
     {
         RegisterTagItemType("CYYZ_PDC STATUS", TAG_PDC_FLAG_TYPE);
         m_conflict = std::make_unique<zyzca::ConflictModule>(*this, GetThisDllDir());

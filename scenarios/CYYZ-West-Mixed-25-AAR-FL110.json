@@ -1,0 +1,1006 @@
+{
+  "format": "ZYZTools-training",
+  "version": 1,
+  "name": "CYYZ West | Mixed Fleet | 25 AAR | FL110",
+  "magneticVariationWest": 10.37,
+  "initialOwnership": "instructor",
+  "waypoints": [
+    {
+      "name": "ERI",
+      "kind": "VOR",
+      "lat": 42.01739722222222,
+      "lon": -80.29269722222222
+    },
+    {
+      "name": "GEE",
+      "kind": "VOR",
+      "lat": 42.83439638888889,
+      "lon": -77.73275083333334
+    },
+    {
+      "name": "JHW",
+      "kind": "VOR",
+      "lat": 42.188607499999996,
+      "lon": -79.12130499999999
+    },
+    {
+      "name": "ROC",
+      "kind": "VOR",
+      "lat": 43.117959444444445,
+      "lon": -77.67279472222222
+    },
+    {
+      "name": "UTR",
+      "kind": "VOR",
+      "lat": 44.12138888888889,
+      "lon": -77.52888888888889
+    },
+    {
+      "name": "YTP",
+      "kind": "VOR",
+      "lat": 43.67166666666667,
+      "lon": -79.66416666666667
+    },
+    {
+      "name": "YVV",
+      "kind": "VOR",
+      "lat": 44.74483333333333,
+      "lon": -81.10499999999999
+    },
+    {
+      "name": "YXU",
+      "kind": "VOR",
+      "lat": 43.03791666666667,
+      "lon": -81.14891666666668
+    },
+    {
+      "name": "YYZ",
+      "kind": "VOR",
+      "lat": 43.658027777777775,
+      "lon": -79.63144444444444
+    },
+    {
+      "name": "BOXUM",
+      "kind": "FIXES",
+      "lat": 44.17805555555555,
+      "lon": -80.20166666666667
+    },
+    {
+      "name": "DUVOS",
+      "kind": "FIXES",
+      "lat": 44.01777777777777,
+      "lon": -80.00111111111111
+    },
+    {
+      "name": "ADSED",
+      "kind": "FIXES",
+      "lat": 43.84581388888889,
+      "lon": -79.84897222222222
+    },
+    {
+      "name": "ERBUS",
+      "kind": "FIXES",
+      "lat": 43.749233333333336,
+      "lon": -79.72203333333333
+    },
+    {
+      "name": "TASKU",
+      "kind": "FIXES",
+      "lat": 43.78413333333333,
+      "lon": -79.6713388888889
+    },
+    {
+      "name": "DAVIK",
+      "kind": "FIXES",
+      "lat": 43.87275277777778,
+      "lon": -79.5422
+    },
+    {
+      "name": "LEVIG",
+      "kind": "FIXES",
+      "lat": 43.90711388888889,
+      "lon": -79.49196666666667
+    },
+    {
+      "name": "MIPED",
+      "kind": "FIXES",
+      "lat": 43.941452777777776,
+      "lon": -79.44167777777778
+    },
+    {
+      "name": "SATUR",
+      "kind": "FIXES",
+      "lat": 43.975769444444445,
+      "lon": -79.39132777777779
+    },
+    {
+      "name": "CALVY",
+      "kind": "FIXES",
+      "lat": 43.804336111111105,
+      "lon": -79.47446666666667
+    },
+    {
+      "name": "OMTOK",
+      "kind": "FIXES",
+      "lat": 43.74208888888889,
+      "lon": -79.56528333333333
+    },
+    {
+      "name": "RAGID",
+      "kind": "FIXES",
+      "lat": 44.04194444444444,
+      "lon": -78.80499999999999
+    },
+    {
+      "name": "DENKA",
+      "kind": "FIXES",
+      "lat": 43.86972222222222,
+      "lon": -79.06305555555555
+    },
+    {
+      "name": "AMILU",
+      "kind": "FIXES",
+      "lat": 43.87544166666667,
+      "lon": -79.30746944444444
+    },
+    {
+      "name": "EBDAL",
+      "kind": "FIXES",
+      "lat": 43.78939444444444,
+      "lon": -79.43634444444444
+    },
+    {
+      "name": "NOAHA",
+      "kind": "FIXES",
+      "lat": 43.727558333333334,
+      "lon": -79.52663888888888
+    },
+    {
+      "name": "NUBER",
+      "kind": "FIXES",
+      "lat": 43.45777777777778,
+      "lon": -80.3775
+    },
+    {
+      "name": "ROKTO",
+      "kind": "FIXES",
+      "lat": 43.50975,
+      "lon": -80.19107777777778
+    },
+    {
+      "name": "PENGO",
+      "kind": "FIXES",
+      "lat": 43.59457777777778,
+      "lon": -79.87250555555555
+    },
+    {
+      "name": "BOTUM",
+      "kind": "FIXES",
+      "lat": 43.59642222222222,
+      "lon": -79.6360138888889
+    },
+    {
+      "name": "VERKO",
+      "kind": "FIXES",
+      "lat": 43.59661388888889,
+      "lon": -79.54376388888889
+    },
+    {
+      "name": "MAROD",
+      "kind": "FIXES",
+      "lat": 43.7275,
+      "lon": -79.35283333333332
+    },
+    {
+      "name": "DEKNI",
+      "kind": "FIXES",
+      "lat": 43.761783333333334,
+      "lon": -79.30261944444445
+    },
+    {
+      "name": "DAVNO",
+      "kind": "FIXES",
+      "lat": 43.79604722222222,
+      "lon": -79.25235
+    },
+    {
+      "name": "DUNOL",
+      "kind": "FIXES",
+      "lat": 43.830286111111114,
+      "lon": -79.20202222222223
+    },
+    {
+      "name": "IMEBA",
+      "kind": "FIXES",
+      "lat": 44.24944444444444,
+      "lon": -79.05444444444444
+    },
+    {
+      "name": "LEPUX",
+      "kind": "FIXES",
+      "lat": 44.07083333333334,
+      "lon": -79.32388888888889
+    },
+    {
+      "name": "DUGDA",
+      "kind": "FIXES",
+      "lat": 43.90327222222222,
+      "lon": -79.33056111111111
+    },
+    {
+      "name": "LINNG",
+      "kind": "FIXES",
+      "lat": 43.302747222222216,
+      "lon": -79.35479722222222
+    },
+    {
+      "name": "YOUTH",
+      "kind": "FIXES",
+      "lat": 43.363327777777776,
+      "lon": -79.39363055555556
+    },
+    {
+      "name": "BIMPO",
+      "kind": "FIXES",
+      "lat": 43.54421111111111,
+      "lon": -79.510125
+    }
+  ],
+  "runways": [
+    {
+      "airport": "CYYZ",
+      "name": "23",
+      "threshold": {
+        "lat": 43.69421944444444,
+        "lon": -79.63491944444445
+      },
+      "opposite": {
+        "lat": 43.674394444444445,
+        "lon": -79.66371111111111
+      },
+      "elevation": 569,
+      "simulated": true
+    },
+    {
+      "airport": "CYYZ",
+      "name": "24R",
+      "threshold": {
+        "lat": 43.678977777777774,
+        "lon": -79.59736944444444
+      },
+      "opposite": {
+        "lat": 43.661049999999996,
+        "lon": -79.62342777777778
+      },
+      "elevation": 569,
+      "simulated": true
+    }
+  ],
+  "aircraft": [
+    {
+      "callsign": "ACA256",
+      "origin": "CYWG",
+      "type": "A321",
+      "wake": "M",
+      "category": "jet",
+      "lat": 44.25226630180552,
+      "lon": -80.29504617788427,
+      "altitude": 11000,
+      "heading": 137.92146816714705,
+      "speed": 230,
+      "speedBasis": "IAS",
+      "rate": 2250,
+      "destination": "CYYZ",
+      "arrivalRunway": "23",
+      "route": "BOXUM DUVOS ADSED ERBUS TASKU DAVIK LEVIG MIPED SATUR CALVY OMTOK",
+      "flightPlanRoute": "BOXUM BOXUM7 CYYZ/23",
+      "procedures": [
+        "BOXUM7"
+      ],
+      "automaticSpeeds": true,
+      "scratchpad": " N",
+      "remarks": "/v/ OFFLINE TRAINING",
+      "equipment": "GR",
+      "cruiseAltitude": 35000,
+      "cruiseSpeed": 440,
+      "squawk": "2200",
+      "spawnTime": 0
+    },
+    {
+      "callsign": "CFXQH",
+      "origin": "CYOS",
+      "type": "C182",
+      "wake": "L",
+      "category": "prop",
+      "lat": 44.27698628975985,
+      "lon": -80.3262250425106,
+      "altitude": 11000,
+      "heading": 137.89970615154868,
+      "speed": 135,
+      "speedBasis": "IAS",
+      "rate": 2250,
+      "destination": "CYYZ",
+      "arrivalRunway": "23",
+      "route": "BOXUM DUVOS ADSED ERBUS TASKU DAVIK LEVIG MIPED SATUR CALVY OMTOK",
+      "flightPlanRoute": "BOXUM DUVOS4 CYYZ/23",
+      "procedures": [
+        "DUVOS4"
+      ],
+      "automaticSpeeds": true,
+      "scratchpad": " N",
+      "remarks": "/v/ OFFLINE TRAINING",
+      "equipment": "GR",
+      "cruiseAltitude": 11000,
+      "cruiseSpeed": 160,
+      "squawk": "2201",
+      "spawnTime": 144
+    },
+    {
+      "callsign": "ACA601",
+      "origin": "CYHZ",
+      "type": "A320",
+      "wake": "M",
+      "category": "jet",
+      "lat": 44.15486113026238,
+      "lon": -78.63451305797224,
+      "altitude": 11000,
+      "heading": 227.37516867565387,
+      "speed": 230,
+      "speedBasis": "IAS",
+      "rate": 2250,
+      "destination": "CYYZ",
+      "arrivalRunway": "24R",
+      "route": "RAGID DENKA AMILU EBDAL NOAHA",
+      "flightPlanRoute": "RAGID RAGID6 CYYZ/24R",
+      "procedures": [
+        "RAGID6"
+      ],
+      "automaticSpeeds": true,
+      "scratchpad": " R",
+      "remarks": "/v/ OFFLINE TRAINING",
+      "equipment": "GR",
+      "cruiseAltitude": 35000,
+      "cruiseSpeed": 440,
+      "squawk": "2202",
+      "spawnTime": 288
+    },
+    {
+      "callsign": "ACA100",
+      "origin": "CYVR",
+      "type": "B77W",
+      "wake": "H",
+      "category": "jet",
+      "lat": 43.421758921606354,
+      "lon": -80.50587905818713,
+      "altitude": 11000,
+      "heading": 68.82917985102324,
+      "speed": 230,
+      "speedBasis": "IAS",
+      "rate": 2250,
+      "destination": "CYYZ",
+      "arrivalRunway": "24R",
+      "route": "NUBER ROKTO PENGO BOTUM VERKO MAROD DEKNI DAVNO DUNOL EBDAL NOAHA",
+      "flightPlanRoute": "NUBER NUBER6 CYYZ/24R",
+      "procedures": [
+        "NUBER6"
+      ],
+      "automaticSpeeds": true,
+      "scratchpad": " R",
+      "remarks": "/v/ OFFLINE TRAINING",
+      "equipment": "GR",
+      "cruiseAltitude": 35000,
+      "cruiseSpeed": 440,
+      "squawk": "2203",
+      "spawnTime": 432
+    },
+    {
+      "callsign": "CFLPY",
+      "origin": "CYGK",
+      "type": "PC12",
+      "wake": "L",
+      "category": "prop",
+      "lat": 44.132298090547586,
+      "lon": -78.66866256781731,
+      "altitude": 11000,
+      "heading": 227.3513849479327,
+      "speed": 185,
+      "speedBasis": "IAS",
+      "rate": 2250,
+      "destination": "CYYZ",
+      "arrivalRunway": "24R",
+      "route": "RAGID DENKA AMILU EBDAL NOAHA",
+      "flightPlanRoute": "RAGID UDNOX5 CYYZ/24R",
+      "procedures": [
+        "UDNOX5"
+      ],
+      "automaticSpeeds": true,
+      "scratchpad": " R",
+      "remarks": "/v/ OFFLINE TRAINING",
+      "equipment": "GR",
+      "cruiseAltitude": 11000,
+      "cruiseSpeed": 230,
+      "squawk": "2204",
+      "spawnTime": 576
+    },
+    {
+      "callsign": "JZA7305",
+      "origin": "CYOW",
+      "type": "CRJ9",
+      "wake": "M",
+      "category": "jet",
+      "lat": 44.36214851685776,
+      "lon": -78.88308275237404,
+      "altitude": 11000,
+      "heading": 227.47511326620184,
+      "speed": 230,
+      "speedBasis": "IAS",
+      "rate": 2250,
+      "destination": "CYYZ",
+      "arrivalRunway": "23",
+      "route": "IMEBA LEPUX DUGDA CALVY OMTOK",
+      "flightPlanRoute": "IMEBA IMEBA9 CYYZ/23",
+      "procedures": [
+        "IMEBA9"
+      ],
+      "automaticSpeeds": true,
+      "scratchpad": " N",
+      "remarks": "/v/ OFFLINE TRAINING",
+      "equipment": "GR",
+      "cruiseAltitude": 35000,
+      "cruiseSpeed": 440,
+      "squawk": "2205",
+      "spawnTime": 720
+    },
+    {
+      "callsign": "POE526",
+      "origin": "KTPA",
+      "type": "E295",
+      "wake": "M",
+      "category": "jet",
+      "lat": 43.212151535291135,
+      "lon": -79.29688338717563,
+      "altitude": 11000,
+      "heading": 335.0551043498498,
+      "speed": 230,
+      "speedBasis": "IAS",
+      "rate": 2250,
+      "destination": "CYYZ",
+      "arrivalRunway": "24R",
+      "route": "LINNG YOUTH BIMPO VERKO MAROD DEKNI DAVNO DUNOL EBDAL NOAHA",
+      "flightPlanRoute": "LINNG LINNG3 CYYZ/24R",
+      "procedures": [
+        "LINNG3"
+      ],
+      "automaticSpeeds": true,
+      "scratchpad": " R",
+      "remarks": "/v/ OFFLINE TRAINING",
+      "equipment": "GR",
+      "cruiseAltitude": 35000,
+      "cruiseSpeed": 440,
+      "squawk": "2206",
+      "spawnTime": 864
+    },
+    {
+      "callsign": "CFMZK",
+      "origin": "KERI",
+      "type": "PA46",
+      "wake": "L",
+      "category": "prop",
+      "lat": 43.18194649179184,
+      "lon": -79.27761700951953,
+      "altitude": 11000,
+      "heading": 335.06829237006707,
+      "speed": 135,
+      "speedBasis": "IAS",
+      "rate": 2250,
+      "destination": "CYYZ",
+      "arrivalRunway": "24R",
+      "route": "LINNG YOUTH BIMPO VERKO MAROD DEKNI DAVNO DUNOL EBDAL NOAHA",
+      "flightPlanRoute": "LINNG VERKO1 CYYZ/24R",
+      "procedures": [
+        "VERKO1"
+      ],
+      "automaticSpeeds": true,
+      "scratchpad": " R",
+      "remarks": "/v/ OFFLINE TRAINING",
+      "equipment": "GR",
+      "cruiseAltitude": 11000,
+      "cruiseSpeed": 160,
+      "squawk": "2207",
+      "spawnTime": 1008
+    },
+    {
+      "callsign": "WJA382",
+      "origin": "CYWG",
+      "type": "B738",
+      "wake": "M",
+      "category": "jet",
+      "lat": 44.30169778991679,
+      "lon": -80.35743014703854,
+      "altitude": 11000,
+      "heading": 137.87791618351946,
+      "speed": 230,
+      "speedBasis": "IAS",
+      "rate": 2250,
+      "destination": "CYYZ",
+      "arrivalRunway": "23",
+      "route": "BOXUM DUVOS ADSED ERBUS TASKU DAVIK LEVIG MIPED SATUR CALVY OMTOK",
+      "flightPlanRoute": "BOXUM BOXUM7 CYYZ/23",
+      "procedures": [
+        "BOXUM7"
+      ],
+      "automaticSpeeds": true,
+      "scratchpad": " N",
+      "remarks": "/v/ OFFLINE TRAINING",
+      "equipment": "GR",
+      "cruiseAltitude": 35000,
+      "cruiseSpeed": 440,
+      "squawk": "2210",
+      "spawnTime": 1152
+    },
+    {
+      "callsign": "JZA7894",
+      "origin": "CYAM",
+      "type": "DH8D",
+      "wake": "M",
+      "category": "prop",
+      "lat": 44.25226630180552,
+      "lon": -80.29504617788427,
+      "altitude": 11000,
+      "heading": 137.92146816714705,
+      "speed": 185,
+      "speedBasis": "IAS",
+      "rate": 2250,
+      "destination": "CYYZ",
+      "arrivalRunway": "23",
+      "route": "BOXUM DUVOS ADSED ERBUS TASKU DAVIK LEVIG MIPED SATUR CALVY OMTOK",
+      "flightPlanRoute": "BOXUM DUVOS4 CYYZ/23",
+      "procedures": [
+        "DUVOS4"
+      ],
+      "automaticSpeeds": true,
+      "scratchpad": " N",
+      "remarks": "/v/ OFFLINE TRAINING",
+      "equipment": "GR",
+      "cruiseAltitude": 11000,
+      "cruiseSpeed": 230,
+      "squawk": "2211",
+      "spawnTime": 1296
+    },
+    {
+      "callsign": "AFR356",
+      "origin": "LFPG",
+      "type": "A359",
+      "wake": "H",
+      "category": "jet",
+      "lat": 44.132298090547586,
+      "lon": -78.66866256781731,
+      "altitude": 11000,
+      "heading": 227.3513849479327,
+      "speed": 230,
+      "speedBasis": "IAS",
+      "rate": 2250,
+      "destination": "CYYZ",
+      "arrivalRunway": "24R",
+      "route": "RAGID DENKA AMILU EBDAL NOAHA",
+      "flightPlanRoute": "RAGID RAGID6 CYYZ/24R",
+      "procedures": [
+        "RAGID6"
+      ],
+      "automaticSpeeds": true,
+      "scratchpad": " R",
+      "remarks": "/v/ OFFLINE TRAINING",
+      "equipment": "GR",
+      "cruiseAltitude": 35000,
+      "cruiseSpeed": 440,
+      "squawk": "2212",
+      "spawnTime": 1440
+    },
+    {
+      "callsign": "UAL2044",
+      "origin": "KIAH",
+      "type": "B738",
+      "wake": "M",
+      "category": "jet",
+      "lat": 43.15173821873794,
+      "lon": -79.25836968715481,
+      "altitude": 11000,
+      "heading": 335.0814599475069,
+      "speed": 230,
+      "speedBasis": "IAS",
+      "rate": 2250,
+      "destination": "CYYZ",
+      "arrivalRunway": "24R",
+      "route": "LINNG YOUTH BIMPO VERKO MAROD DEKNI DAVNO DUNOL EBDAL NOAHA",
+      "flightPlanRoute": "LINNG LINNG3 CYYZ/24R",
+      "procedures": [
+        "LINNG3"
+      ],
+      "automaticSpeeds": true,
+      "scratchpad": " R",
+      "remarks": "/v/ OFFLINE TRAINING",
+      "equipment": "GR",
+      "cruiseAltitude": 35000,
+      "cruiseSpeed": 440,
+      "squawk": "2213",
+      "spawnTime": 1584
+    },
+    {
+      "callsign": "CGVTP",
+      "origin": "CYOW",
+      "type": "C182",
+      "wake": "L",
+      "category": "prop",
+      "lat": 44.3170976375944,
+      "lon": -78.95170640555921,
+      "altitude": 11000,
+      "heading": 227.42715149814399,
+      "speed": 135,
+      "speedBasis": "IAS",
+      "rate": 2250,
+      "destination": "CYYZ",
+      "arrivalRunway": "23",
+      "route": "IMEBA LEPUX DUGDA CALVY OMTOK",
+      "flightPlanRoute": "IMEBA VIBLI6 CYYZ/23",
+      "procedures": [
+        "VIBLI6"
+      ],
+      "automaticSpeeds": true,
+      "scratchpad": " N",
+      "remarks": "/v/ OFFLINE TRAINING",
+      "equipment": "GR",
+      "cruiseAltitude": 11000,
+      "cruiseSpeed": 160,
+      "squawk": "2214",
+      "spawnTime": 1728
+    },
+    {
+      "callsign": "ACA128",
+      "origin": "CYVR",
+      "type": "A321",
+      "wake": "M",
+      "category": "jet",
+      "lat": 43.40972074411095,
+      "lon": -80.5486380963311,
+      "altitude": 11000,
+      "heading": 68.7997921155183,
+      "speed": 230,
+      "speedBasis": "IAS",
+      "rate": 2250,
+      "destination": "CYYZ",
+      "arrivalRunway": "24R",
+      "route": "NUBER ROKTO PENGO BOTUM VERKO MAROD DEKNI DAVNO DUNOL EBDAL NOAHA",
+      "flightPlanRoute": "NUBER NUBER6 CYYZ/24R",
+      "procedures": [
+        "NUBER6"
+      ],
+      "automaticSpeeds": true,
+      "scratchpad": " R",
+      "remarks": "/v/ OFFLINE TRAINING",
+      "equipment": "GR",
+      "cruiseAltitude": 35000,
+      "cruiseSpeed": 440,
+      "squawk": "2215",
+      "spawnTime": 1872
+    },
+    {
+      "callsign": "TSC427",
+      "origin": "MMUN",
+      "type": "A332",
+      "wake": "H",
+      "category": "jet",
+      "lat": 43.15173821873794,
+      "lon": -79.25836968715481,
+      "altitude": 11000,
+      "heading": 335.0814599475069,
+      "speed": 230,
+      "speedBasis": "IAS",
+      "rate": 2250,
+      "destination": "CYYZ",
+      "arrivalRunway": "24R",
+      "route": "LINNG YOUTH BIMPO VERKO MAROD DEKNI DAVNO DUNOL EBDAL NOAHA",
+      "flightPlanRoute": "LINNG LINNG3 CYYZ/24R",
+      "procedures": [
+        "LINNG3"
+      ],
+      "automaticSpeeds": true,
+      "scratchpad": " R",
+      "remarks": "/v/ OFFLINE TRAINING",
+      "equipment": "GR",
+      "cruiseAltitude": 35000,
+      "cruiseSpeed": 440,
+      "squawk": "2216",
+      "spawnTime": 2016
+    },
+    {
+      "callsign": "JZA7657",
+      "origin": "KORD",
+      "type": "DH8D",
+      "wake": "M",
+      "category": "prop",
+      "lat": 43.421758921606354,
+      "lon": -80.50587905818713,
+      "altitude": 11000,
+      "heading": 68.82917985102324,
+      "speed": 185,
+      "speedBasis": "IAS",
+      "rate": 2250,
+      "destination": "CYYZ",
+      "arrivalRunway": "24R",
+      "route": "NUBER ROKTO PENGO BOTUM VERKO MAROD DEKNI DAVNO DUNOL EBDAL NOAHA",
+      "flightPlanRoute": "NUBER NAKBO6 CYYZ/24R",
+      "procedures": [
+        "NAKBO6"
+      ],
+      "automaticSpeeds": true,
+      "scratchpad": " R",
+      "remarks": "/v/ OFFLINE TRAINING",
+      "equipment": "GR",
+      "cruiseAltitude": 11000,
+      "cruiseSpeed": 230,
+      "squawk": "2217",
+      "spawnTime": 2160
+    },
+    {
+      "callsign": "ACA427",
+      "origin": "CYUL",
+      "type": "A320",
+      "wake": "M",
+      "category": "jet",
+      "lat": 44.3396282128075,
+      "lon": -78.91740776100369,
+      "altitude": 11000,
+      "heading": 227.45111834522123,
+      "speed": 230,
+      "speedBasis": "IAS",
+      "rate": 2250,
+      "destination": "CYYZ",
+      "arrivalRunway": "23",
+      "route": "IMEBA LEPUX DUGDA CALVY OMTOK",
+      "flightPlanRoute": "IMEBA IMEBA9 CYYZ/23",
+      "procedures": [
+        "IMEBA9"
+      ],
+      "automaticSpeeds": true,
+      "scratchpad": " N",
+      "remarks": "/v/ OFFLINE TRAINING",
+      "equipment": "GR",
+      "cruiseAltitude": 35000,
+      "cruiseSpeed": 440,
+      "squawk": "2220",
+      "spawnTime": 2304
+    },
+    {
+      "callsign": "CGKZP",
+      "origin": "CYXU",
+      "type": "PA46",
+      "wake": "L",
+      "category": "prop",
+      "lat": 43.39766664229061,
+      "lon": -80.59138012949302,
+      "altitude": 11000,
+      "heading": 68.7704225954817,
+      "speed": 135,
+      "speedBasis": "IAS",
+      "rate": 2250,
+      "destination": "CYYZ",
+      "arrivalRunway": "24R",
+      "route": "NUBER ROKTO PENGO BOTUM VERKO MAROD DEKNI DAVNO DUNOL EBDAL NOAHA",
+      "flightPlanRoute": "NUBER NAKBO6 CYYZ/24R",
+      "procedures": [
+        "NAKBO6"
+      ],
+      "automaticSpeeds": true,
+      "scratchpad": " R",
+      "remarks": "/v/ OFFLINE TRAINING",
+      "equipment": "GR",
+      "cruiseAltitude": 11000,
+      "cruiseSpeed": 160,
+      "squawk": "2221",
+      "spawnTime": 2448
+    },
+    {
+      "callsign": "BAW93",
+      "origin": "EGLL",
+      "type": "B77W",
+      "wake": "H",
+      "category": "jet",
+      "lat": 44.10972488635228,
+      "lon": -78.70278598819687,
+      "altitude": 11000,
+      "heading": 227.32762903736108,
+      "speed": 230,
+      "speedBasis": "IAS",
+      "rate": 2250,
+      "destination": "CYYZ",
+      "arrivalRunway": "24R",
+      "route": "RAGID DENKA AMILU EBDAL NOAHA",
+      "flightPlanRoute": "RAGID RAGID6 CYYZ/24R",
+      "procedures": [
+        "RAGID6"
+      ],
+      "automaticSpeeds": true,
+      "scratchpad": " R",
+      "remarks": "/v/ OFFLINE TRAINING",
+      "equipment": "GR",
+      "cruiseAltitude": 35000,
+      "cruiseSpeed": 440,
+      "squawk": "2222",
+      "spawnTime": 2592
+    },
+    {
+      "callsign": "WJA384",
+      "origin": "CYWG",
+      "type": "B738",
+      "wake": "M",
+      "category": "jet",
+      "lat": 44.27698628975985,
+      "lon": -80.3262250425106,
+      "altitude": 11000,
+      "heading": 137.89970615154868,
+      "speed": 230,
+      "speedBasis": "IAS",
+      "rate": 2250,
+      "destination": "CYYZ",
+      "arrivalRunway": "23",
+      "route": "BOXUM DUVOS ADSED ERBUS TASKU DAVIK LEVIG MIPED SATUR CALVY OMTOK",
+      "flightPlanRoute": "BOXUM BOXUM7 CYYZ/23",
+      "procedures": [
+        "BOXUM7"
+      ],
+      "automaticSpeeds": true,
+      "scratchpad": " N",
+      "remarks": "/v/ OFFLINE TRAINING",
+      "equipment": "GR",
+      "cruiseAltitude": 35000,
+      "cruiseSpeed": 440,
+      "squawk": "2223",
+      "spawnTime": 2736
+    },
+    {
+      "callsign": "JZA7970",
+      "origin": "KPIT",
+      "type": "DH8D",
+      "wake": "M",
+      "category": "prop",
+      "lat": 43.15173821873794,
+      "lon": -79.25836968715481,
+      "altitude": 11000,
+      "heading": 335.0814599475069,
+      "speed": 185,
+      "speedBasis": "IAS",
+      "rate": 2250,
+      "destination": "CYYZ",
+      "arrivalRunway": "24R",
+      "route": "LINNG YOUTH BIMPO VERKO MAROD DEKNI DAVNO DUNOL EBDAL NOAHA",
+      "flightPlanRoute": "LINNG VERKO1 CYYZ/24R",
+      "procedures": [
+        "VERKO1"
+      ],
+      "automaticSpeeds": true,
+      "scratchpad": " R",
+      "remarks": "/v/ OFFLINE TRAINING",
+      "equipment": "GR",
+      "cruiseAltitude": 11000,
+      "cruiseSpeed": 230,
+      "squawk": "2224",
+      "spawnTime": 2880
+    },
+    {
+      "callsign": "POE664",
+      "origin": "KLAX",
+      "type": "E295",
+      "wake": "M",
+      "category": "jet",
+      "lat": 43.421758921606354,
+      "lon": -80.50587905818713,
+      "altitude": 11000,
+      "heading": 68.82917985102324,
+      "speed": 230,
+      "speedBasis": "IAS",
+      "rate": 2250,
+      "destination": "CYYZ",
+      "arrivalRunway": "24R",
+      "route": "NUBER ROKTO PENGO BOTUM VERKO MAROD DEKNI DAVNO DUNOL EBDAL NOAHA",
+      "flightPlanRoute": "NUBER NUBER6 CYYZ/24R",
+      "procedures": [
+        "NUBER6"
+      ],
+      "automaticSpeeds": true,
+      "scratchpad": " R",
+      "remarks": "/v/ OFFLINE TRAINING",
+      "equipment": "GR",
+      "cruiseAltitude": 35000,
+      "cruiseSpeed": 440,
+      "squawk": "2225",
+      "spawnTime": 3024
+    },
+    {
+      "callsign": "CGVLJ",
+      "origin": "CYOW",
+      "type": "C510",
+      "wake": "L",
+      "category": "jet",
+      "lat": 44.3396282128075,
+      "lon": -78.91740776100369,
+      "altitude": 11000,
+      "heading": 227.45111834522123,
+      "speed": 230,
+      "speedBasis": "IAS",
+      "rate": 2250,
+      "destination": "CYYZ",
+      "arrivalRunway": "23",
+      "route": "IMEBA LEPUX DUGDA CALVY OMTOK",
+      "flightPlanRoute": "IMEBA IMEBA9 CYYZ/23",
+      "procedures": [
+        "IMEBA9"
+      ],
+      "automaticSpeeds": true,
+      "scratchpad": " N",
+      "remarks": "/v/ OFFLINE TRAINING",
+      "equipment": "GR",
+      "cruiseAltitude": 35000,
+      "cruiseSpeed": 440,
+      "squawk": "2226",
+      "spawnTime": 3168
+    },
+    {
+      "callsign": "CGHNX",
+      "origin": "CYTR",
+      "type": "PC12",
+      "wake": "L",
+      "category": "prop",
+      "lat": 44.15486113026238,
+      "lon": -78.63451305797224,
+      "altitude": 11000,
+      "heading": 227.37516867565387,
+      "speed": 185,
+      "speedBasis": "IAS",
+      "rate": 2250,
+      "destination": "CYYZ",
+      "arrivalRunway": "24R",
+      "route": "RAGID DENKA AMILU EBDAL NOAHA",
+      "flightPlanRoute": "RAGID UDNOX5 CYYZ/24R",
+      "procedures": [
+        "UDNOX5"
+      ],
+      "automaticSpeeds": true,
+      "scratchpad": " R",
+      "remarks": "/v/ OFFLINE TRAINING",
+      "equipment": "GR",
+      "cruiseAltitude": 11000,
+      "cruiseSpeed": 230,
+      "squawk": "2227",
+      "spawnTime": 3312
+    },
+    {
+      "callsign": "CFXRN",
+      "origin": "CYND",
+      "type": "BE20",
+      "wake": "L",
+      "category": "prop",
+      "lat": 44.3170976375944,
+      "lon": -78.95170640555921,
+      "altitude": 11000,
+      "heading": 227.42715149814399,
+      "speed": 185,
+      "speedBasis": "IAS",
+      "rate": 2250,
+      "destination": "CYYZ",
+      "arrivalRunway": "23",
+      "route": "IMEBA LEPUX DUGDA CALVY OMTOK",
+      "flightPlanRoute": "IMEBA VIBLI6 CYYZ/23",
+      "procedures": [
+        "VIBLI6"
+      ],
+      "automaticSpeeds": true,
+      "scratchpad": " N",
+      "remarks": "/v/ OFFLINE TRAINING",
+      "equipment": "GR",
+      "cruiseAltitude": 11000,
+      "cruiseSpeed": 230,
+      "squawk": "2230",
+      "spawnTime": 3456
+    }
+  ]
+}

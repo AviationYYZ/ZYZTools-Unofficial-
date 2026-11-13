@@ -153,7 +153,7 @@ function Workspace({surfaces}){
  return <>
   {surfaces.map(({key,target,host},i)=><AccessLayer key={key+i} target={target} host={host} reason={reason(key)}/>)}
   {a&&dismissed!==id&&<aside className="workspace-announcement" role="status"><div><strong>ZYZTools announcement</strong><p>{a.message}</p></div><button onClick={()=>setDismissed(id)} aria-label="Dismiss announcement">Dismiss</button></aside>}
-  {runtime?.blocked&&<aside className="workspace-runtime-notice" role="alert"><div><strong>EuroScope plugin update required</strong><p>Close EuroScope and install the DLL bundled with ZYZTools {runtime.version}. App features are paused until you close EuroScope or install the matching DLL.</p></div><button onClick={()=>document.querySelector('[data-tab=install]').click()}>Install / Link</button></aside>}
+  {runtime?.blocked&&<aside className="workspace-runtime-notice" role="alert"><div><strong>EuroScope plugin version mismatch</strong><p>The installed DLL is {runtime.installedVersion}, but this app is ZYZTools {runtime.version}. Close EuroScope and use Install / Link to install the DLL for this app version.</p></div><button onClick={()=>document.querySelector('[data-tab=install]').click()}>Install / Link</button></aside>}
  </>;
 }
 const nav=document.querySelector('nav[aria-label="ZYZTools menu"]'),admin=document.getElementById('admin');

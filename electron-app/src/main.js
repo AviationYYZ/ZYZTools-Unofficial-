@@ -22,9 +22,9 @@ app.setPath('userData', path.join(process.env.APPDATA || path.join(os.homedir(),
 let mainWindow = null;
 let discordPresence = null;
 let runtimeFolder, runtimeTimer, lastRuntimeNotice='';
-const dllGuard=new (require('./euroscope-runtime').DllGuard)({payload:payloadFolder,version:buildInfo.version});
+const dllGuard=new (require('./euroscope-runtime').DllGuard)({version:app.getVersion()});
 const runtimeState=()=>dllGuard.check(runtimeFolder||(runtimeFolder=installDestination(commandLinePluginFolder()||discoveredInstalledPluginFolder()||defaultParentFolder())));
-const recoveryChannels=new Set(['runtime:status','app:initialState','folder:browseParent','config:load','plugin:install','folder:open','appPolicy:state']);
+const recoveryChannels=new Set(['runtime:status','app:initialState','folder:browseParent','config:load','plugin:install','folder:open','appPolicy:state','updates:history','updates:openRelease','updates:check','updates:download','updates:installStaged']);
 function guarded(channelName,handler){
   ipcMain.handle(channelName,async(event,...args)=>{
     if(!recoveryChannels.has(channelName)){
