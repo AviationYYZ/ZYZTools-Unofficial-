@@ -2351,8 +2351,7 @@ public:
             const auto cs=trainingCommand.size()>7?trainingCommand.substr(7):"";
             const auto context=m_trainingCommands.PilotContext(cs);
             if(GetConnectionType()!=CONNECTION_TYPE_DIRECT||context.empty()){RadarNotice("Use .zhold ACID for an active aircraft in a verified Sweatbox instructor session.");return true;}
-            const auto command=TrainingHoldDialog::Open(GetForegroundWindow(),cs);
-            if(!command.empty()&&m_trainingCommands.PilotContext(cs)==context)SendPilotAction(cs,command);
+            OpenHoldEditor(cs,context);
             return true;
         }
         if(HandleRadarToolsCommand(trainingCommand))return true;
@@ -2566,7 +2565,7 @@ private:
         }
         m_pilotMenuValues=m_trainingCommands.PilotMenu(cs,field);
         if(field=="SQ")m_pilotMenuValues.push_back("Enter custom squawk...");
-        if(field=="ADV")m_pilotMenuValues.insert(m_pilotMenuValues.begin(),"Show All Aircraft list");
+        if(field=="ADV"){m_pilotMenuValues.insert(m_pilotMenuValues.begin(),"Show All Aircraft list");m_pilotMenuValues.insert(m_pilotMenuValues.begin(),"Manage hold...");}
         if(m_pilotMenuValues.empty()){DisplayUserMessage("ZYZTools","PILOT","No choices available. Check instructor connection and retry.",true,true,false,false,false);return;}ShowPilotMenu();
     }
     void ShowPilotMenu(){
@@ -2579,6 +2578,7 @@ private:
             if(field=="HDG"&&value=="Enter custom heading..."){m_pilotEditCallsign=cs;m_pilotEditContext=context;m_pilotMenuField="HDG";OpenPopupEdit(area,FUNC_PILOT_EDIT,"");return;}
             if(field=="HDG"&&value=="Fly present heading"){SendPilotAction(cs,"HDG PRESENT");return;}
             if(field=="ADV"){
+                if(value=="Manage hold..."){OpenHoldEditor(cs,context);return;}
                 if(value=="Show All Aircraft list"){m_pilotRosterVisible=false;RefreshPilotAircraftList(true);return;}
                 if(value.rfind("Divert to runway ",0)==0){SendPilotAction(cs,"RWY "+value.substr(17));return;}
                 if(value.rfind("Preset ",0)==0){const auto start=value.rfind('(');if(start!=std::string::npos&&value.back()==')')SendPilotAction(cs,"IAS "+Upper(value.substr(start+1,value.size()-start-2)));return;}
@@ -2600,6 +2600,11 @@ private:
         });if(!opened)DisplayUserMessage("ZYZTools","PILOT","Could not open pilot dropdown. Refocus EuroScope and retry.",true,true,false,false,false);
     }
     ULONGLONG m_pilotFeedbackUntil=0;
+    void OpenHoldEditor(const std::string& cs,const std::string& context){
+        if(GetConnectionType()!=CONNECTION_TYPE_DIRECT||context.empty()||m_trainingCommands.PilotContext(cs)!=context)return;
+        const auto command=TrainingHoldDialog::Open(GetForegroundWindow(),cs);
+        if(!command.empty()&&m_trainingCommands.PilotContext(cs)==context)SendPilotAction(cs,command);
+    }
     void SendPilotAction(const std::string &cs,const std::string &command){const auto self=ControllerMyself();if(GetConnectionType()!=CONNECTION_TYPE_DIRECT||!self.IsValid()||m_trainingCommands.PilotContext(cs).empty())return;const auto message=m_trainingCommands.Command(cs,self.GetCallsign(),command);m_pilotFeedback=cs+": "+command;m_pilotFeedbackUntil=GetTickCount64()+3000;if(!message.empty())DisplayUserMessage("ZYZTools","PILOT",message.c_str(),true,true,false,false,false);}
     CTrainingCommandBridge m_trainingCommands;
     CFlightPlanList m_pilotAircraftList;

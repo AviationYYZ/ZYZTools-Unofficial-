@@ -21,6 +21,11 @@ function create(parts,fixes,variation,move,altitude=0){
  if(Math.abs(height)>=Math.min(fixDme,endDme))throw Error('DME limits are inside the aircraft’s height above the station.');
  return {...h,fix:move(point,Math.sqrt(fixDme**2-height**2),bearing),station:point,endDme,outward:toward};
 }
+// Entry sectors measured using arrival track at the fix, mirrored for left holds.
+function entryFor(track,inbound,side){
+ const angle=delta(track,inbound)*side;
+ return angle>70?'parallel':angle<=-110?'teardrop':'direct';
+}
 function guide(a,dt,geometry,move){
  const h=a.hold,track=a.groundTrack??a.heading;
  const heading=c=>weather.crab(wrap(c),a.speed,a.wind);
@@ -29,8 +34,7 @@ function guide(a,dt,geometry,move){
  if(h.phase==='entry'){
   if(fix.distance>.08){flight.guideDirect(a,{...h.fix,name:h.id},fix,geometry,move);return;}
   a.directGuidance=null;
-  const angle=delta(track,h.inbound)*h.side;
-  h.entry=angle>110?'teardrop':angle< -70?'parallel':'direct';
+  h.entry=h.selectedEntry=entryFor(track,h.inbound,h.side);
   h.entryCourse=h.entry==='teardrop'?wrap(h.outbound-h.side*30):h.outbound;
   h.phase='turn-out';h.elapsed=0;
   h.turnSide=h.entry==='direct'?h.side:0;
@@ -46,11 +50,11 @@ function guide(a,dt,geometry,move){
    h.phase='turn-in';h.outboundEndDme=d;
    const from=geometry(h.fix,a),cross=from.distance*Math.sin(delta(from.bearing,h.outbound)*rad);
    const intercept=Math.min(30,Math.max(8,Math.atan2(Math.abs(cross),Math.max(1,flight.turnRadius(a.speed)*3))/rad));
-   h.captureCourse=wrap(h.inbound+Math.sign(cross)*intercept);
+   h.captureCourse=wrap(h.inbound+(h.entry==='parallel'?h.side:Math.sign(cross))*intercept);
   }else return;
  }
  if(h.phase==='turn-in'){
-  if(Math.abs(delta(heading(h.captureCourse),a.heading))>2){go(h.captureCourse,h.entry==='parallel'?-h.side:h.side);return;}
+  if(Math.abs(delta(heading(h.captureCourse),a.heading))>2){go(h.captureCourse,h.side);return;}
   h.phase='inbound';
  }
  const from=geometry(h.fix,a),cross=from.distance*Math.sin(delta(from.bearing,h.outbound)*rad);
@@ -65,4 +69,4 @@ function guide(a,dt,geometry,move){
  }
  h.laps++;h.entry='direct';h.entryCourse=h.outbound;h.turnSide=h.side;h.phase='turn-out';go(h.outbound,h.side);
 }
-module.exports={create,guide};
+module.exports={create,guide,entryFor};
