@@ -8,12 +8,14 @@ tunnel.configFolder=folder;
 let stopping=false,operation=Promise.resolve(),networkBusy=false,nextLease=0,nextTunnel=0,verifiedURL='',publicError='';
 const instructorJournal=[];
 training.planResolver=a=>{
- const library=engine('training-route-variants.json');
+ const library=engine('training-routes').builtInStars;
  const points=training.runtimeWaypoints?.length?training.runtimeWaypoints:training.scenario.waypoints;
  const procedures=new Map(library.procedures.map(p=>[p.airport+'/'+p.name+'/'+p.runway,p]));
  for(const plane of training.scenario.aircraft)for(const name of plane.procedures){
-  const bed=name.replace(/\d+$/,''),legs=plane.route.split(' '),i=legs.indexOf(bed);
-  if(i>=0)procedures.set(plane.destination+'/'+name+'/'+plane.arrivalRunway,{kind:'STAR',airport:plane.destination,name,runway:plane.arrivalRunway,fixes:legs.slice(i)});
+  const tokens=plane.flightPlanRoute.trim().toUpperCase().split(/\s+/),star=tokens.findIndex(t=>t.split('/')[0]===name);
+  const bed=star>0?tokens[star-1].split('/')[0]:'',legs=plane.route.split(' '),i=legs.indexOf(bed);
+  const key=plane.destination+'/'+name+'/'+plane.arrivalRunway;
+  if(i>=0&&!procedures.has(key))procedures.set(key,{kind:'STAR',airport:plane.destination,name,runway:plane.arrivalRunway,fixes:legs.slice(i)});
  }
  return engine('training-routes').expandRoute(a,{fixes:library.fixes,procedures:[...procedures.values()]},points);
 };
@@ -48,14 +50,14 @@ process.on('disconnect',shutdown);process.on('SIGTERM',shutdown);process.on('SIG
 process.on('message',m=>{operation=operation.then(async()=>{
  try{
   if(m.action==='start'){
-   training.load({...JSON.parse(fs.readFileSync(path.join(folder,'scenario.json'),'utf8')),jetSpeedProfile:engine('training-jet-profile').normalize(m.jetSpeedProfile)});training.updateRate(m.positionUpdateHz??0.2);await training.start(16800+slot);
+   training.load({...JSON.parse(fs.readFileSync(path.join(folder,'scenario.json'),'utf8')),jetSpeedProfile:engine('training-jet-profile').normalize(m.jetSpeedProfile),aircraftSpeedProfiles:m.aircraftSpeedProfiles});training.updateRate(m.positionUpdateHz??0.2);await training.start(16800+slot);
    try{await shared.start();}catch(e){training.stop();throw e;}
    if(m.run)training.run();await network();
   }else if(m.action==='pause')training.pause();
   else if(m.action==='run')training.run();
   else if(m.action==='reset'){training.reset();instructorJournal.length=0;}
   else if(m.action==='updateRate')training.updateRate(m.hz);
-  else if(m.action==='speedProfile')training.speedProfile(m.profile);
+  else if(m.action==='speedProfile')training.speedProfile(m.profile,m.group);
   else if(m.action==='instructor'){
    if(m.operation==='snapshot'){send({id:m.id,result:instructorSnapshot()});return;}
    if(m.sessionId!==training.sessionId)throw Error('Scenario changed. Refresh the aircraft dashboard.');

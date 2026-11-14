@@ -2336,6 +2336,7 @@ public:
         if (Counter % 2 == 0)
             RefreshDepartureAssignmentConfig();
         PollSettingsActions();
+        if (Counter % 2 == 0) PublishDepartureDesk();
         if(Counter%2==0)ReadAeroViewWind();
         if (Counter % 2 == 0 && (m_cfg.runwayAssignmentConfig != "off" || m_cfg.arrivalAssignmentEnabled))
             for (CFlightPlan fp = FlightPlanSelectFirst(); fp.IsValid(); fp = FlightPlanSelectNext(fp))
@@ -2668,7 +2669,7 @@ private:
     }
     bool m_radarToolsVisible=false,m_calcsVisible=false;
     int m_calcSelected=-1;
-    int m_weatherLayers=0;
+    int m_weatherLayers=0,m_weatherHeight=1500,m_weatherMode=0,m_weatherRangeNm=75;
     bool m_aeroWindsVisible=false;
     std::string m_aeroNorth="Unavailable",m_aeroSouth="Unavailable";
     void ReadAeroViewWind(){
@@ -2743,16 +2744,7 @@ private:
             return true;
         }
         if(verb==".WX"){
-            std::string layer;int mask=0;
-            while(args>>layer){
-                if(layer=="RAIN"||layer=="RADAR")mask|=WeatherOverlay::Rain;
-                else if(layer=="LIGHTNING")mask|=WeatherOverlay::Lightning;
-                else if(layer=="VERTICAL")mask|=WeatherOverlay::Vertical;
-                else if(layer=="ALL")mask|=7;
-                else if(layer=="OFF"){m_weatherLayers=0;return true;}
-                else{RadarNotice("Use .wx rain, lightning, vertical, all or off. Combine layers with spaces.");return true;}
-            }
-            m_weatherLayers=mask?mask:m_weatherLayers?0:WeatherOverlay::Rain;
+            RadarNotice("Weather radar is controlled in ZYZTools: Controller Tools > Calculators > Advanced weather radar.");
             return true;
         }
         if(!verb.empty()&&verb!=".CALC"&&verb!=".RADARTOOLS"&&verb!=".SPACING"&&verb!=".LEADER"&&verb!=".FIXWATCH"&&verb!=".UI"&&verb!=".AIRCRAFT"&&verb!=".REPLAY"){
@@ -3061,6 +3053,8 @@ private:
         bool active = false;
         std::string callsign;
         std::string reason;
+        std::string deskSession;
+        ULONGLONG deskExpires = 0;
     };
 
     void RefreshConfigValidity()
@@ -4743,6 +4737,11 @@ private:
 
     void RequestPdcSend(const std::string &cs)
     {
+        if (!m_sendConfirmation.deskSession.empty())
+        {
+            if (DepartureDeskConfirmationValid()) return;
+            m_sendConfirmation = {};
+        }
         CFlightPlan fp = FlightPlanSelect(cs.c_str());
         if (!fp.IsValid())
         {
@@ -5211,6 +5210,71 @@ private:
         LoadConfig(false);
     }
 
+    std::string ActiveDepartureDesk() const
+    {
+        std::ifstream file(GetThisDllDir() + "DepartureDeskSession.txt");
+        std::string id;
+        std::time_t at = 0;
+        const auto now = std::time(nullptr);
+        if (!(file >> id >> at) || id.size() != 32 || at > now || now - at >= 8 ||
+            id.find_first_not_of("0123456789abcdef") != std::string::npos)
+            return {};
+        return id;
+    }
+
+    bool CanUseDepartureDesk()
+    {
+        const int connection = GetConnectionType();
+        return (connection == CONNECTION_TYPE_DIRECT || connection == CONNECTION_TYPE_VIA_PROXY) &&
+            !m_trainingCommands.TrainingContext() && ControllerMyself().IsValid();
+    }
+
+    bool IsRecentDeparture(const std::string &cs)
+    {
+        const auto seen = m_departureListLastSeen.find(cs);
+        return seen != m_departureListLastSeen.end() &&
+            GetTickCount64() - seen->second <= DEPARTURE_LIST_RECENT_MS && FlightPlanSelect(cs.c_str()).IsValid();
+    }
+
+    bool DepartureDeskConfirmationValid()
+    {
+        return CanUseDepartureDesk() && GetTickCount64() < m_sendConfirmation.deskExpires &&
+            ActiveDepartureDesk() == m_sendConfirmation.deskSession && IsRecentDeparture(m_sendConfirmation.callsign);
+    }
+
+    void PublishDepartureDesk()
+    {
+        if (!m_sendConfirmation.deskSession.empty() && !DepartureDeskConfirmationValid())
+            m_sendConfirmation = {};
+        const auto id = ActiveDepartureDesk();
+        if (id.empty() || !CanUseDepartureDesk()) return;
+        const auto output = GetThisDllDir() + "DepartureDesk.json";
+        std::ofstream file(output + ".tmp", std::ios::binary | std::ios::trunc);
+        if (!file) return;
+        file << "{\"session\":\"" << id << "\",\"at\":" << std::time(nullptr) << ",\"rows\":[";
+        int count = 0;
+        for (const auto &entry : m_departureListLastSeen)
+        {
+            if (count >= 300) break;
+            const auto &cs = entry.first;
+            if (!IsRecentDeparture(cs)) continue;
+            auto fp = FlightPlanSelect(cs.c_str());
+            const auto data = fp.GetFlightPlanData();
+            const auto sent = m_sentChannel.find(cs);
+            const auto status = m_hoppieMode && m_pendingRequestId.count(cs) ? "TELEX requested" :
+                sent != m_sentChannel.end() ? (sent->second == SentChannel::Hoppie ? "TELEX sent" : "Chat PDC sent") :
+                fp.GetClearenceFlag() ? "Cleared" : "Not sent";
+            if (count++) file << ',';
+            auto safe = [](const char *s) { return JsonEscape(s ? s : ""); };
+            file << "{\"callsign\":\"" << JsonEscape(cs) << "\",\"destination\":\"" << safe(data.GetDestination())
+                 << "\",\"runway\":\"" << safe(data.GetDepartureRwy()) << "\",\"route\":\"" << safe(data.GetRoute())
+                 << "\",\"status\":\"" << status << "\"}";
+        }
+        file << "]}";
+        file.close();
+        if (file) MoveFileExA((output + ".tmp").c_str(), output.c_str(), MOVEFILE_REPLACE_EXISTING);
+    }
+
     void PollSettingsActions()
     {
         const std::string folder = GetThisDllDir();
@@ -5235,6 +5299,19 @@ private:
             else if (action == "link-test") { TestHoppieLink(); ok = true; }
             else if (action == "test-pdc") { TriggerIncomingPdcTest(); ok = true; }
             else if (action == "export") { ExportVisibleStatistics(true); ok = true; }
+            else if (action == "departure-desk-pdc")
+            {
+                std::string session;
+                if (!m_sendConfirmation.active && CanUseDepartureDesk() &&
+                    JsonStringValue(json, "session", session) && !session.empty() &&
+                    session == ActiveDepartureDesk() && IsRecentDeparture(callsign))
+                {
+                    m_sendConfirmation = {true, callsign, "Requested from the paired phone. Review before sending.",
+                        session, GetTickCount64() + 30000};
+                    WriteAuditLog("pdc_confirmation_opened", "callsign=" + callsign + " source=phone");
+                    ok = true;
+                }
+            }
             else if (action == "fixwatch"){
                 const std::string watch=Upper(Trim(callsign));
                 if(std::regex_match(watch,std::regex("[A-Z0-9]{1,12} [0-9]{1,3}(\\.[0-9]{1,3})? (ALL|PICK|STAR [A-Z][A-Z0-9]{1,9}(,[A-Z][A-Z0-9]{1,9})*)"))){
@@ -5797,6 +5874,10 @@ private:
             << "  \"radar_leader_shortcut\": \"" << JsonEscape(m_cfg.leaderShortcut) << "\",\n"
             << "  \"radar_fixwatch_shortcut\": \"" << JsonEscape(m_cfg.fixwatchShortcut) << "\",\n"
             << "  \"radar_leader_setting\": \"" << JsonEscape(m_cfg.radarLeaderSetting) << "\",\n"
+            << "  \"radar_weather_layers\": " << m_weatherLayers << ",\n"
+            << "  \"radar_weather_altitude\": " << m_weatherHeight << ",\n"
+            << "  \"radar_weather_range_nm\": " << m_weatherRangeNm << ",\n"
+            << "  \"radar_weather_mode\": \"" << (std::array<const char*,5>{"live","supercell","line","light","clear"})[m_weatherMode] << "\",\n"
             << "  \"radar_watch_setting\": \"" << JsonEscape(m_cfg.radarWatchSetting) << "\",\n"
             << "  \"trackaudio_version\": \"" << JsonEscape(m_cfg.trackAudioVersion) << "\",\n"
             << "  \"settings_app_path\": \"" << JsonEscape(m_cfg.settingsAppPath) << "\",\n"
@@ -5906,6 +5987,16 @@ private:
 
         JsonStringValue(json, "hoppie_logon_code", m_cfg.logonCode);
         JsonStringValue(json, "station_code", m_cfg.stationCode);
+        int weatherLayers=0;
+        JsonIntValue(json,"radar_weather_layers",weatherLayers);
+        weatherLayers=weatherLayers>=0&&weatherLayers<=7?weatherLayers&3:0;
+        m_weatherLayers=weatherLayers;
+        int height=1500;JsonIntValue(json,"radar_weather_altitude",height);
+        m_weatherHeight=height>=500&&height<=19000?height:1500;
+        int weatherRange=75;JsonIntValue(json,"radar_weather_range_nm",weatherRange);
+        m_weatherRangeNm=weatherRange>=10&&weatherRange<=75?weatherRange:75;
+        std::string weatherMode;JsonStringValue(json,"radar_weather_mode",weatherMode);
+        m_weatherMode=weatherMode=="supercell"?1:weatherMode=="line"?2:weatherMode=="light"?3:weatherMode=="clear"?4:0;
         m_cfg.pdcTemplateBridge.clear(); m_cfg.pdcTemplateHoppie.clear();
         {
             size_t pos=0;m_cfg.radarLeaderSetting="OFF";m_cfg.radarWatchSetting="ALL";
@@ -6123,7 +6214,7 @@ public:
     void OnRefresh(HDC hDC, int Phase) override
     {
         if(m_plugin&&Phase==REFRESH_PHASE_BEFORE_TAGS&&m_plugin->m_weatherLayers){
-            m_weatherOverlay.Draw(hDC,GetRadarArea(),m_plugin->m_weatherLayers,[this](double lat,double lon){
+            m_weatherOverlay.Draw(hDC,GetRadarArea(),m_plugin->m_weatherLayers,m_plugin->m_weatherHeight,m_plugin->m_weatherMode,m_plugin->m_weatherRangeNm,GetThisDllDir(),[this](double lat,double lon){
                 CPosition p;p.m_Latitude=lat;p.m_Longitude=lon;return ConvertCoordFromPositionToPixel(p);
             });
         }
@@ -6578,6 +6669,11 @@ public:
 
         if (id == "CONFIRM_SEND")
         {
+            if (!m_plugin->m_sendConfirmation.deskSession.empty() && !m_plugin->DepartureDeskConfirmationValid())
+            {
+                m_plugin->m_sendConfirmation = {};
+                return;
+            }
             const std::string cs = m_plugin->m_sendConfirmation.callsign;
             m_plugin->WriteAuditLog("pdc_confirmation_accepted", "callsign=" + cs);
             m_plugin->m_sendConfirmation = {};

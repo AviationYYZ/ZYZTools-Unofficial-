@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.0.38 — Phone departure desk
+
+- Pair a phone on the local network via an in-app QR code, see the EuroScope departure list, and request PDCs for confirmation in EuroScope.
+
+## 2.0.37 — Stable release candidate
+
+- Optional desktop and private server update. The desktop and EuroScope DLL must use the same version.
+- Advanced weather radar: selectable reflectivity height, transparent no-echo areas, lightning, labeled storm fixtures and automatic application of settings, including a 10–75 NM radius around CYYZ.
+- Confirmed EuroScope DLL mismatches are reported against the running desktop version; legacy DLLs without a readable version prompt without blocking.
+- The Advanced update page supports pausing automatic essential updates. Older releases that predate this setting will not honor it.
+- The simulator includes the Toronto prop STAR routes and per-aircraft-class speed profiles. Existing saved scenarios are preserved.
+
 ## 1.2.68 / server 0.4.16
 
 - Simulated arrivals continue straight at the downwind discontinuity instead of flying the filed base turn. Runway-aligned approach fixes require an explicit direct-to, one fix at a time. Filed routes are unchanged; an instructor can still vector aircraft or clear them for ILS capture.

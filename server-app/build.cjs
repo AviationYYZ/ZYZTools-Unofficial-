@@ -7,6 +7,7 @@ fs.mkdirSync(path.join(stage,'src','engine'),{recursive:true});for(const file of
 fs.copyFileSync(path.join(root,'electron-app/src/training-speed-editor.js'),path.join(stage,'src/engine/training-speed-editor.js'));
 fs.copyFileSync(path.join(root,'electron-app/src/controller-calculators.js'),path.join(stage,'src/pwa/controller-calculators.js'));
 fs.copyFileSync(path.join(root,'electron-app/src/training-route-variants.json'),path.join(stage,'src/engine/training-route-variants.json'));
+fs.copyFileSync(path.join(root,'electron-app/src/training-prop-stars.json'),path.join(stage,'src/engine/training-prop-stars.json'));
 fs.copyFileSync(path.join(root,'electron-app/src/github-updates.js'),path.join(stage,'src/engine/github-updates.js'));
 for(const file of ['aeroview-reader.cjs','aeroview-observation.cjs','training-hold.js'])fs.copyFileSync(path.join(root,'electron-app/src',file),path.join(stage,'src/engine',file));
 fs.mkdirSync(path.join(stage,'src/default-scenarios'),{recursive:true});

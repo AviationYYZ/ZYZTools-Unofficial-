@@ -5,7 +5,10 @@ app.setPath('userData',userData);
 app.whenReady().then(async()=>{
  const version=process.argv[2];
  if(!/^\d+\.\d+\.\d+$/.test(version))throw Error('Pass the approved desktop version.');
- const resources=path.join(process.env.LOCALAPPDATA,'ZYZTools/Builds/desktop-'+version+(process.argv[3]==='--final'?'-final':''),'test/win-ia32-unpacked/resources');
+ const output=path.join(process.env.LOCALAPPDATA,'ZYZTools/Builds/desktop-'+version+(process.argv.includes('--final')?'-final':''));
+ const productionOnly=process.argv.includes('--consumer-build');
+ const resources=path.join(output,productionOnly?'production':'test','win-ia32-unpacked/resources');
+ const installer=productionOnly?path.join(output,'production','ZYZTools-Setup.exe'):path.join(resources,'Publishing/ZYZTools-Setup.exe');
  const snapshot=JSON.parse(fs.readFileSync(path.join(resources,'TestSourceSnapshot.json'),'utf8'));
  const token=require('../electron-app/src/publishing-auth').load(userData,safeStorage);
  const request=async(url,options)=>{
@@ -16,6 +19,9 @@ app.whenReady().then(async()=>{
   }
   return response;
  };
- const release=await require('../electron-app/src/test-publisher').publish({token,version,snapshot,installer:path.join(resources,'Publishing/ZYZTools-Setup.exe'),stream:'beta',essential:process.argv.includes('--essential')},request);
- console.log(release.url);
+ const streams=process.argv.includes('--both')?['beta','stable']:process.argv.includes('--stable')?['stable']:['beta'];
+ for(const stream of streams){
+  const release=await require('../electron-app/src/test-publisher').publish({token,version,snapshot,installer,stream,essential:process.argv.includes('--essential')},request);
+  console.log(release.url);
+ }
 }).then(()=>app.exit(0)).catch(e=>{console.error(e.message);app.exit(1);});

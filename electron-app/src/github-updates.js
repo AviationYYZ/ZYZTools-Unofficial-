@@ -17,6 +17,18 @@ function newer(tag, installed) {
   for (let i = 0; i < 3; i++) { if (a[i] !== b[i]) return a[i] > b[i]; }
   return false;
 }
+function readPreferences(file) {
+  try {
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    return {stream: data.stream === 'beta' ? 'beta' : 'stable', paused: data.paused === true};
+  } catch { return {stream:'stable', paused:false}; }
+}
+function savePreferences(file, changes) {
+  const next = {...readPreferences(file), ...changes};
+  fs.mkdirSync(path.dirname(file), {recursive:true});
+  fs.writeFileSync(file, JSON.stringify(next));
+  return next;
+}
 async function check(repo, installed, request = fetch, kind = 'production', {essentialOnly=false, preferEssential=false}={}) {
   repo = repository(repo);
   const beta = kind === 'test' || kind === 'beta';
@@ -33,7 +45,8 @@ async function check(repo, installed, request = fetch, kind = 'production', {ess
     ? (r.assets || []).find(a => /^ZYZTools-Test-Setup(?:[-.][\w.-]+)?\.exe$/i.test(a.name))
     : (r.assets || []).find(a => /^ZYZTools-Setup(?:[-.][\w.-]+)?\.exe$/i.test(a.name))
       || (r.assets || []).find(a => /^PreferredCYYZPdcPlugin-Setup(?:[-.][\w.-]+)?\.exe$/i.test(a.name));
-  const release = ((preferEssential || essentialOnly) && releases.find(r => essential(r) && newer(r.tag_name, installed) && installerFor(r))) || releases[0];
+  const release = ((preferEssential || essentialOnly) && releases.find(r => essential(r) && newer(r.tag_name, installed) && installerFor(r))) ||
+    releases.find(r => installerFor(r) && newer(r.tag_name, installed)) || releases[0];
   const available = newer(release.tag_name, installed);
   const asset = installerFor(release);
   return { repo, tag: release.tag_name, available: available && !!asset, asset, essential: essential(release),
@@ -96,4 +109,4 @@ async function releaseHistory(stream,request=fetch){
   .sort((a,b)=>newer(a.tag_name,b.tag_name)?-1:newer(b.tag_name,a.tag_name)?1:String(b.published_at).localeCompare(String(a.published_at)))
   .map(r=>({tag:r.tag_name,essential:String(r.body||'').includes('<!-- zyztools-update:essential -->')}));
 }
-module.exports = { DEFAULT_REPOSITORY, repository, newer, check, download, essentialInstallerArgs, releaseHistory };
+module.exports = { DEFAULT_REPOSITORY, repository, newer, readPreferences, savePreferences, check, download, essentialInstallerArgs, releaseHistory };

@@ -1,6 +1,6 @@
 (()=>{'use strict';const api=window.preferredCyyzPdc.trainingInstructor,$=id=>document.getElementById(id);if(!api)return;
 let state=null,aircraft=null,slot=1,busy=false,polling=false,connected=false,editing=null,generation=0,selectionRevision=0,requestedSelection=null,draftTarget=null,rosterContext='';
-const profileEditor=new window.ZYZSpeedProfileEditor('instructorSpeedProfile',async profile=>{if(!state||!connected||busy)throw Error('Connect to your instructor server first.');const s=state.slots.find(s=>s.id===slot);if(!s)throw Error('Choose a server slot.');await api('action',{slot,epoch:s.epoch,action:'speedProfile',payload:{profile}});await refresh();});
+const profileEditor=new window.ZYZAircraftSpeedProfiles('instructorSpeedProfile',async (profile,group)=>{if(!state||!connected||busy)throw Error('Connect to your instructor server first.');const s=state.slots.find(s=>s.id===slot);if(!s)throw Error('Choose a server slot.');if(!s.aircraftSpeedProfiles&&(group!=='jet'||profile===null))throw Error('Update the server to edit this profile.');await api('action',{slot,epoch:s.epoch,action:'speedProfile',payload:{profile,group}});await refresh();});
 const fields=['flightRules','type','wake','equipment','origin','destination','alternate','cruiseAltitude','cruiseSpeed','departureTime','actualDepartureTime','enrouteHours','enrouteMinutes','fuelHours','fuelMinutes','remarks','flightPlanRoute','arrivalRunway','squawk'];
 const labels={flightRules:'Flight rules (I / V)',type:'Aircraft type',wake:'Wake category',equipment:'Equipment',origin:'Departure',destination:'Arrival',alternate:'Alternate',cruiseAltitude:'Cruise altitude · ft',cruiseSpeed:'Cruise speed · kt',departureTime:'Estimated departure · HHMM',actualDepartureTime:'Actual departure · HHMM',enrouteHours:'Enroute hours',enrouteMinutes:'Enroute minutes',fuelHours:'Fuel hours',fuelMinutes:'Fuel minutes',remarks:'Remarks',flightPlanRoute:'Filed route',arrivalRunway:'Arrival runway',squawk:'Squawk'};
 for(const field of fields){const label=document.createElement('label');label.textContent=labels[field];const input=document.createElement(['remarks','flightPlanRoute'].includes(field)?'textarea':'input');input.id='instructorField_'+field;label.append(input);$('instructorFields').append(label);}
@@ -83,7 +83,7 @@ function drawJournal(){
  }));
 }
 function draw(){
- profileEditor.set(aircraft?.jetSpeedProfile||state?.slots.find(s=>s.id===slot)?.jetSpeedProfile,slot+'|'+(aircraft?.sessionId||''));
+ profileEditor.set(aircraft?.jetSpeedProfile||state?.slots.find(s=>s.id===slot)?.jetSpeedProfile,slot+'|'+(aircraft?.sessionId||''),state?.slots.find(s=>s.id===slot)?.aircraftSpeedProfiles);
  $('instructorControls').hidden=!connected;$('instructorPair').hidden=connected;$('instructorSlots').replaceChildren();
  if(!state||!connected)return;
  for(const s of state.slots){const b=document.createElement('button');b.textContent=s.name+' · '+s.state;b.setAttribute('aria-pressed',String(s.id===slot));b.disabled=busy;b.onclick=()=>{slot=s.id;aircraft=null;editing=null;generation++;draw();refresh();};$('instructorSlots').append(b);}
