@@ -9,6 +9,13 @@ window.ZYZSpeedProfileEditor=class{
 window.ZYZAircraftSpeedProfiles=class{
  constructor(id,apply){
   const root=document.getElementById(id);this.editors={};
+  this.modeRow=document.createElement('div');
+  const label=document.createElement('label'),mode=document.createElement('select'),note=document.createElement('p'),button=document.createElement('button');
+  label.textContent='Automatic speed mode';mode.append(new Option('Fixed altitude bands','fixed'),new Option('Realistic Free','free'));label.append(mode);
+  button.type='button';button.textContent='Apply speed mode';note.className='subtle';note.setAttribute('role','status');
+  this.modeRow.append(label,button,note);root.append(this.modeRow);this.mode=mode;
+  button.onclick=async()=>{button.disabled=mode.disabled=true;try{await apply(mode.value,'mode');note.textContent='Applied. Instructor speed assignments and restrictions stay in effect.';}catch(e){note.textContent=e.message;}finally{button.disabled=mode.disabled=false;}};
+  mode.onchange=()=>{note.textContent=mode.value==='free'?'Aircraft type, flight phase and repeatable IAS variation set the automatic speed. Saved altitude bands are kept for Fixed mode.':'Aircraft use the saved altitude bands.';};
   const groups={jet:'Jet',light:'Light',medium:'Medium',heavy:'Heavy / Super',prop:'Prop',highProp:'High-performance prop'};
   for(const [key,label] of Object.entries(groups)){
    const panel=document.createElement('details'),summary=document.createElement('summary'),container=document.createElement('div'),state=document.createElement('p');
@@ -24,7 +31,9 @@ window.ZYZAircraftSpeedProfiles=class{
   const values={light:[75,100,125],prop:[75,100,130],highProp:[105,165,220]}[key];
   return values?[{ceiling:3999,ias:values[0]},{ceiling:10000,ias:values[1]},{ceiling:60000,ias:values[2]}]:defaults;
  }
- set(jet,key,profiles={}){
+ set(jet,key,profiles={},mode){
+  this.modeRow.hidden=mode===undefined;
+  if(this.modeKey!==key||this.savedMode!==mode){this.modeKey=key;this.savedMode=mode;this.mode.value=mode||'fixed';}
   for(const [group,{editor,state}] of Object.entries(this.editors)){
    const profile=group==='jet'?jet:profiles[group];
    editor.set(profile||this.suggested(group),key);

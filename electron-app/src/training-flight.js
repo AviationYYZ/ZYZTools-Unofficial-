@@ -318,6 +318,33 @@ function initialVerticalGuidance(a,fixes,geometry){
  a.verticalNotice='Initial scenario descent: '+constraint.fix+' at '+constraint.altitude+' ft'+(needed>a.rate?' — too late to meet at the selected vertical rate':'');
  a.performanceDescentRate=model.rod;
 }
+function crossingIAS(a,rules,fixes,geometry,managed){
+ if(a.navigation!=='route'||!a.remaining?.length||['localizer captured','glideslope captured'].includes(a.approachState))return null;
+ const procedures=new Set([...(a.procedures||[]),...String(a.flightPlanRoute||'').toUpperCase().split(/\s+/).map(token=>token.split('/')[0])]);
+ const jet=performance.isJet(a),byFix=new Map();
+ for(const r of rules||[])if(r.airport===a.destination&&r.runway===a.arrivalRunway&&procedures.has(r.procedure)&&
+   (!r.aircraftCategory||r.aircraftCategory===(jet?'jet':'prop')))byFix.set(r.fix,r);
+ if(!byFix.size)return null;
+ let start=a,distance=0;
+ for(const [index,name] of a.remaining.entries()){
+  const fix=fixes.find(w=>w.name===name);if(!fix)break;
+  distance+=geometry(start,fix).distance;
+  const r=byFix.get(name);
+  if(r){
+   const target=r.kind==='max'?Math.min(managed,r.knots):r.kind==='min'?Math.max(managed,r.knots):r.knots;
+   const current=a.ias??managed;
+   const change=r.kind==='max'?Math.max(0,current-target,managed-target):r.kind==='min'?Math.max(0,target-current,target-managed):Math.max(Math.abs(current-target),Math.abs(managed-target));
+   const gs=Math.max(30,a.groundSpeed??a.speed??0,iasToTas(target,a.altitude));
+   const next=fixes.find(w=>w.name===a.remaining[index+1]);
+   const previous=index?start:a.explicitDirectFix===name?a:a.legStart||a;
+   const lead=next?turnLead(Math.max(a.speed||0,iasToTas(target,a.altitude)),Math.abs(delta(geometry(fix,next).bearing,geometry(previous,fix).bearing))):0;
+   // GuideRoute may sequence a fly-by early; meet the speed before that turn.
+   if(distance<=change/2*gs/3600+lead+.35)return {target,rule:r};
+  }
+  start=fix;
+ }
+ return null;
+}
 function publishedIAS(a,rules,fixes,geometry,runways=[]){
  // Kept under the existing command/protocol name for old scenario compatibility.
  // This is a controller-requested training profile, NOT chart restrictions.
@@ -325,7 +352,8 @@ function publishedIAS(a,rules,fixes,geometry,runways=[]){
  const phase=a.targetAltitude>a.altitude+100?'climb':a.targetAltitude<a.altitude-100||a.initialDescent||a.arrivalRunway?'descent':'cruise';
  const model=performance.profile(a,phase,tasToIas);
  const group=jetProfile.select(a,a.aircraftSpeedProfiles,performance.isJet(a));
- if(group){
+ const free=a.automaticSpeedMode==='free';
+ if(group&&!free){
   // User's simplified IAS schedule; the lower band owns exactly 8,100 feet.
   // Carry each band through gaps; above 15,000 retain the 270-knot default.
   const onApproach=!!a.approachState&&a.approachState!=='off';
@@ -335,7 +363,9 @@ function publishedIAS(a,rules,fixes,geometry,runways=[]){
   a.speedPhase=group+' '+a.speedProfileBasis+' band';a.performanceSource='ZYZTools '+group+' training profile';a.trainingFinalIAS=group==='jet'?136:model.finalIAS;
   a.speedNotice=a.performanceSource+' | '+target+' IAS | '+a.speedProfileBasis+' '+Math.round(reference)+' ft';return target;
  }
- let target=Math.min(a.altitude>10000?270:250,model.ias);a.speedPhase=phase;a.performanceSource=model.source;a.trainingFinalIAS=model.finalIAS;
+ const offset=free?jetProfile.variation(a):0;
+ const finalIAS=free?Math.round(a.finalApproachIAS??Math.max(50,Math.min(190,model.finalIAS+offset*.35))):model.finalIAS;
+ let target=Math.min(a.altitude>10000?270:250,model.ias+offset);a.speedPhase=phase;a.performanceSource=model.source;a.trainingFinalIAS=finalIAS;
  // Begin reducing before crossing 10,000, not after the crossing.
  if(a.altitude>10000&&a.targetAltitude<10000&&(a.altitude-10000)/Math.max(1,a.rate/60)<Math.max(0,a.ias-250)/2)target=Math.min(target,250);
  if(a.altitude>12000)a.downwindSpeed=false;
@@ -370,12 +400,14 @@ function publishedIAS(a,rules,fixes,geometry,runways=[]){
   const course=geometry(runway.threshold,runway.opposite).bearing,g=geometry(runway.threshold,a),along=g.distance*Math.cos(delta(g.bearing,wrap(course+180))*rad);
   if(g.distance<=25&&along>=0){
    target=Math.min(target,210);a.speedPhase='approach';
-   if(['localizer captured','glideslope captured'].includes(a.approachState))for(const [distance,ias]of [[12,180],[7,160],[4,model.finalIAS]]){
+   if(['localizer captured','glideslope captured'].includes(a.approachState))for(const [distance,ias]of [[12,Math.max(180,finalIAS)],[7,Math.max(160,finalIAS)],[4,finalIAS]]){
     const slowing=Math.max(0,a.ias-ias)/2*Math.max(30,a.speed)/3600;
-    if(along<=distance+slowing+.15){target=Math.min(target,ias);a.speedPhase=ias===model.finalIAS?'final':'approach';}
+    if(along<=distance+slowing+.15){target=free&&distance===4?finalIAS:Math.min(target,ias);a.speedPhase=(free?distance===4:ias===finalIAS)?'final':'approach';}
    }
   }
  }
+ const crossing=free?crossingIAS(a,rules,fixes,geometry,target):null;
+ if(crossing){target=crossing.target;a.speedPhase='cross '+crossing.rule.fix+' '+crossing.rule.kind.toUpperCase()+' '+crossing.rule.knots;}
  target=Math.max(50,Math.round(target));
  a.speedNotice=model.source+' | '+a.speedPhase+' | '+target+' IAS'+(a.speedPhase==='final'?' (training final target)':'')+(!runway?' | no runway geometry: approach schedule unavailable':'');
  return target;

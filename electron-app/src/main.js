@@ -26,6 +26,14 @@ const {RadarFeed,weatherSettings}=require('./radar-reflectivity');
 const radarFeed=new RadarFeed();
 const dllGuard=new (require('./euroscope-runtime').DllGuard)({version:app.getVersion(),otherChannelFolder:channel.test?'PreferredCYYZPdcPlugin':'ZYZTools-test'});
 const runtimeState=()=>dllGuard.check(runtimeFolder||(runtimeFolder=installDestination(commandLinePluginFolder()||discoveredInstalledPluginFolder()||defaultParentFolder())));
+const departureDesk = new (require('./departure-desk').DepartureDesk)({
+  authorize: async folder => {
+    appPolicy?.assert('operations');
+    if (folder !== runtimeFolder || (await runtimeState()).blocked) throw Error('Check the installed EuroScope plugin.');
+  },
+  requestPdc: (folder, callsign, session) => sendPluginAction(folder, 'departure-desk-pdc', callsign, 5000, session),
+});
+app.on('before-quit', () => departureDesk.stop());
 const recoveryChannels=new Set(['runtime:status','app:initialState','folder:browseParent','config:load','plugin:install','folder:open','appPolicy:state','updates:history','updates:openRelease','updates:preferences','updates:check','updates:download','updates:installStaged']);
 function guarded(channelName,handler){
   ipcMain.handle(channelName,async(event,...args)=>{
@@ -1280,6 +1288,19 @@ guarded("updates:installStaged", async (_event, tag) => {
 guarded("plugin:action", async (_event, folder, action, callsign) => {
   loadConfig(folder);
   return sendPluginAction(folder, action, callsign);
+});
+ipcMain.handle('departureDesk:action', async (event, action, ip) => {
+  if (event.sender !== mainWindow?.webContents || event.senderFrame !== mainWindow.webContents.mainFrame)
+    throw Error('Invalid sender.');
+  if (action === 'stop') departureDesk.stop();
+  else if (action === 'start') {
+    await runtimeState();
+    const folder = runtimeFolder;
+    await departureDesk.authorize(folder);
+    if (!fs.existsSync(path.join(folder, 'PreferredCYYZPdcPlugin.dll'))) throw Error('Install the EuroScope plugin first.');
+    return departureDesk.start(folder, ip);
+  } else if (action !== 'status') throw Error('Unknown departure desk action.');
+  return departureDesk.status();
 });
 guarded('aeroview:action',async(event,action)=>{
  if(event.sender!==mainWindow?.webContents||event.senderFrame!==mainWindow.webContents.mainFrame)throw Error('Invalid sender.');

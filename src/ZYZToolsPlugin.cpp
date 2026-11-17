@@ -2336,6 +2336,7 @@ public:
         if (Counter % 2 == 0)
             RefreshDepartureAssignmentConfig();
         PollSettingsActions();
+        if (Counter % 2 == 0) PublishDepartureDesk();
         if(Counter%2==0)ReadAeroViewWind();
         if (Counter % 2 == 0 && (m_cfg.runwayAssignmentConfig != "off" || m_cfg.arrivalAssignmentEnabled))
             for (CFlightPlan fp = FlightPlanSelectFirst(); fp.IsValid(); fp = FlightPlanSelectNext(fp))
@@ -3052,6 +3053,8 @@ private:
         bool active = false;
         std::string callsign;
         std::string reason;
+        std::string deskSession;
+        ULONGLONG deskExpires = 0;
     };
 
     void RefreshConfigValidity()
@@ -4734,6 +4737,11 @@ private:
 
     void RequestPdcSend(const std::string &cs)
     {
+        if (!m_sendConfirmation.deskSession.empty())
+        {
+            if (DepartureDeskConfirmationValid()) return;
+            m_sendConfirmation = {};
+        }
         CFlightPlan fp = FlightPlanSelect(cs.c_str());
         if (!fp.IsValid())
         {
@@ -5202,6 +5210,71 @@ private:
         LoadConfig(false);
     }
 
+    std::string ActiveDepartureDesk() const
+    {
+        std::ifstream file(GetThisDllDir() + "DepartureDeskSession.txt");
+        std::string id;
+        std::time_t at = 0;
+        const auto now = std::time(nullptr);
+        if (!(file >> id >> at) || id.size() != 32 || at > now || now - at >= 8 ||
+            id.find_first_not_of("0123456789abcdef") != std::string::npos)
+            return {};
+        return id;
+    }
+
+    bool CanUseDepartureDesk()
+    {
+        const int connection = GetConnectionType();
+        return (connection == CONNECTION_TYPE_DIRECT || connection == CONNECTION_TYPE_VIA_PROXY) &&
+            !m_trainingCommands.TrainingContext() && ControllerMyself().IsValid();
+    }
+
+    bool IsRecentDeparture(const std::string &cs)
+    {
+        const auto seen = m_departureListLastSeen.find(cs);
+        return seen != m_departureListLastSeen.end() &&
+            GetTickCount64() - seen->second <= DEPARTURE_LIST_RECENT_MS && FlightPlanSelect(cs.c_str()).IsValid();
+    }
+
+    bool DepartureDeskConfirmationValid()
+    {
+        return CanUseDepartureDesk() && GetTickCount64() < m_sendConfirmation.deskExpires &&
+            ActiveDepartureDesk() == m_sendConfirmation.deskSession && IsRecentDeparture(m_sendConfirmation.callsign);
+    }
+
+    void PublishDepartureDesk()
+    {
+        if (!m_sendConfirmation.deskSession.empty() && !DepartureDeskConfirmationValid())
+            m_sendConfirmation = {};
+        const auto id = ActiveDepartureDesk();
+        if (id.empty() || !CanUseDepartureDesk()) return;
+        const auto output = GetThisDllDir() + "DepartureDesk.json";
+        std::ofstream file(output + ".tmp", std::ios::binary | std::ios::trunc);
+        if (!file) return;
+        file << "{\"session\":\"" << id << "\",\"at\":" << std::time(nullptr) << ",\"rows\":[";
+        int count = 0;
+        for (const auto &entry : m_departureListLastSeen)
+        {
+            if (count >= 300) break;
+            const auto &cs = entry.first;
+            if (!IsRecentDeparture(cs)) continue;
+            auto fp = FlightPlanSelect(cs.c_str());
+            const auto data = fp.GetFlightPlanData();
+            const auto sent = m_sentChannel.find(cs);
+            const auto status = m_hoppieMode && m_pendingRequestId.count(cs) ? "TELEX requested" :
+                sent != m_sentChannel.end() ? (sent->second == SentChannel::Hoppie ? "TELEX sent" : "Chat PDC sent") :
+                fp.GetClearenceFlag() ? "Cleared" : "Not sent";
+            if (count++) file << ',';
+            auto safe = [](const char *s) { return JsonEscape(s ? s : ""); };
+            file << "{\"callsign\":\"" << JsonEscape(cs) << "\",\"destination\":\"" << safe(data.GetDestination())
+                 << "\",\"runway\":\"" << safe(data.GetDepartureRwy()) << "\",\"route\":\"" << safe(data.GetRoute())
+                 << "\",\"status\":\"" << status << "\"}";
+        }
+        file << "]}";
+        file.close();
+        if (file) MoveFileExA((output + ".tmp").c_str(), output.c_str(), MOVEFILE_REPLACE_EXISTING);
+    }
+
     void PollSettingsActions()
     {
         const std::string folder = GetThisDllDir();
@@ -5226,6 +5299,19 @@ private:
             else if (action == "link-test") { TestHoppieLink(); ok = true; }
             else if (action == "test-pdc") { TriggerIncomingPdcTest(); ok = true; }
             else if (action == "export") { ExportVisibleStatistics(true); ok = true; }
+            else if (action == "departure-desk-pdc")
+            {
+                std::string session;
+                if (!m_sendConfirmation.active && CanUseDepartureDesk() &&
+                    JsonStringValue(json, "session", session) && !session.empty() &&
+                    session == ActiveDepartureDesk() && IsRecentDeparture(callsign))
+                {
+                    m_sendConfirmation = {true, callsign, "Requested from the paired phone. Review before sending.",
+                        session, GetTickCount64() + 30000};
+                    WriteAuditLog("pdc_confirmation_opened", "callsign=" + callsign + " source=phone");
+                    ok = true;
+                }
+            }
             else if (action == "fixwatch"){
                 const std::string watch=Upper(Trim(callsign));
                 if(std::regex_match(watch,std::regex("[A-Z0-9]{1,12} [0-9]{1,3}(\\.[0-9]{1,3})? (ALL|PICK|STAR [A-Z][A-Z0-9]{1,9}(,[A-Z][A-Z0-9]{1,9})*)"))){
@@ -6583,6 +6669,11 @@ public:
 
         if (id == "CONFIRM_SEND")
         {
+            if (!m_plugin->m_sendConfirmation.deskSession.empty() && !m_plugin->DepartureDeskConfirmationValid())
+            {
+                m_plugin->m_sendConfirmation = {};
+                return;
+            }
             const std::string cs = m_plugin->m_sendConfirmation.callsign;
             m_plugin->WriteAuditLog("pdc_confirmation_accepted", "callsign=" + cs);
             m_plugin->m_sendConfirmation = {};

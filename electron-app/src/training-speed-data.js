@@ -1,6 +1,6 @@
 // Facts transcribed from the user's ten simulation charts. No chart artwork is bundled.
 // Effective 27 Nov 2025; not independently validated as current navigation data.
-// Holding-box speeds are deliberately excluded: this simulator does not model holds.
+// Holding-box speeds are deliberately excluded from STAR crossing rules.
 const east=['05','06L','06R'],west=['23','24L','24R'],rules=[];
 function add(procedure,runways,points,chart){for(const runway of runways)for(const [fix,kind,knots]of points)rules.push({airport:'CYYZ',procedure,runway,fix,kind,knots,aircraftCategory:'jet',source:'User-provided Jeppesen '+chart+', 21 Nov 2025 / effective 27 Nov 2025'});}
 add('BOXUM7',east,[['DUVOS','at',250],['DEBGO','max',220],['MODOL','at',210]],'10-2');

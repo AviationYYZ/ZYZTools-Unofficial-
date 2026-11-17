@@ -21,4 +21,12 @@ function select(a,profiles={},isJet=false){
  const high=/^(DH8|AT[47]|SF34|SB20|B190|BE[1239]|PC12|P180|TBM|C208|C4[024]|DHC[567]|L410|F[25]0|JS[34]|SW[34])/.test(a.type);
  return high&&profiles.highProp?'highProp':(high||a.category==='prop'||/^(C1[2578]|C20[567]|PA|SR2|DA[246]|P28|BE|M20|DR4|RV)/.test(a.type))&&profiles.prop?'prop':null;
 }
-module.exports={defaults,normalize,target,normalizeGroup,normalizeGroups,select};
+function mode(value='fixed'){if(value!=='fixed'&&value!=='free')throw Error('Choose Fixed or Realistic Free speed mode.');return value;}
+function variation(a){
+ const amplitude=a.iasVariation??8;
+ let hash=2166136261;
+ for(const c of String(a.callsign)+'/'+String(a.type))hash=Math.imul(hash^c.charCodeAt(0),16777619);
+ hash=Math.imul(hash^(hash>>>16),0x85ebca6b);hash^=hash>>>13;
+ return ((hash>>>0)/4294967295*2-1)*amplitude;
+}
+module.exports={defaults,normalize,target,normalizeGroup,normalizeGroups,select,mode,variation};

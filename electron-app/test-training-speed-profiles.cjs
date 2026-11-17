@@ -3,6 +3,41 @@ const {LocalTraining,geometry,move,normalize}=require('./src/local-training'),fl
 assert.equal(crypto.createHash('sha256').update(fs.readFileSync(path.join(__dirname,'src/training-performance.txt'))).digest('hex'),'4dbc5583ea2110a0b7ecf1a8131282a3f72cd2bb183198483fccce8737e01d41');assert.equal(performance.typeCount,447);
 const runway={airport:'CYYZ',name:'09',threshold:{lat:0,lon:0},opposite:{lat:0,lon:.03},elevation:0},plane={callsign:'TEST101',type:'A320',origin:'CYUL',destination:'CYYZ',squawk:'2001',lat:0,lon:-.4,altitude:8000,speed:400,speedBasis:'TAS',heading:90,arrivalRunway:'09',route:'ENTRY FINAL',flightPlanRoute:'ENTRY FINAL'};
 const base={format:'ZYZTools-training',version:1,name:'Speed regression',magneticVariationWest:0,runways:[runway],waypoints:[{name:'ENTRY',lat:0,lon:0},{name:'FINAL',lat:0,lon:.2}],aircraft:[plane]};
+const free=new LocalTraining(),variations=require('./src/training-jet-profile').variation;
+free.load({...base,aircraft:[{...plane,type:'B77W'},{...plane,callsign:'TEST102',squawk:'2002',type:'DH8D'}]});
+free.speedProfile('free','mode');
+const targets=free.aircraft.map(a=>a.targetIAS);
+assert.notEqual(targets[0],targets[1]);
+free.reset();assert.deepEqual(free.aircraft.map(a=>a.targetIAS),targets);
+const offsets=Array.from({length:20},(_,i)=>variations({...plane,callsign:'TEST'+i,iasVariation:10}));
+assert(offsets.some(v=>v<0)&&offsets.some(v=>v>0)&&offsets.every(v=>Math.abs(v)<=10));
+assert.equal(variations({...plane,iasVariation:0}),0);
+free.command('TEST101','IAS 205');free.speedProfile('fixed','mode');free.speedProfile('free','mode');assert.equal(free.aircraft[0].targetIAS,205);
+free.command('TEST101','SPEED PUBLISHED');assert.equal(free.aircraft[0].targetIAS,targets[0]);
+const final={...free.aircraft[0],...move(runway.threshold,3,270),approachState:'glideslope captured',altitude:1500};
+assert.equal(flight.publishedIAS(final,[],[],geometry,[runway]),final.trainingFinalIAS);
+assert(final.trainingFinalIAS>140);
+const crossing=new LocalTraining();
+const crossingRule={airport:'CYYZ',procedure:'LINNG3',runway:'09',fix:'ENTRY',kind:'at',knots:210,aircraftCategory:'jet',source:'Synthetic test'};
+crossing.load({...base,speedRules:[crossingRule],aircraft:[{...plane,procedures:['LINNG3'],iasVariation:0}]});
+crossing.speedProfile('free','mode');
+let crossed=false;
+for(let i=0;i<4000;i++){
+ crossing.tick(.1);
+ const a=crossing.aircraft[0];
+ if(a.passedFixes.includes('ENTRY')){assert(Math.abs(a.ias-210)<.5,'reach 210 IAS before the fix sequences');crossed=true;break;}
+}
+assert(crossed);
+const close={...crossing.aircraft[0],...move(runway.threshold,.3,270),remaining:['ENTRY','FINAL'],navigation:'route',ias:234,speed:260,downwindSpeed:false};
+const managed=flight.publishedIAS({...close},[],base.waypoints,geometry);
+const speedFor=(rule,overrides={})=>flight.publishedIAS({...close,...overrides},[rule],base.waypoints,geometry);
+assert.equal(speedFor({...crossingRule,kind:'max',knots:250}),managed);
+assert.equal(speedFor({...crossingRule,kind:'min',knots:250}),250);
+assert.equal(speedFor({...crossingRule,runway:'23'}),managed);
+assert.equal(speedFor(crossingRule,{navigation:'heading'}),managed);
+assert.equal(speedFor(crossingRule,{remaining:['FINAL']}),managed);
+assert.equal(speedFor(crossingRule,{automaticSpeedMode:'fixed'}),210);
+crossing.command('TEST101','IAS 190');crossing.tick(1);assert.equal(crossing.aircraft[0].targetIAS,190);
 const migrated=new LocalTraining();migrated.load({...base,aircraft:[{...plane,publishedSpeeds:false}]});assert.equal(migrated.aircraft[0].speedMode,'published');assert.equal(migrated.aircraft[0].automaticSpeeds,true);assert(migrated.aircraft[0].ias<250,'Do not spawn with a stale 400-knot initial speed');
 const initial=new LocalTraining();initial.load({...base,aircraft:[{...plane,automaticSpeeds:false,speedBasis:'IAS',speed:175}]});assert.equal(initial.aircraft[0].speedMode,'assigned');assert.equal(initial.aircraft[0].ias,175);assert.equal(normalize(JSON.parse(JSON.stringify(initial.scenario))).aircraft[0].automaticSpeeds,false);
 for(const [type,limit]of [['A320',250],['B738',250],['DH8D',210],['C172',100]]){const p=new LocalTraining();p.load({...base,aircraft:[{...plane,type,altitude:3000}]});assert(p.aircraft[0].ias<=limit,type+' should use its own table');assert(p.aircraft[0].performanceSource.includes(type)||p.aircraft[0].performanceSource.includes('jet training profile'));}

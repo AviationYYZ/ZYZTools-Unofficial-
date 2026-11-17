@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ZYZTools</title>
   <style>
+    #departureDeskQr:not([hidden]) { display:block; margin-top:12px; max-width:100%; height:auto; image-rendering:pixelated; }
     [data-training-pane][hidden], #instructorControls[hidden], #instructorPair[hidden] { display:none !important; }
     [data-training-view][aria-pressed="true"], #instructorSlots [aria-pressed="true"] { border-color:var(--accent,#64c9c1); background:var(--panel-alt,#243b50); box-shadow:inset 0 -3px var(--accent,#64c9c1); }
     .training-heading { margin-bottom:20px; } .training-table { overflow-x:auto; }
@@ -467,6 +468,15 @@
         </fieldset>
       </section>
       <section id="operations">
+        <div class="card" id="departureDeskCard">
+          <div class="caption">Phone departure desk</div>
+          <p>Scan with your phone’s camera to open the departure list. Keep both devices on the same trusted home network and leave ZYZTools running.</p>
+          <label>Local network <select id="departureDeskNetwork"></select></label>
+          <button id="departureDeskStart" type="button">Show pairing QR code</button>
+          <button id="departureDeskStop" type="button" hidden>Stop sharing</button>
+          <canvas id="departureDeskQr" role="img" aria-label="QR code for the phone departure desk" width="232" height="232" hidden></canvas>
+          <p id="departureDeskStatus" role="status">Not sharing.</p>
+        </div>
         <div class="card">
           <div class="caption">PDC message templates</div>
           <p>Click a template, then a variable to insert it at the cursor. Values come from the aircraft's current clearance. Messages are sent in uppercase. Altitude is the filed altitude; timestamp is UTC. Hoppie remains TELEX, with its route wrapped as before.</p>
@@ -904,6 +914,7 @@
   <script src="pdc-templates.js"></script>
   <script src="controller-calculators.js"></script>
   <script src="renderer.js"></script>
+  <script src="departure-desk-ui.js"></script>
   <script src="training-layout.js"></script>
   <script src="training-speed-editor.js"></script>
   <script src="training-ui.js"></script>

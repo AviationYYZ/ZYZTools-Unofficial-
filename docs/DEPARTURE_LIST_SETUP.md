@@ -21,6 +21,14 @@ Displayed states:
 - `TX` - normal PDC sent
 - `TXH` - Hoppie CPDLC PDC sent
 
+## Open the departure desk on your phone
+
+In the ZYZTools desktop app, open **Controller tools → Operations → Phone departure desk**. Choose the adapter on your trusted home network and click **Show pairing QR code**. Open your phone's Camera, scan the code, and tap the link. Both devices must be on the same network. If a Windows firewall prompt appears, allow private networks only.
+
+Keep the PDC status column and departure list visible in EuroScope. The phone shows the aircraft recently seen in that list. **Request PDC** opens a confirmation in EuroScope; nothing sends unless you confirm there. EuroScope uses its usual Hoppie TELEX or chat workflow. No tunnel or instructor code is used.
+
+The local link is not encrypted, so only use it on a trusted network. **Stop sharing** invalidates the link immediately; it also expires after two hours or when ZYZTools closes. Scan again if you reload the phone page.
+
 ## Optional runway preview column
 
 Add another column:

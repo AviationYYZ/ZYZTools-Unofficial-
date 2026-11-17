@@ -18,8 +18,11 @@ for (const entry of ['src', 'tools', 'docs', 'scenarios', 'assets/sounds', 'asse
   'electron-app/build-test-source.cjs', 'electron-app/build-channel.cjs', 'electron-app/build-config.cjs', 'electron-app/installer-progress.nsh', 'server-app/src', 'server-app/test', 'server-app/package.json', 'server-app/build.cjs', 'README.md', '.gitignore', 'build.bat', 'PreferredCYYZPdcPlugin.json', 'installer/CHANGELOG.md']) add(entry);
 for (const entry of ['src','test','wrangler.jsonc','tsconfig.json','package.json','package-lock.json','worker-configuration.d.ts','README.md']) add('cloudflare/room-directory/'+entry);
 add('electron-app/test-app-policy.cjs');
+add('electron-app/test-departure-desk.cjs');
+add('electron-app/test-departure-phone-ui.cjs');
 add('electron-app/test-euroscope-launch.cjs');
 add('electron-app/test-radar-reflectivity.cjs');
+for(const name of ['test-packaged-streams.cjs','test-update-notice-ui.cjs','test-github-updates.cjs','test-departure-config.cjs','test-themes.cjs','test-training-instructor-view.cjs','test-training-runway-variant.cjs','test-training-scenario-filed-routes.cjs'])add('electron-app/'+name);
 add('electron-app/test-controller-calculators.cjs');
 add('electron-app/test-instructor-pwa.cjs');
 add('electron-app/build-workspace-ui.cjs');

@@ -16,6 +16,7 @@ base.extraResources.push({from:'../build/Tunnel/LICENSE-cloudflared.txt',to:'tun
 if (test) base.extraResources.push({ from: require('node:path').join(outputRoot, 'production/ZYZTools-Setup.exe'), to: 'Publishing/ZYZTools-Setup.exe' });
 if(test){
  const version=require('../server-app/package.json').version,name='ZYZTools-Server-Setup-'+version+'.exe';
+ if(version!==require('./package.json').version)throw Error('Desktop and bundled server versions must match for publishing.');
  base.extraResources.push({from:require('node:path').join(process.env.LOCALAPPDATA,'ZYZTools/Builds/server-'+version,name),to:'Publishing/'+name});
 }
 module.exports = base;

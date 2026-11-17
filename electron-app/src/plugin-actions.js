@@ -1,12 +1,14 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const allowed = new Set(['apply', 'reject', 'reject-fp', 'link-test', 'test-pdc', 'export','fixwatch']);
+const allowed = new Set(['apply', 'reject', 'reject-fp', 'link-test', 'test-pdc', 'export','fixwatch','departure-desk-pdc']);
 let busy = false;
-async function sendPluginAction(folder, action, callsign = '', timeoutMs = 8000) {
+async function sendPluginAction(folder, action, callsign = '', timeoutMs = 8000, session = '') {
   if (!allowed.has(action)) throw new Error('Unknown plugin action.');
   callsign = String(callsign).trim().toUpperCase();
   if (action.startsWith('reject') && !/^[A-Z0-9]{1,12}$/.test(callsign)) throw new Error('Enter a valid aircraft callsign.');
+  if (action === 'departure-desk-pdc' && (!/^[A-Z0-9]{1,12}$/.test(callsign) || !/^[a-f0-9]{32}$/.test(session)))
+    throw new Error('A paired departure desk is required.');
   if (!fs.existsSync(path.join(folder, 'PreferredCYYZPdcPlugin.dll'))) throw new Error('Install the EuroScope plugin first.');
   if (busy) throw new Error('Another plugin action is still running.');
   const request = path.join(folder, 'SettingsAction.json');
@@ -19,7 +21,7 @@ async function sendPluginAction(folder, action, callsign = '', timeoutMs = 8000)
       if (Date.now() / 1000 - pending.sent_at > 15) fs.unlinkSync(request);
       else throw new Error('Another plugin action is waiting for EuroScope.');
     }
-    fs.writeFileSync(request, JSON.stringify({ id, action, callsign, sent_at: Math.floor(Date.now() / 1000) }), { flag: 'wx' });
+    fs.writeFileSync(request, JSON.stringify({ id, action, callsign, session, sent_at: Math.floor(Date.now() / 1000) }), { flag: 'wx' });
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       try {

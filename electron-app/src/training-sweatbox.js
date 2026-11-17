@@ -36,7 +36,8 @@ function parse(text,catalogue={},name='Imported SweatBox'){
     const opposite=p.length===4?point(p[2],p[3]):p.length===3?move(threshold,1,num(p[2],0,360,'runway heading')):null;if(!opposite)throw Error('Invalid ILS geometry.');
     if(ils.has(key))throw Error('Duplicate ILS definition.');ils.set(key,{name:match[1],airport:match[2]||'',threshold,opposite});
    }else if(['PSEUDOPILOT','INITIALPSEUDOPILOT','CONTROLLER'].includes(key))warnings.add('Pseudo-pilot/controller assignments are not recreated; use instructor/student connections.');
-   else if(['DELAY','INSTRUCTION','IASVARIATION','HOLDING','ROUTE','METAR','PERFAC','PERFLINE'].includes(key))warnings.add(key+' definitions are not executed; instructor commands and the ZYZTools flight model apply.');
+   else if(key==='IASVARIATION'){const {a,p:parts}=target(p);a.iasVariation=num(parts[0],0,20,'IAS variation');}
+   else if(['DELAY','INSTRUCTION','HOLDING','ROUTE','METAR','PERFAC','PERFLINE'].includes(key))warnings.add(key+' definitions are not executed; instructor commands and the ZYZTools flight model apply.');
    else if(key==='SIMDATA')warnings.add('SIMDATA tower models, taxi and ground-collision behaviour are not simulated.');
    else warnings.add('Unsupported directive '+key.slice(0,50)+' is not executed.');
   }catch(e){if(line.startsWith('ILS'))warnings.add('Line '+(index+1)+': ILS definition not imported: '+e.message);else errors.push('Line '+(index+1)+': '+e.message);}

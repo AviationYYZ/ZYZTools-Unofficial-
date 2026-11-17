@@ -636,7 +636,7 @@ function renderUpdateNotice() {
   $("updateNoticeDownload").textContent = downloaded ? completedLabel : 'Download now';
   $("installUpdateBtn").textContent = downloaded ? completedLabel : 'Download update';
   $("updateNoticeText").textContent = release.essential
-    ? `Essential update ${release.tag} ${downloaded ? 'downloaded' : 'available'}. It will install the next time you open ZYZTools.`
+    ? `Essential update ${release.tag} ${downloaded ? 'downloaded' : 'available'}. ${$("pauseAutomaticUpdates").checked?'Automatic updates are paused. You can still install it manually.':'It will install the next time you open ZYZTools.'}`
     : `ZYZTools ${release.tag} is ${downloaded ? 'installing' : 'available. ZYZTools will close to install the update'}.`;
 }
 async function checkUpdates(background = false) {
@@ -729,13 +729,13 @@ $('loadReleaseHistory').onclick=async()=>{
  }catch(e){if(id===releaseHistoryGeneration)$('releaseHistoryStatus').textContent=e.message;}
  finally{if(id===releaseHistoryGeneration)$('loadReleaseHistory').disabled=false;}
 };
-$('openReleaseVersion').onclick=async()=>{try{const prefs=await api.openRelease($('releaseVersion').value);if(prefs)$('pauseAutomaticUpdates').checked=prefs.paused;}catch(e){$('releaseHistoryStatus').textContent=e.message;}};
+$('openReleaseVersion').onclick=async()=>{try{const prefs=await api.openRelease($('releaseVersion').value);if(prefs){$('pauseAutomaticUpdates').checked=prefs.paused;renderUpdateNotice();}}catch(e){$('releaseHistoryStatus').textContent=e.message;}};
 $('pauseAutomaticUpdates').onchange=async event=>{
  const input=event.currentTarget,paused=input.checked;
  input.disabled=true;
  try{input.checked=(await api.pauseAutomaticUpdates(paused)).paused;}
  catch(e){input.checked=!paused;setStatus(e.message,'error');}
- finally{input.disabled=false;}
+ finally{input.disabled=false;renderUpdateNotice();}
 };
 async function downloadOfferedUpdate() {
   const release = offeredUpdate;
@@ -761,12 +761,12 @@ async function downloadOfferedUpdate() {
   updateDownloadProgress(0);
   $("updateDownloadProgress").hidden = false;
   $("updateStatus").textContent = 'Downloading the latest installer…';
-  $("updateNoticeText").textContent = release.essential ? 'Downloading now. Installation waits until the next launch.' : 'Downloading the update. ZYZTools will close when the installer opens.';
+  $("updateNoticeText").textContent = release.essential ? 'Downloading now. This will not close ZYZTools.' : 'Downloading the update. ZYZTools will close when the installer opens.';
   let failure;
   try {
     const result = await api.downloadUpdate(release.tag);
     downloadedUpdates.add(release.tag);
-    $("updateStatus").textContent = result.essential ? 'Downloaded. Installs next time you open ZYZTools.' : 'Installer opened. ZYZTools is closing.';
+    $("updateStatus").textContent = result.essential ? ($("pauseAutomaticUpdates").checked?'Downloaded. Automatic installation is paused.':'Downloaded. Installs next time you open ZYZTools.') : 'Installer opened. ZYZTools is closing.';
   } catch (error) { failure = error.message; $("updateStatus").textContent = failure; }
   finally {
     updateDownloading = false;

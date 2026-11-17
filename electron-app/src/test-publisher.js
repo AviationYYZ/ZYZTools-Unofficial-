@@ -44,7 +44,7 @@ async function publish({ token, version, installer, serverInstaller, snapshot, s
     tree.push(entry);
   }
   const createdTree = await api('POST', `${repoPath}/git/trees`, { base_tree: parent.tree.sha, tree });
-  const commit = await api('POST', `${repoPath}/git/commits`, { message: `Publish beta ${version}`, tree: createdTree.sha, parents: [head.object.sha] });
+  const commit = await api('POST', `${repoPath}/git/commits`, { message: `Publish ${stream} ${version}`, tree: createdTree.sha, parents: [head.object.sha] });
   if (betaHead) await api('PATCH', `${repoPath}/git/refs/heads/${branch}`, { sha: commit.sha, force: false });
   else await api('POST', `${repoPath}/git/refs`, { ref: `refs/heads/${branch}`, sha: commit.sha });
   let release;

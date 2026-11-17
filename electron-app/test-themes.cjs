@@ -1,0 +1,34 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+for (const file of ['main.js', 'renderer.js']) {
+  const source = fs.readFileSync(path.join(__dirname, 'src', file), 'utf8');
+  const fn = source.match(/function normalizeTheme\(value\) \{[\s\S]*?\n\}/)[0];
+  const workspaceThemes = require('./src/workspace-themes');
+  const normalize = vm.runInNewContext('(' + fn + ')',{require:()=>workspaceThemes,workspaceThemes});
+  for (const theme of ['current', 'vatcan', 'navcan', 'plugincore', 'custom']) assert.equal(normalize(theme), theme);
+  assert.equal(normalize('navcanada'), 'navcan');
+  assert.equal(normalize('vatcansitu'), 'vatcan');
+  assert.equal(normalize('unknown'), 'current');
+}
+const html = fs.readFileSync(path.join(__dirname, 'src/index.html'), 'utf8');
+assert(html.includes('data-theme="navcan"')); assert(html.includes('href="vatcan-theme.css"'));
+for (const theme of ['vatcan', 'navcan']) assert(html.includes(`option value="${theme}"`));
+const css = fs.readFileSync(path.join(__dirname, 'src/vatcan-theme.css'), 'utf8');
+assert(!css.includes('data-theme="navcan"')); assert(css.includes('#efeff5')); assert(css.includes('#191b2a'));
+const native = fs.readFileSync(path.join(__dirname, '../src/ZYZToolsPlugin.cpp'), 'utf8');
+assert(native.includes('return UiTheme::Navcan;')); assert(native.includes('return "navcan";'));
+console.log('PASS: four distinct themes, app save normalization, legacy aliases, native config round-trip and isolated VATCAN stylesheet.');
+const custom = require('./src/custom-theme');
+assert.deepEqual(custom.normalize(undefined), custom.defaults);
+assert.equal(custom.normalize({ accent: 'url(https://example.com)', font: 'malicious; color:red', layout: 'bad' }).accent, custom.defaults.accent);
+assert.equal(custom.normalize({ accent: '#ABCDEF', titleSize: 500, radius: -3 }).accent, '#abcdef');
+assert.equal(custom.normalize({ titleSize: 500 }).titleSize, 44);
+assert.equal(custom.normalize({ radius: -3 }).radius, 0);
+const stored = JSON.parse(JSON.stringify(custom.normalize({ font: 'Georgia', layout: 'sidebar', titleSize: 35, titleCase: 'uppercase', accent: '#112233' })));
+assert.deepEqual(custom.normalize(stored), stored);
+assert.equal(custom.variables(stored)['--font'], '"Georgia", sans-serif');
+assert.equal(custom.variables(stored)['--custom-title-case'], 'uppercase');
+assert(native.includes('return UiTheme::Custom;')); assert(native.includes('return "custom";'));
+console.log('PASS: custom validation, color/font allowlists, bounded sizes, persistence round-trip, title variables and native custom selection.');

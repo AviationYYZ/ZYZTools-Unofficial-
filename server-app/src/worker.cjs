@@ -50,6 +50,7 @@ process.on('disconnect',shutdown);process.on('SIGTERM',shutdown);process.on('SIG
 process.on('message',m=>{operation=operation.then(async()=>{
  try{
   if(m.action==='start'){
+   training.automaticSpeedMode=engine('training-jet-profile').mode(m.automaticSpeedMode);
    training.load({...JSON.parse(fs.readFileSync(path.join(folder,'scenario.json'),'utf8')),jetSpeedProfile:engine('training-jet-profile').normalize(m.jetSpeedProfile),aircraftSpeedProfiles:m.aircraftSpeedProfiles});training.updateRate(m.positionUpdateHz??0.2);await training.start(16800+slot);
    try{await shared.start();}catch(e){training.stop();throw e;}
    if(m.run)training.run();await network();

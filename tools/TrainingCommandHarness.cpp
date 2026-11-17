@@ -12,6 +12,7 @@
 #include <fstream>
 #include <regex>
 #include <iostream>
+#include <sstream>
 #define ZYZTOOLS_TEST_BUILD
 #define ZYZTOOLS_CHANNEL "test"
 #pragma comment(lib,"Ws2_32.lib")
@@ -20,6 +21,14 @@
 bool JsonStringValue(const std::string &j,const char *k,std::string &v){std::smatch m;if(!std::regex_search(j,m,std::regex(std::string("\"")+k+"\"\\s*:\\s*\"([^\"]*)\"")))return false;v=m[1].str();return true;}
 bool JsonIntValue(const std::string &j,const char *k,int &v){std::smatch m;if(!std::regex_search(j,m,std::regex(std::string("\"")+k+"\"\\s*:\\s*(\\d+)")))return false;v=std::stoi(m[1].str());return true;}
 std::string JsonEscape(const std::string &s){std::string r;for(char c:s){if(c=='"'||c=='\\')r+='\\';r+=c;}return r;}
+// Fixtures emit only plain, quoted ASCII strings in these arrays.
+bool JsonStringArrayValue(const std::string& json,const std::string& key,std::vector<std::string>& out){
+ std::smatch match;const std::regex field("\""+key+"\"\\s*:\\s*\\[([^\\]]*)\\]");
+ if(!std::regex_search(json,match,field))return false;
+ const auto contents=match[1].str();const std::regex item("\"([^\"]*)\"");
+ out.clear();for(auto i=std::sregex_iterator(contents.begin(),contents.end(),item);i!=std::sregex_iterator();++i)out.push_back((*i)[1]);
+ return true;
+}
 #include "../src/TrainingCommandBridge.h"
 int main(int argc,char **argv){
  CTrainingCommandBridge bridge;

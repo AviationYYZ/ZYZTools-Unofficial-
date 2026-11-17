@@ -45,7 +45,8 @@ async function check(repo, installed, request = fetch, kind = 'production', {ess
     ? (r.assets || []).find(a => /^ZYZTools-Test-Setup(?:[-.][\w.-]+)?\.exe$/i.test(a.name))
     : (r.assets || []).find(a => /^ZYZTools-Setup(?:[-.][\w.-]+)?\.exe$/i.test(a.name))
       || (r.assets || []).find(a => /^PreferredCYYZPdcPlugin-Setup(?:[-.][\w.-]+)?\.exe$/i.test(a.name));
-  const release = ((preferEssential || essentialOnly) && releases.find(r => essential(r) && newer(r.tag_name, installed) && installerFor(r))) || releases[0];
+  const release = ((preferEssential || essentialOnly) && releases.find(r => essential(r) && newer(r.tag_name, installed) && installerFor(r))) ||
+    releases.find(r => installerFor(r) && newer(r.tag_name, installed)) || releases[0];
   const available = newer(release.tag_name, installed);
   const asset = installerFor(release);
   return { repo, tag: release.tag_name, available: available && !!asset, asset, essential: essential(release),
