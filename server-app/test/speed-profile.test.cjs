@@ -5,9 +5,11 @@ test('server slot speed profiles persist independently of scenario files and may
   manager=new ServerManager(folder,folder);const profile=[{ceiling:10000,ias:190},{ceiling:60000,ias:240}];
   await manager.speedProfile(1,profile);assert.deepEqual(manager.status().slots[0].jetSpeedProfile,profile);
   await manager.speedProfile(1,[{ceiling:60000,ias:120}],'prop');
-  const raw=structuredClone(require('../../electron-app/src/training-demo.json'));raw.jetSpeedProfile=[{ceiling:60000,ias:399}];manager.import(1,raw);
+  await manager.speedProfile(1,'free','mode');
+  const raw=structuredClone(require('../../electron-app/src/training-demo.json'));raw.jetSpeedProfile=[{ceiling:60000,ias:399}];raw.automaticSpeedMode='fixed';manager.import(1,raw);
   assert.equal(JSON.parse(fs.readFileSync(path.join(manager.dir(1),'scenario.json'),'utf8')).jetSpeedProfile,undefined);assert.deepEqual(manager.status().slots[0].jetSpeedProfile,profile);
   const reopened=new ServerManager(folder,folder);assert.deepEqual(reopened.status().slots[0].jetSpeedProfile,profile);assert.notDeepEqual(reopened.status().slots[1].jetSpeedProfile,profile);
+  assert.deepEqual(reopened.status().slots.slice(0,2).map(s=>s.automaticSpeedMode),['free','fixed']);
   assert.deepEqual(reopened.status().slots[0].aircraftSpeedProfiles.prop,[{ceiling:60000,ias:120}]);
   assert.deepEqual(reopened.status().slots[1].aircraftSpeedProfiles,{});
   await reopened.speedProfile(1,null,'prop');assert.deepEqual(reopened.status().slots[0].aircraftSpeedProfiles,{});

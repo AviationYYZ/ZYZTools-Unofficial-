@@ -24,6 +24,7 @@ add('electron-app/test-euroscope-launch.cjs');
 add('electron-app/test-radar-reflectivity.cjs');
 for(const name of ['test-packaged-streams.cjs','test-update-notice-ui.cjs','test-github-updates.cjs','test-departure-config.cjs','test-themes.cjs','test-training-instructor-view.cjs','test-training-runway-variant.cjs','test-training-scenario-filed-routes.cjs'])add('electron-app/'+name);
 add('electron-app/test-controller-calculators.cjs');
+add('electron-app/test-apron-sequencer.cjs');
 add('electron-app/test-instructor-pwa.cjs');
 add('electron-app/build-workspace-ui.cjs');
 const config = JSON.parse(files.find(file => file.path === 'PreferredCYYZPdcPlugin.json').content);

@@ -14,9 +14,6 @@ base.extraResources.find(resource => resource.to === 'plugin').from = `../build/
 base.extraResources.push({from:'../build/Tunnel/cloudflared.exe',to:'tunnel/cloudflared.bin'});
 base.extraResources.push({from:'../build/Tunnel/LICENSE-cloudflared.txt',to:'tunnel/LICENSE-cloudflared.txt'});
 if (test) base.extraResources.push({ from: require('node:path').join(outputRoot, 'production/ZYZTools-Setup.exe'), to: 'Publishing/ZYZTools-Setup.exe' });
-if(test){
- const version=require('../server-app/package.json').version,name='ZYZTools-Server-Setup-'+version+'.exe';
- if(version!==require('./package.json').version)throw Error('Desktop and bundled server versions must match for publishing.');
- base.extraResources.push({from:require('node:path').join(process.env.LOCALAPPDATA,'ZYZTools/Builds/server-'+version,name),to:'Publishing/'+name});
-}
 module.exports = base;
+// Allow offline builds to consume the locally cached Electron distribution.
+if(process.env.ZYZTOOLS_ELECTRON_DIST)base.electronDist=process.env.ZYZTOOLS_ELECTRON_DIST;

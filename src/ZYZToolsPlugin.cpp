@@ -1,6 +1,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <winsock2.h>
+#include "MemoryWarning.h"
 #include <iphlpapi.h>
 #include "BuildChannel.h"
 #include <Windows.h>
@@ -33,6 +34,7 @@
 #include <deque>
 #include <fstream>
 #include <iomanip>
+#include <locale>
 #include <random>
 #include <mutex>
 #include <regex>
@@ -2337,6 +2339,23 @@ public:
             RefreshDepartureAssignmentConfig();
         PollSettingsActions();
         if (Counter % 2 == 0) PublishDepartureDesk();
+        if (Counter % 2 == 0) PublishApronTracks();
+        if (Counter % 5 == 0) {
+            MEMORYSTATUSEX memory{}; memory.dwLength=sizeof(memory);
+            if(GlobalMemoryStatusEx(&memory)){
+                constexpr unsigned long long mib=1024ULL*1024;
+                const auto ram=memory.ullAvailPhys/mib, address=memory.ullAvailVirtual/mib, commit=memory.ullAvailPageFile/mib;
+                static MemoryWarning monitor;
+                const auto severity=monitor.sample(ram,address,commit);
+                if(severity){
+                    const std::string msg=std::string(severity==2?"Critical memory pressure":"Low memory")+
+                        ": available RAM "+std::to_string(ram)+" MiB; EuroScope address space "+
+                        std::to_string(address)+" MiB; remaining commit "+std::to_string(commit)+
+                        " MiB. Save work when safe; avoid loading additional profiles or plugins.";
+                    DisplayUserMessage("ZYZTools","MEMORY",msg.c_str(),true,true,true,true,false);
+                }
+            }
+        }
         if(Counter%2==0)ReadAeroViewWind();
         if (Counter % 2 == 0 && (m_cfg.runwayAssignmentConfig != "off" || m_cfg.arrivalAssignmentEnabled))
             for (CFlightPlan fp = FlightPlanSelectFirst(); fp.IsValid(); fp = FlightPlanSelectNext(fp))
@@ -5272,6 +5291,51 @@ private:
         }
         file << "]}";
         file.close();
+        if (file) MoveFileExA((output + ".tmp").c_str(), output.c_str(), MOVEFILE_REPLACE_EXISTING);
+    }
+
+    void PublishApronTracks()
+    {
+        const auto folder = GetThisDllDir();
+        long long requested = 0;
+        { std::ifstream in(folder + "ApronTracksRequest.txt"); if (!(in >> requested)) return; }
+        const auto now = std::time(nullptr);
+        if (requested > now || requested < now - 10) return;
+        const auto output = folder + "ApronTracks.json";
+        std::ostringstream json;
+        json.imbue(std::locale::classic());
+        auto selectedPlan=FlightPlanSelectASEL(); auto selectedTarget=RadarTargetSelectASEL();
+        const char* selected=selectedTarget.IsValid()?selectedTarget.GetCallsign():selectedPlan.IsValid()?selectedPlan.GetCallsign():"";
+        json << "{\"at\":" << now << ",\"selected\":\"" << JsonEscape(selected?selected:"") << "\",\"rows\":[";
+        int count = 0;
+        CPosition cyyz; cyyz.m_Latitude = 43.677717; cyyz.m_Longitude = -79.624819;
+        if (GetConnectionType() == CONNECTION_TYPE_DIRECT || GetConnectionType() == CONNECTION_TYPE_VIA_PROXY)
+        for (auto target = RadarTargetSelectFirst(); target.IsValid() && count < 200; target = RadarTargetSelectNext(target))
+        {
+            const auto pos = target.GetPosition();
+            if (!pos.IsValid() || pos.GetReceivedTime() < 0 || pos.GetReceivedTime() > 20) continue;
+            const auto point = pos.GetPosition();
+            const int altitude = pos.GetPressureAltitude(), speed = target.GetGS();
+            if (altitude < -200 || altitude > 800 || speed < 0 || speed > 70 || std::abs(target.GetVerticalSpeed()) > 300 ||
+                point.DistanceTo(cyyz) > 3.0) continue;
+            const char* cs = target.GetCallsign();
+            if (!cs || !*cs) continue;
+            std::string direction;
+            const auto fp = target.GetCorrelatedFlightPlan();
+            if (fp.IsValid()) {
+                const auto fpdata = fp.GetFlightPlanData();
+                const auto from = fpdata.GetOrigin(), to = fpdata.GetDestination();
+                if (from && to && std::strcmp(from,"CYYZ") == 0 && std::strcmp(to,"CYYZ") != 0) direction = "departure";
+                else if (from && to && std::strcmp(to,"CYYZ") == 0 && std::strcmp(from,"CYYZ") != 0) direction = "arrival";
+            }
+            if (count++) json << ',';
+            json << "{\"call\":\"" << JsonEscape(cs) << "\",\"lat\":" << std::setprecision(9) << point.m_Latitude
+                 << ",\"lon\":" << point.m_Longitude << ",\"kt\":" << speed << ",\"cleared\":" << (fp.IsValid()&&fp.GetClearenceFlag()?"true":"false")
+                 << ",\"groundState\":\"" << JsonEscape(fp.IsValid() && fp.GetGroundState()?fp.GetGroundState():"") << "\",\"hint\":\"" << direction << "\"}";
+        }
+        json << "]}";
+        std::ofstream file(output + ".tmp", std::ios::binary | std::ios::trunc);
+        file << json.str(); file.close();
         if (file) MoveFileExA((output + ".tmp").c_str(), output.c_str(), MOVEFILE_REPLACE_EXISTING);
     }
 

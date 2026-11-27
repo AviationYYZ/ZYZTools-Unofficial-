@@ -1,5 +1,33 @@
 # Changelog
 
+## 2.0.46 — Apron entrance queues
+
+- Track inbound aircraft holding short of named entrances, keep entrance reservations through a movement, and rehearse the AL / Gates 136–138 sequence offline.
+
+## 2.0.45 — Offline apron practice
+
+- Practice North and South apron sequencing with simulated aircraft and a moving tug without connecting EuroScope or changing the scope board.
+
+## 2.0.44 — Apron ground-track awareness
+
+- The apron desk reads nearby low-and-slow targets from the EuroScope plugin and flags moving traffic near a queued aircraft.
+
+## 2.0.43 — Apron sequencing advisory
+
+- Separate CYYZ North and South manual advisory boards for simulated ATC, with shared-lane reservations and inbound stand protection.
+
+## 2.0.42 — Desktop-only releases
+
+- Desktop installers no longer bundle or publish the server setup. Standalone server builds remain separate.
+
+## 2.0.41 — STAR waypoint speed crossings
+
+- In Realistic Free mode, aircraft look ahead to supported STAR speed crossings, with exact, maximum and minimum IAS targets. Fixed profiles and instructor speed overrides are unchanged.
+
+## 2.0.40 — Realistic Free speeds
+
+- Optional aircraft-specific automatic speed mode for local practice and private server slots. EuroScope scenario IAS variation is used in Free mode only. Fixed training profiles stay the default.
+
 ## 2.0.38 — Phone departure desk
 
 - Pair a phone on the local network via an in-app QR code, see the EuroScope departure list, and request PDCs for confirmation in EuroScope.

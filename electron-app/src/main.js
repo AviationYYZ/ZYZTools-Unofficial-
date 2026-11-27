@@ -1196,9 +1196,7 @@ guarded("test:publish", async (_event, options = {}) => {
     if (!fs.existsSync(installer)) throw new Error('Bundled publishing installer is missing. Reinstall the current test build.');
     const sourcePath = app.isPackaged ? path.join(process.resourcesPath, "TestSourceSnapshot.json") : path.join(__dirname, "../../build/TestSourceSnapshot.json");
     const snapshot = JSON.parse(fs.readFileSync(sourcePath, "utf8"));
-    const serverName='ZYZTools-Server-Setup-'+app.getVersion()+'.exe';
-    const serverInstaller=options.stream==='stable'?path.join(app.isPackaged?path.join(process.resourcesPath,'Publishing'):path.join(process.env.LOCALAPPDATA,'ZYZTools/Builds/server-'+app.getVersion()),serverName):undefined;
-    const result = await publishTest({ token, version: app.getVersion(), installer, serverInstaller, snapshot, stream: options.stream, essential: options.essential === true });
+    const result = await publishTest({ token, version: app.getVersion(), installer, snapshot, stream: options.stream, essential: options.essential === true });
     if (options.remember) {
       try { publishingAuth.save(app.getPath("userData"), token, safeStorage); }
       catch { result.authWarning = "Beta published, but GitHub access could not be remembered."; }
@@ -1288,6 +1286,30 @@ guarded("updates:installStaged", async (_event, tag) => {
 guarded("plugin:action", async (_event, folder, action, callsign) => {
   loadConfig(folder);
   return sendPluginAction(folder, action, callsign);
+});
+let apronWindow=null;
+guarded('apron:open',async(event)=>{
+ if(event.sender!==mainWindow?.webContents||event.senderFrame!==event.sender.mainFrame)throw Error('Invalid sender.');
+ if(!apronWindow){
+  const win=new BrowserWindow({parent:mainWindow,width:1540,height:1000,minWidth:760,minHeight:540,show:false,backgroundColor:'#111b23',autoHideMenuBar:true,webPreferences:{preload:path.join(__dirname,'apron-preload.js'),sandbox:true,contextIsolation:true,nodeIntegration:false}});
+  apronWindow=win;
+  win.on('closed',()=>{apronWindow=null;});
+  try{await win.loadFile(path.join(__dirname,'apron-window.html'));win.maximize();}catch(e){win.destroy();throw e;}
+ }
+ if(apronWindow.isMinimized())apronWindow.restore();
+ apronWindow.show();apronWindow.focus();
+});
+guarded('apron:tracks',async(event)=>{
+  if(![mainWindow?.webContents,apronWindow?.webContents].includes(event.sender)||event.senderFrame!==event.sender.mainFrame)throw Error('Invalid sender.');
+  if(!(await runtimeState()).running||!runtimeFolder)return {fresh:false,rows:[]};
+  try{
+    const request=path.join(runtimeFolder,'ApronTracksRequest.txt');
+    const now=Math.floor(Date.now()/1000);
+    fs.writeFileSync(request+'.tmp',String(now),'utf8');fs.renameSync(request+'.tmp',request);
+    const snapshot=path.join(runtimeFolder,'ApronTracks.json');
+    if(fs.statSync(snapshot).size>64000)return {fresh:false,rows:[]};
+    return require('./apron-sequencer').groundFeed(JSON.parse(fs.readFileSync(snapshot,'utf8')),now);
+  }catch{return {fresh:false,rows:[]};}
 });
 ipcMain.handle('departureDesk:action', async (event, action, ip) => {
   if (event.sender !== mainWindow?.webContents || event.senderFrame !== mainWindow.webContents.mainFrame)

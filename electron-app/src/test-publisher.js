@@ -1,15 +1,13 @@
 const fs = require('node:fs');
 const crypto = require('node:crypto');
 const { DEFAULT_REPOSITORY } = require('./github-updates');
-async function publish({ token, version, installer, serverInstaller, snapshot, stream = 'beta', essential = false }, request = fetch) {
+async function publish({ token, version, installer, snapshot, stream = 'beta', essential = false }, request = fetch) {
   if (!['beta', 'stable'].includes(stream)) throw new Error('Choose beta or stable.');
   const beta = stream === 'beta';
   if (!token || token.length < 20) throw new Error('Connect GitHub with a token that has Contents write permission for this repository.');
   if (snapshot.version !== version || snapshot.repository !== DEFAULT_REPOSITORY || !snapshot.files?.length) throw new Error('The source snapshot does not match this beta.');
   const bytes = fs.readFileSync(installer);
   if (bytes.subarray(0, 2).toString() !== 'MZ') throw new Error('The bundled ZYZTools installer is invalid.');
-  const serverBytes=!beta&&serverInstaller?fs.readFileSync(serverInstaller):null;
-  if(serverBytes&&serverBytes.subarray(0,2).toString()!=='MZ')throw Error('The bundled server installer is invalid.');
   const tag = `v${version}${beta ? '-beta' : ''}`;
   const headers = { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'User-Agent': 'ZYZTools-Beta-Publisher' };
   const repoPath = `/repos/${DEFAULT_REPOSITORY}`;
@@ -63,7 +61,6 @@ async function publish({ token, version, installer, serverInstaller, snapshot, s
      if((requireDigest||asset.digest)&&asset.digest!==digest)throw Error('Uploaded installer checksum mismatch.');
     }
     await uploadInstaller(`ZYZTools-Setup-${version}.exe`,bytes);
-    if(serverBytes)await uploadInstaller(`ZYZTools-Server-Setup-${version}.exe`,serverBytes,true);
     const published = await api('PATCH', `${repoPath}/releases/${release.id}`, { draft: false, prerelease: beta, make_latest: beta ? 'false' : 'true' });
     return { url: published.html_url, version, tag };
   } catch (error) {

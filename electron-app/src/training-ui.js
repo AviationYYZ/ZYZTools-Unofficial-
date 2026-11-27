@@ -25,7 +25,7 @@
   liveCallsign=live?a.callsign:null;$('training_callsign').readOnly=live;centre={lat:a.lat,lon:a.lon};editorDirty=false;renderMap();preview();
  }
  function draw(state){
-  profileEditor.set(state.scenario.jetSpeedProfile,state.sessionId,state.scenario.aircraftSpeedProfiles);
+  profileEditor.set(state.scenario.jetSpeedProfile,state.sessionId,state.scenario.aircraftSpeedProfiles,state.scenario.automaticSpeedMode||'fixed');
   current=state;$('trainingAddress').value=state.host||'127.0.0.1';
   if(document.activeElement!==$('trainingUpdateRate'))$('trainingUpdateRate').value=String(state.positionUpdateHz??0.2);
   const active=state.aircraft.filter(a=>a.active!==false);

@@ -3,10 +3,11 @@ import {createRoot} from 'react-dom/client';
 import {createPortal,flushSync} from 'react-dom';
 import catalog from './policy-catalog.json';
 import {LaunchButton,LaunchConfiguration} from './launch-ui.jsx';
+import ApronDesk from './apron-ui.jsx';
 
 const groups=[
  ['App settings',[['install','Install / Link'],['appearance','Appearance'],['advanced','Advanced']]],
- ['Controller tools',[['operations','Operations'],['calculators','Calculators'],['hoppie','Hoppie'],['sids','SID Matrix'],['conflicts','Conflict alerts'],['launchConfig','Launch configuration']]],
+ ['Controller tools',[['operations','Operations'],['apronDesk','Apron sequencing'],['calculators','Calculators'],['hoppie','Hoppie'],['sids','SID Matrix'],['conflicts','Conflict alerts'],['launchConfig','Launch configuration']]],
  ['Sweatbox',[['training','Training'],['trainingBuilder','Scenario Builder']]],
  ['Session history',[['replay','Replay & Recordings'],['statistics','Statistics']]],
  ['Integrations',[['discord','Discord status']]],
@@ -17,6 +18,7 @@ const descriptions={
  appearance:'Set the workspace theme, typography and layout.',
  advanced:'Manage updates and advanced app settings.',
  operations:'Configure clearances, runway assignments and PDC templates.',
+ apronDesk:'Coordinate North and South apron arrivals, pushes and outbound reservations.',
  calculators:'Estimate descent, traffic spacing, time, vertical trends and wind components.',
  hoppie:'Set up the Hoppie connection and delivery options.',
  sids:'Review and edit the departure runway matrix.',
@@ -162,6 +164,8 @@ flushSync(()=>{
  if(admin)createRoot(admin).render(<Admin/>);
  const launch=document.getElementById('launchConfig');
  if(launch)createRoot(launch).render(<LaunchConfiguration/>);
+ const apron=document.getElementById('apronDesk');
+ if(apron)createRoot(apron).render(window.preferredCyyzPdc?.openApron?<button className="primary" onClick={()=>window.preferredCyyzPdc.openApron().catch(e=>window.alert(e.message))}>Open apron coordinator ↗</button>:<ApronDesk/>);
 });
 function ThemeGallery(){
  const [active,setActive]=useState(document.body.dataset.theme);

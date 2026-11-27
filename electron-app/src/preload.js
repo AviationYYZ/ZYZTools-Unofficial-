@@ -40,6 +40,8 @@ contextBridge.exposeInMainWorld("preferredCyyzPdc", {
   openTokenSettings: () => ipcRenderer.invoke("test:tokenSettings"),
   pluginAction: (folder, action, callsign) => ipcRenderer.invoke("plugin:action", folder, action, callsign),
   departureDesk: (action, ip) => ipcRenderer.invoke('departureDesk:action', action, ip),
+  apronTracks: () => ipcRenderer.invoke('apron:tracks'),
+  openApron: () => ipcRenderer.invoke('apron:open'),
   aeroView: action => ipcRenderer.invoke('aeroview:action',action),
   takeFixWatch: () => ipcRenderer.invoke("fixwatch:take"),
   applyFixWatch: (fields) => ipcRenderer.invoke("fixwatch:apply",fields),
